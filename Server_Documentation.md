@@ -27,7 +27,12 @@ docker build -it <image_name>
 
 #### The first time you create a container run this script:
 ```bash 
-docker run -it <container_name> <image_name> /bin/bash
+docker run -it \
+  --net=host \
+  -e DISPLAY \
+  -e XAUTHORITY \
+  -v $XAUTHORITY:$XAUTHORITY \
+  <image_name>
 ```
 
 #### Once you have already created the docker container use:
