@@ -1,6 +1,6 @@
 # Issues and Troubleshooting
 
-### Problem 1: Connecting to Display's
+## Problem 1: Connecting to Display's
 
 #### Command
 
@@ -25,7 +25,7 @@ shutting down processing monitor...
 done
 ```
 
-### Solution 
+### Possible Solution 
 
 ensure that X-forwarding is allowed and all Display variables for the Remote Computer, Server, and Container with the server are set to the same varible.
 
@@ -41,3 +41,64 @@ export DISPLAY=localhost:10.0
 
 #### Note: this doesn't allways work, there are other issues that I have not yet found
 
+#### Revision
+
+I tried to run:
+
+```bash
+roslaunch interbotix_xslocobot_descriptions remote_view.launch
+```
+
+again on the remote computer and obtained same issue seen above.
+
+### Unlikley Solution: 
+
+Although this operation isn't currently permitted, this is still a possible solution. Check that X11 forwarding is allowed on the SSH server. In  '/etc/ssh/sshd_config'  , ensure these lines are set correctly:
+
+
+first, run: 
+```bash
+nano /etc/ssh/sshd_config
+```
+
+Then ensure these variables are set:
+```bash
+X11Forwarding yes
+X11DisplayOffset 10
+X11UseLocalhost yes
+```
+
+Then Restart the SSH service after making changes:
+
+```bash
+sudo service ssh restart
+```
+
+Note: This wasn't allowed, permission was denied.
+
+## Possible Solution: 
+
+We need to ensure that access control is enabled!
+
+on remote PC run:
+```bash
+xhost +
+```
+Now rviz should pop-up!
+
+## Odometry Issues
+
+#### This has been a long standing issue, there are a couple of possible solutions
+<img src="images/Rviz_Odom_Issue.png" alt="Alt text" width="1200" height="600">
+
+#### Quick solution
+I found this [solution](https://github.com/Interbotix/interbotix_ros_rovers/issues/25) on trossen's github issues page linked below. If all you need to do is go into rviz, or you don't have time to go over the long solution below you can always get the robot figure in rviz. Note that this messes up the base odometry and therefore you aren't able to move the robot with the navigation or joystick packages, (at least that's my expirence).
+
+
+
+```bash
+roslaunch interbotix_xslocobot_descriptions remote_view.launch rviz_frame:=locobot/base_link
+```
+
+#### Once you re-run rviz you, the rviz_frame should look like this
+<img src="images/Rviz_Issue_Semi_Solved.png" alt="Alt text" width="1200" height="600">

@@ -1,7 +1,4 @@
 
-
-
-
 ## Docker Troubleshooting and basic Commands 
 
 Below are some useful Docker commands and tips to help you manage Docker containers, images, and other resources effectively.
