@@ -1,7 +1,7 @@
 ## Odometry Issues
 
 #### This has been a long standing issue, there are a couple of possible solutions
-<img src="/Users/adrian/Locobot_Docs/Locobot_Docs/images/Rviz_Odom_Issue.png" alt="Alt text" width="1200" height="600">
+<img src="images/Rviz_Odom_Issue.png" alt="Alt text" width="1200" height="600">
 
 
 
@@ -15,4 +15,4 @@ roslaunch interbotix_xslocobot_descriptions remote_view.launch rviz_frame:=locob
 ```
 
 #### Once you re-run rviz you, the rviz_frame should look like this
-<img src="/Users/adrian/Locobot_Docs/Locobot_Docs/images/Rviz_Issue_Semi_Solved.png" alt="Alt text" width="1200" height="600">
+<img src="images/Rviz_Issue_Semi_Solved.png" alt="Alt text" width="1200" height="600">
