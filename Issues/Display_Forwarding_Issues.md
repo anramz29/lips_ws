@@ -53,7 +53,7 @@ again on the remote computer and obtained same issue seen above.
 
 ### Unlikley Solution: 
 
-Although this operation isn't currently permitted, this is still a possible solution. Check that X11 forwarding is allowed on the SSH server. In  '/etc/ssh/sshd_config'  , ensure these lines are set correctly:
+Although this operation isn't currently permitted, this is still a possible solution. Check that X11 forwarding is allowed on the SSH server. In  `/etc/ssh/sshd_config`  , ensure these lines are set correctly:
 
 
 first, run: 
