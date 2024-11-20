@@ -1,6 +1,14 @@
 ## Odometry Issues
 
 #### This has been a long standing issue, there are a couple of possible solutions
+
+#### Note
+
+ that the underlying issue that causes this is based on the base clock not being synchronized, configure the ntp using chrony, or configure base [settings](
+https://docs.trossenrobotics.com/interbotix_xslocobots_docs/troubleshooting.html#less-common-issues). If the navagation stack works, this issue will not persist. 
+
+
+
 <img src="images/Rviz_Odom_Issue.png" alt="Alt text" width="1200" height="600">
 
 
@@ -16,3 +24,5 @@ roslaunch interbotix_xslocobot_descriptions remote_view.launch rviz_frame:=locob
 
 #### Once you re-run rviz you, the rviz_frame should look like this
 <img src="images/Rviz_Issue_Semi_Solved.png" alt="Alt text" width="1200" height="600">
+
+
