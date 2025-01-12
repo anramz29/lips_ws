@@ -34,7 +34,7 @@ This research project focuses on developing a robot system using **computer visi
 
 - **Implementation Approach:**
   - Train the computer vision algorithm on specific features (e.g., the toy bug).
-  - Specfically Use R
+  - Specfically Use Rtabmap and/or cv_bridge to implement a simple ml algorithim
   - Deploy the robot to search the environment for objects matching these features.
 
 ---
