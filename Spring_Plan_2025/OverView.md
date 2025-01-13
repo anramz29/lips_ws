@@ -1,5 +1,25 @@
 # Research Plan: Vision-Based Action Selection for ROS Robot
 
+## Current Status:
+
+
+### ✓ Completed:
+
+- interbotix_xslocobot_nav configuration
+- RTAB-Map integration
+- Basic navigation testing
+- Test Basic find_object_2d
+
+### Next Immediate Steps:
+
+- Begin find_object_2d integration into interbotix packages
+- Start YOLO ROS setup
+- Install darknet_ros
+- Begin initial testing
+
+#### Check **[Basic_Object_Detection.md](/Basic_Object_Detection.md)** for more details
+
+
 ## 1. Core Research Questions
 
 I'll help you complete the research questions and provide detailed answers. Let me break this down systematically.
@@ -151,11 +171,11 @@ Would you like me to elaborate on any of these aspects or provide more specific 
 1. ROS Environment Setup
    - Configure interbotix_xslocobot_nav
    - Integrate RTAB-Map
-   - Test basic navigation
-2. Vision Pipeline Setup
-   - Install and configure find_object_2d
-   - Integrate YOLO ROS
-   - Test basic object detection
+   - Test Basic find_object_2d
+2. Vision Pipeline Setup:
+   - Begin find_object_2d integration into interbotix packages
+   - Test other percpection packages on ros
+
 
 ### Phase 2: Core Development (Weeks 3-4)
 1. Controller Implementation
@@ -173,27 +193,6 @@ Would you like me to elaborate on any of these aspects or provide more specific 
    - Integrate navigation and vision
    - Test complex behaviors
 
-Current Status:
-✓ Completed:
-
-interbotix_xslocobot_nav configuration
-RTAB-Map integration
-Basic navigation testing
-
-Next Immediate Steps:
-
-Begin find_object_2d integration
-
-Install package
-Configure camera topics
-Test basic feature detection
-
-
-Start YOLO ROS setup
-
-Install darknet_ros
-Configure for your specific hardware
-Begin initial testing
 
 ## 5. Validation & Success Metrics
 

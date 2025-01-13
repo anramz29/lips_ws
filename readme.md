@@ -4,7 +4,7 @@ This repository contains comprehensive documentation and resources for setting u
 
 ## - Currently Working on:
 
-- **Plan\_Spring\_2025.md**: a research project that focuses on developing a robot system using **computer vision** and **ROS** to enable autonomous decision-making. Check it out!
+- **Plan\_Spring\_2025**: a research project that focuses on developing a robot system using **computer vision** and **ROS** to enable autonomous decision-making. Check it out!
 
 
 ## Repository Structure
