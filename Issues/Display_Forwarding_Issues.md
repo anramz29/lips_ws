@@ -25,6 +25,17 @@ shutting down processing monitor...
 done
 ```
 
+## Most Proabable Solution: 
+
+We need to ensure that access control is enabled!
+
+on remote PC run, not in the docker container:
+```bash
+xhost +
+```
+Now rviz should pop-up!
+
+
 ### Possible Solution 
 
 ensure that X-forwarding is allowed and all Display variables for the Remote Computer, Server, and Container with the server are set to the same varible.
@@ -76,13 +87,4 @@ sudo service ssh restart
 
 Note: This wasn't allowed, permission was denied.
 
-## Possible Solution: 
-
-We need to ensure that access control is enabled!
-
-on remote PC run:
-```bash
-xhost +
-```
-Now rviz should pop-up!
 
