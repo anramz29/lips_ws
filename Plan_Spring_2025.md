@@ -9,20 +9,24 @@ This research project aims to develop a robot system utilizing **computer vision
 
 ### Action Selection Architecture
 
-- **Objectives of the Robot:**
+#### **Objectives of the Robot:**
 
 #### **Fold 1:**
 - Initial goals include simple exploration, object identification, and interaction with the environment, along with efficient pathing.
 
-- **Decision-Making Process:**
+#### **Decision-Making Process:**
 
 #### **Fold 1:**
   - The robot will select future actions based on the **move_base** node as defined below.
   - There will be no specific rules or algorithms for prioritizing tasks at this stage.
 
-- **Criteria for Success:**
-  - **Fold 1:** Accurate identification of objects within the environment.
-  - **Fold 2** Incorporating efficient pathing and handling environmental challenges to evaluate the robustness of the CV algorithm.
+#### **Criteria for Success:**
+
+**Fold 1:** 
+- Accurate identification of objects within the environment.
+
+**Fold 2:** 
+- Incorporating efficient pathing and handling environmental challenges to evaluate the robustness of the CV algorithm.
 
 ---
 
