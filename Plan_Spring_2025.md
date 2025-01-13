@@ -33,7 +33,7 @@ This research project aims to develop a robot system utilizing **computer vision
 ### Defining "Interesting"
 
 #### **Fold 1:**
-- The focus will be on basic object detection using the **rtabmap_ros** package and the **find_object_2d** tool.
+- The focus will be on basic object detection using the **rtabmap_ros** package, **find_object_2d**, and **YOLO ROS: Real-Time Object Detection for ROS** tool.
 
 #### **Fold 2:**
 - **Definition:**
@@ -88,6 +88,9 @@ This research project aims to develop a robot system utilizing **computer vision
    - This package provides a simple Qt interface to try OpenCV implementations of SIFT, SURF, FAST, BRIEF, and other feature detectors and descriptors.
    - May require remapping some topics.
 
+2. **YOLO ROS: Real-Time Object Detection for ROS:**
+- link: https://github.com/leggedrobotics/darknet_ros/tree/feature/ci-melodic-and-noetic
+- pre-trained model of the convolutional neural network is able to detect pre-trained classes including the data set from VOC and COCO
 
 ---
 
