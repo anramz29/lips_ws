@@ -1,119 +1,234 @@
-# Vision-Based Action Selection for a ROS Robot
+# Research Plan: Vision-Based Action Selection for ROS Robot
 
-## Overview
-This research project aims to develop a robot system utilizing **computer vision** and **ROS** for autonomous decision-making. The project focuses on enabling the robot to measure its environment, identify "interesting" elements, and select appropriate actions to engage with these elements. The development is currently in its initial stage, building on the **ros_navigation** package and incorporating object detection and basic pathing functionalities.
+## 1. Core Research Questions
 
----
+I'll help you complete the research questions and provide detailed answers. Let me break this down systematically.
 
-## Key Questions
+### A. Action Selection Architecture
 
-### Action Selection Architecture
+1. Relationship between perception, control, and action selection:
+- The system can be represented as a hybrid automaton where:
+  - States represent different control modes (exploration, tracking, interaction)
+  - Transitions are triggered by perceptual events (object detection, feature identification)
+  - Actions are selected based on a combination of current state and perceptual input
 
-#### **Objectives of the Robot:**
+2. Mathematical framework for controller transitions:
+- Use a discrete event system framework where:
+  - Each controller is a continuous dynamical system
+  - Transitions between controllers are discrete events
+  - Guard conditions are based on perceptual inputs and controller convergence
 
-#### **Fold 1:**
-- Initial goals include simple exploration, object identification, and interaction with the environment, along with efficient pathing.
+3. System stability and convergence:
+- Use Lyapunov stability analysis for individual controllers
+- Employ hybrid system stability theory for controller switching
+- Ensure dwell-time conditions between switches to prevent chattering
 
-#### **Decision-Making Process:**
+4. ROS navigation integration:
+- move_base provides the low-level control framework
+- Higher-level decisions modify goal states and costmaps
+- Vision inputs influence path planning through dynamic costmap updates
 
-#### **Fold 1:**
-  - The robot will select future actions based on the **move_base** node as defined below.
-  - There will be no specific rules or algorithms for prioritizing tasks at this stage.
+### B. Controller Design
 
-#### **Criteria for Success:**
+1. Minimal controller set:
+- Position control (move_base)
+- Orientation control (visual servoing)
+- Object tracking
+- Obstacle avoidance
+These form a complete basis for the required behaviors.
 
-**Fold 1:** 
-- Accurate identification of objects within the environment.
+2. Controller composition:
+- Sequential composition: φₖ ∘ φᵢ
+- Parallel composition: φₖ || φᵢ
+- Priority-based arbitration for conflicting controls
 
-**Fold 2:** 
-- Incorporating efficient pathing and handling environmental challenges to evaluate the robustness of the CV algorithm.
+3. Convergence metrics:
+- Position error: ||x - x_desired|| < ε
+- Orientation error: |θ - θ_desired| < δ
+- Tracking error: ||object_pos - camera_center|| < γ
 
----
+4. Bounded convergence time:
+- Use exponential stability guarantees
+- Implement timeout-based fallback behaviors
+- Monitor convergence rates
 
-### Defining "Interesting"
+5. move_base integration:
+- Modify costmap parameters based on task context
+- Implement custom recovery behaviors
+- Use dynamic reconfigure for parameter adjustment
 
-#### **Fold 1:**
-- The focus will be on basic object detection using the **rtabmap_ros** package, **find_object_2d**, and **YOLO ROS: Real-Time Object Detection for ROS** tool.
+### C. Perception and Interest
 
-#### **Fold 2:**
-- **Definition:**
-  - "Interesting" elements are features or objects that meet specific criteria defined by the task.
+1. Mathematical definition of "interesting":
+- Information theory:
+  ```
+  I(x) = -log(P(x))  // Surprise measure
+  H(X) = -Σ P(x)log(P(x))  // Entropy
+  ```
+- Visual saliency:
+  - Contrast measures
+  - Feature density
+  - Motion detection
+- Task relevance:
+  - Distance to goal
+  - Object classification confidence
+  - Historical interaction value
 
-- **Examples:**
-  - Objects with specific features such as shapes, colors, or motion.
-  - High-entropy regions for exploration and foraging tasks.
+2. Interestingness to action mapping:
+   ```python
+   action_value = w₁*information_gain + w₂*saliency + w₃*task_relevance
+   action = argmax(action_value)
+   ```
 
-- **Implementation Approach:**
-  - Train the computer vision algorithm on specific features (e.g., a toy bug).
-  - Use RTAB-Map and/or **cv_bridge** to implement a simple ML algorithm.
+3. Multi-source integration:
+- Bayesian fusion of detection results
+- Weighted combination based on confidence scores
+- Spatial registration using RTAB-Map as reference
 
----
+For implementation, I recommend starting with:
 
-## ROS Implementation
+1. Implement basic object detection using find_object_2d
+2. Add YOLO ROS for more robust detection
+3. Develop simple interest measures based on detection confidence
+4. Gradually add more sophisticated measures
 
-### Open Source ROS Packages Utilized
+Would you like me to elaborate on any of these aspects or provide more specific implementation details for any particular component?
 
-#### **interbotix_xslocobot_nav**:
-   - Based on the **interbotix_xslocobot_control** package, the **interbotix_xslocobot_nav** incorporates the **rtabmap_ros** package, which facilitates simultaneous localization and mapping (SLAM) using camera data. It supports localization and mapping functionalities.
+## 2. Mathematical Frameworks & Tools
 
-#### Nodes within: **interbotix_xslocobot_nav**
+### A. Control Basis Framework
+1. Define primitive controllers φᵢ(x)
+   - Position control via move_base
+   - Orientation control
+   - Visual servoing using RGB-D data
+   - Obstacle avoidance using costmaps
+2. Controller composition operations
+   - Sequential composition
+   - Parallel composition
+3. Convergence criteria
+   - Lyapunov stability analysis
+   - Convergence metrics
+   - Error bounds
 
-1. **RGB-D Synchronization Node (`rgbd_sync`)**:
-   - Synchronizes color and depth data from the RealSense camera.
-   - Key Parameters: `approx_sync` (false), decimation factor, voxel size.
-   - **Important**: The RealSense camera uses a launch driver from the [IntelRealSense](https://github.com/IntelRealSense/realsense-ros/tree/ros1-legacy) repository.
+### B. Perception Framework
+1. Feature space representation
+   - YOLO object detection features
+   - SIFT/SURF features (via find_object_2d)
+   - RGB-D spatial relationships
+   - RTAB-Map features
+2. Information theoretic measures
+   - Shannon entropy
+   - Detection confidence scores
+   - Spatial uncertainty
 
-2. **Obstacle Detection Node (`obstacle_detection`)**:
-   - Identifies ground and obstacle points using RGB-D data.
+## 3. ROS Implementation Architecture
 
-3. **RTAB-Map Node (`rtabmap`)**:
-   - Handles core SLAM functionality, publishing transform (TF) data for odometry and map frames.
-   - Key Parameters:
-     - `subscribe_rgbd`: Enables RGB-D subscription.
-     - `database_path`: Path for saving the RTAB-Map database.
-     - `tag_variances`: Angular and linear variances for odometry TFs.
+### A. Core Packages
+1. interbotix_xslocobot_nav
+   - RGB-D Synchronization (rgbd_sync)
+   - Obstacle Detection
+   - RTAB-Map SLAM
+   - Move Base navigation
+2. Vision Processing
+   - find_object_2d
+   - YOLO ROS
+   - Custom CV pipeline
 
-4. **RTAB-Map Visualization (`rtabmapviz`)**:
-   - Visualizes the map and localization data.
+### B. Key Topics and Transforms
+1. Camera Topics
+   - /locobot/camera/color/image_raw
+   - RGB-D synchronized data
+2. Navigation Topics
+   - move_base goals
+   - costmap updates
+3. Object Detection Topics
+   - YOLO detections
+   - find_object_2d results
 
-5. **Move Base (`move_base`)**:
-   - Responsible for global and local planning using costmaps.
-   - Loads configurations for local and global costmaps, planners, and move base parameters.
+## 4. Implementation Phases
 
-#### Nodes that need to be added
+### Phase 1: Foundation (Weeks 1-2)
+1. ROS Environment Setup
+   - Configure interbotix_xslocobot_nav
+   - Integrate RTAB-Map
+   - Test basic navigation
+2. Vision Pipeline Setup
+   - Install and configure find_object_2d
+   - Integrate YOLO ROS
+   - Test basic object detection
 
-1.  **Find Object Node (`find_object_2d`)**
+### Phase 2: Core Development (Weeks 3-4)
+1. Controller Implementation
+   - Implement primitive controllers using move_base
+   - Develop visual servoing
+   - Test controller convergence
+2. Perception Pipeline
+   - Integrate multiple vision sources
+   - Implement interest measures
+   - Test object tracking
 
-   - link: http://wiki.ros.org/find_object_2d
-   - This package provides a simple Qt interface to try OpenCV implementations of SIFT, SURF, FAST, BRIEF, and other feature detectors and descriptors.
-   - May require remapping some topics.
+### Phase 3: Integration & Validation (Weeks 4-8)
+1. Action Selection Implementation
+   - Develop decision-making framework
+   - Integrate navigation and vision
+   - Test complex behaviors
 
-2. **YOLO ROS: Real-Time Object Detection for ROS:**
-- link: https://github.com/leggedrobotics/darknet_ros/tree/feature/ci-melodic-and-noetic
-- pre-trained model of the convolutional neural network is able to detect pre-trained classes including the data set from VOC and COCO
+Current Status:
+✓ Completed:
 
----
+interbotix_xslocobot_nav configuration
+RTAB-Map integration
+Basic navigation testing
 
-## Camera Topics
+Next Immediate Steps:
 
-1. **/locobot/camera/color/image_raw**
-   - For 2D computer vision, this topic could be used as input for a custom 2D CNN.
+Begin find_object_2d integration
 
----
+Install package
+Configure camera topics
+Test basic feature detection
 
-## Current Steps
 
-1. Integrate **find_object_2d** into the **interbotix_xslocobot_nav** launch file.
-2. Ensure that object detection messages are being published in RViz.
-3. Build upon this with the **[find_object_3d](https://github.com/introlab/find-object/blob/master/launch/ros1/find_object_3d.launch)** package.
+Start YOLO ROS setup
 
----
+Install darknet_ros
+Configure for your specific hardware
+Begin initial testing
 
-## Additional Notes
+## 5. Validation & Success Metrics
 
-- **Iterative Development:**
-  - Start with simple scenarios to test the CV algorithm’s ability to detect predefined objects.
-  - Gradually introduce complexity, such as competing "interesting" regions or challenging environmental conditions.
+### A. Controller Performance
+1. Navigation accuracy
+2. Path planning efficiency
+3. Object tracking stability
+4. Recovery behavior effectiveness
 
----
+### B. Perception Performance
+1. Object detection accuracy
+2. Interest measure effectiveness
+3. Processing time requirements
+4. Multi-source fusion accuracy
 
+### C. System Performance
+1. Task completion metrics
+2. Resource efficiency
+3. Environmental adaptation
+4. Failure recovery
+
+
+
+## 6. Required Tools & Technologies
+
+### A. Software
+1. ROS Noetic
+2. OpenCV & cv_bridge
+3. RTAB-Map
+4. find_object_2d
+5. YOLO ROS
+6. interbotix_xslocobot_nav package
+
+### B. Hardware
+1. Locobot platform
+2. RealSense camera
+3. Computing platform
+4. Testing environment
