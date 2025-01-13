@@ -1,5 +1,7 @@
 # LoCoBot Control and Object Detection Setup
 
+### Date Jan 13th 2025
+
 ## Prerequisites
 - ROS environment configured on both robot and remote computer
 - LoCoBot WX250S hardware
