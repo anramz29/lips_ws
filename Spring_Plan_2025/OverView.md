@@ -9,13 +9,14 @@
 - RTAB-Map integration
 - Basic navigation testing
 - Test Basic find_object_2d
-
-### Next Immediate Steps:
-
 - Begin find_object_2d integration into interbotix packages
 - Start YOLO ROS setup
 - Install darknet_ros
 - Begin initial testing
+
+### Next Immediate Steps:
+
+
 
 #### Check **[Basic_Object_Detection.md](/Basic_Object_Detection.md)** for more details
 
