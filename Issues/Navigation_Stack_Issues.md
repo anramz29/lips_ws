@@ -91,7 +91,7 @@ Hostname                      NTP   Drop Int IntL Last     Cmd   Drop Int  Last
   ```
   user.notice ntpd: ntpd: reply from 192.168.186.3: delay ### is too high, ignoring
   ```
-- In such cases, **reboot the robot** via the web server (not just the NTP application) to resolve the issue.
+- In such cases, **reboot the robot**, and the **application**! via the web server to resolve the issue.
 
 ---
 
