@@ -64,9 +64,6 @@ root@lipsserver1:/#
 ### Congrats you just set up the container on the Server! 
 
 
-## Vs Code 
-
-
 
 ### SSH Extension
 - We use Microsoft's VSCode and its Remote - SSH extension in tandem with a devlopment container for simple remote development on the LoCoBot.
