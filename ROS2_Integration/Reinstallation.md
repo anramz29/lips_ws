@@ -1,12 +1,5 @@
 # ROS2 Integration
 
-This is the readme for the process of switch the locobots from the noetic distribtion to the ros2 galactic distribution. As of (01/16/25) the process of switching distributions has been semi-sucessful. Currently the issue are the create3 nodes not being launched when the control package starts.
-
-## Possible Issues:
-
-- 1. I fogot to do sudo apt update, upgrade and autoremove?
-- 2. Maybe I need the **create3_ros_ws**?
-- 3. There are nesseary configurations for a multi-robot setup. Therefore I will turn off other bases and try to run the robot from that. 
 
 ## Steps to reproduce:
 
@@ -42,6 +35,11 @@ chmod +x xslocobot_amd64_install.sh
 2. Make sure the base3 is setup properly in the [Main Configuration](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/getting_started/create3_configuration.html#main-configuration) section in the locobot documentation. Make sure to activate the locobot network and 
 
 3. Also make sure the [Application Parameters](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/getting_started/create3_configuration.html#application-ros-2-parameters-file) are set. 
+
+
+
+
+
 
 
 
