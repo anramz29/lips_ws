@@ -6,6 +6,7 @@ This is the readme for the process of switch the locobots from the noetic distri
 
 - 1. I fogot to do sudo apt update, upgrade and autoremove?
 - 2. Maybe I need the **create3_ros_ws**?
+- 3. There are nesseary configurations for a multi-robot setup. Therefore I will turn off other bases and try to run the robot from that. 
 
 ## Steps to reproduce:
 
