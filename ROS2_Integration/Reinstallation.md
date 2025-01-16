@@ -13,7 +13,26 @@ mv ~/create3_ros1_ws ~/create3_ros1_ws_backup
 mv ~/create3_ros2_ws ~/create3_ros2_ws_backup
 ```
 
-### 2) Installing
+### 2) Comment Out Ros1 enviromental variables
+```bash
+# Ros 1 Interbotix Configurations
+#source /opt/ros/noetic/setup.bash
+#export BRIDGE_WS=/home/locobot/ros1_bridge_ws
+#export BRIDGE_MSGS_ROS1_WS=/home/locobot/create3_ros1_ws
+#export BRIDGE_MSGS_ROS2_WS=/home/locobot/create3_ros2_ws
+#source /home/locobot/create3_ros2_ws/install/setup.bash
+#source /home/locobot/interbotix_ws/devel/setup.bash
+# RP lidar tools
+#export ROS_MASTER_URI=http://locobot2:11311
+#export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+#export INTERBOTIX_XSLOCOBOT_BASE_TYPE=create3
+#source /opt/ros/galactic/setup.bash
+#export ROS_IP=${Robot Ip Adress}
+```
+
+
+
+### 3) Installing
 
 ```bash
 sudo apt update
@@ -28,7 +47,7 @@ chmod +x xslocobot_amd64_install.sh
 ./xslocobot_amd64_install.sh -d galactic -b create3
 ```
 
-### 3) Base 3 configurations
+### 4) Base 3 configurations
 
 1. Follow Phases 1 and 3 in [iRobot's Create® 3 Setup Guide](https://edu.irobot.com/create3-setup). You should not need to follow Phase 2 since we will provide the latest stable firmware for the base.
 
