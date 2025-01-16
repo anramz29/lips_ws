@@ -4,12 +4,7 @@ This repository contains comprehensive documentation and resources for setting u
 
 ## - Currently Working on:
 
-- **Plan\_Spring\_2025**: a research project that focuses on developing a robot system using **computer vision** and **ROS** to enable autonomous decision-making. Here is a sneak peek!
-
-<video width="640" height="360" controls>
-  <source src="images_and_videos/Computer_Vision_Robotics.webm" type="video/webm">
-  Your browser does not support the video tag.
-</video>
+ - **Ros2 integrations**
 
 
 
