@@ -11,13 +11,18 @@ cd Ros_Docker
 ### 2) build a docker image, replace <image_name> with your desired image name
 
 ```bash
-docker build -it <image_name> 
+docker build \
+  --build-arg ROBOT_TYPE=<locobot_hostname> \
+  --build-arg ROBOT_IP=<locobot_ip> \
+  -t <image_name> .
 ```
 
 ### 3) Create a Container from the Image
 
 #### The first time you create a container run this script:
 ```bash 
+xhost +
+
 docker run -it \
   --net=host \
   -e DISPLAY \
@@ -29,7 +34,7 @@ docker run -it \
 #### Once you have already created the docker container use:
 
 ```bash
-docker exec -it <container_id_or_name> /bin/bash
+xhost + && docker exec -it <container_name> <command>
 ```
 
 A common issue seen between sessions is that the docker container stops indicated by this message: 

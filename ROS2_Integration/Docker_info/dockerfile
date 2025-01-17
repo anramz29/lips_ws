@@ -1,8 +1,11 @@
 FROM osrf/ros:galactic-desktop
 
-# Copy the script as root and set permissions
-COPY /xslocobot_remote_install.sh /home/ros/xslocobot_remote_install.sh
-RUN chmod +x /home/ros/xslocobot_remote_install.sh
+# Define build arguments for flexibility
+ARG USERNAME=ros
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+ARG ROBOT_TYPE=locobot4
+ARG ROBOT_IP=10.253.20.224
 
 # Install necessary packages
 RUN apt-get update \ 
@@ -26,11 +29,7 @@ RUN echo "keyboard-configuration keyboard-configuration/layoutcode select us" | 
 RUN locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8
 
-# Set up non-root user
-ARG USERNAME=ros
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-
+# Create a non-root user
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME \
     && mkdir /home/$USERNAME/.config && chown $USER_UID:$USER_GID /home/$USERNAME/.config
@@ -51,13 +50,14 @@ RUN touch $HOME/.bashrc && chown $USERNAME:$USERNAME $HOME/.bashrc && \
     echo "source /opt/ros/galactic/setup.bash" >> $HOME/.bashrc && \
     echo "source $HOME/.bashrc" >> $HOME/.bashrc
 
-# Change ownership of the script to the new user and set permissions
+# Copy and configure the install script
 COPY /xslocobot_remote_install.sh $HOME/xslocobot_remote_install.sh
-RUN chown $USERNAME:$USERNAME $HOME/xslocobot_remote_install.sh
+RUN chmod +x $HOME/xslocobot_remote_install.sh && \
+    chown $USERNAME:$USERNAME $HOME/xslocobot_remote_install.sh
 
-# Switch to the non-root user and execute the installation script
+# Switch to the non-root user and execute the installation script with build arguments
 USER $USERNAME
-RUN $HOME/xslocobot_remote_install.sh -d galactic -b create3 -r locobot4 -i 10.253.20.224 -n -p $HOME/interbotix_ws
+RUN $HOME/xslocobot_remote_install.sh -d galactic -b create3 -r $ROBOT_TYPE -i $ROBOT_IP -n -p $HOME/interbotix_ws
 
 # Ensure that user-relative paths work
 CMD ["/bin/bash"]
