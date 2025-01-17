@@ -68,7 +68,13 @@ The Output was
 
 ### Solution (not tested!):
 
-Follow the [RMW_configs](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/getting_started/rmw_configuration.html) very closely, ensure IP Routing Service and IP Forwarding Enabled. Once these configs are set [resart_rmw](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/troubleshooting.html#can-t-see-topics-published-by-locobot-on-remote-using-ros-2) as seen in the documentation.
+1. Follow the [RMW_configs](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/getting_started/rmw_configuration.html) very closely, 
+
+2. ensure IP Routing Service and IP Forwarding Enabled. 
+
+3. Connect the Base to the internet [Phase 3 ](https://edu.irobot.com/create3-setup) in the create3 setup guide.
+
+4. Once these configs are set [resart_rmw](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/troubleshooting.html#can-t-see-topics-published-by-locobot-on-remote-using-ros-2) as seen in the documentation.
 
 #### Rplidar Issues:
 ```bash
