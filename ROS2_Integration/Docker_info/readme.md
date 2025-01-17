@@ -22,7 +22,9 @@ docker build \
 #### The first time you create a container run this script:
 ```bash 
 xhost +
-
+```
+then..
+```
 docker run -it \
   --net=host \
   -e DISPLAY \
@@ -54,15 +56,7 @@ Then run the docker exec command above
 ### 4) To verify that you are in the dockerfile and everything works you shoud see the bash prompt
 
 ```bash
-root@lipsserver1:/# 
-```
-
-### 5) In addition if the Rviz display doesn't work
-
-Open a new terminal that's not in the development container and run 
-
-```bash
-xhost +
+root@<computer_hostname>:/# 
 ```
 
 ### Congrats you just set up the container on the Server! 
