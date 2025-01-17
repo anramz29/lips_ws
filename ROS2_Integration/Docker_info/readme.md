@@ -30,7 +30,7 @@ docker run -it \
   -e DISPLAY \
   -e XAUTHORITY \
   -v $XAUTHORITY:$XAUTHORITY \
-  --name <container_name>
+  --name <container_name> \
   <image_name>
 ```
 #### Once you have already created the docker container use:
