@@ -4,17 +4,16 @@ FROM osrf/ros:galactic-desktop
 COPY /xslocobot_remote_install.sh /home/ros/xslocobot_remote_install.sh
 RUN chmod +x /home/ros/xslocobot_remote_install.sh
 
+# Install necessary packages
 RUN apt-get update \ 
     && apt-get install -y \ 
     nano \
     libgl1-mesa-glx \
     libgl1-mesa-dri \
+    debconf-utils \
+    locales \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
-
-# Install debconf-utils to preconfigure keyboard settings
-RUN apt-get update && apt-get install -y \
-  debconf-utils \
-  locales
 
 # Preconfigure keyboard settings
 RUN echo "keyboard-configuration keyboard-configuration/layoutcode select us" | debconf-set-selections && \
@@ -27,37 +26,38 @@ RUN echo "keyboard-configuration keyboard-configuration/layoutcode select us" | 
 RUN locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8
 
+# Set up non-root user
 ARG USERNAME=ros
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-# Create a non-root user
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME \
     && mkdir /home/$USERNAME/.config && chown $USER_UID:$USER_GID /home/$USERNAME/.config
 
 # Setup sudo for the new user
-RUN apt-get update \
-    && apt-get install -y sudo \
-    && echo $USERNAME ALL=\(\root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME \ 
-    && rm -rf /var/lib/apt/lists/* 
+RUN echo $USERNAME ALL=\(\root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME && \
+    chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Create the interbotix_ws directory with the appropriate permissions
-RUN mkdir -p /interbotix_ws && chown ros:ros /interbotix_ws
+# Set the home directory and working directory for the new user
+ENV HOME=/home/$USERNAME
+WORKDIR $HOME
 
-# Create .bashrc file and give permissions to the ros user
-RUN touch /home/ros/.bashrc && chown ros:ros /home/ros/.bashrc
+# Create the interbotix_ws directory in the home directory
+RUN mkdir -p $HOME/interbotix_ws && chown $USERNAME:$USERNAME $HOME/interbotix_ws
 
-# Change ownership of the script to ros
-COPY /xslocobot_remote_install.sh /home/ros/xslocobot_remote_install.sh
-RUN chown ros:ros /home/ros/xslocobot_remote_install.sh
+# Set .bashrc file ownership and append ROS setup
+RUN touch $HOME/.bashrc && chown $USERNAME:$USERNAME $HOME/.bashrc && \
+    echo "source /opt/ros/galactic/setup.bash" >> $HOME/.bashrc && \
+    echo "source $HOME/.bashrc" >> $HOME/.bashrc
 
-# Run the script as the ros user with ROS 2 Galactic options
-RUN /home/ros/xslocobot_remote_install.sh -d galactic -b create3 -r locobot4 -i 10.253.20.224 -n -p /interbotix_ws
+# Change ownership of the script to the new user and set permissions
+COPY /xslocobot_remote_install.sh $HOME/xslocobot_remote_install.sh
+RUN chown $USERNAME:$USERNAME $HOME/xslocobot_remote_install.sh
 
-# Source the ROS 2 setup file and add it to .bashrc
-RUN echo "source /opt/ros/galactic/setup.bash" >> /home/ros/.bashrc && \
-    echo "source /home/ros/.bashrc" >> /home/ros/.bashrc
+# Switch to the non-root user and execute the installation script
+USER $USERNAME
+RUN $HOME/xslocobot_remote_install.sh -d galactic -b create3 -r locobot4 -i 10.253.20.224 -n -p $HOME/interbotix_ws
 
+# Ensure that user-relative paths work
 CMD ["/bin/bash"]
