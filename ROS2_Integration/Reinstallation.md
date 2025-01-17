@@ -30,8 +30,6 @@ mv ~/create3_ros2_ws ~/create3_ros2_ws_backup
 #export ROS_IP=${Robot Ip Adress}
 ```
 
-
-
 ### 3) Installing
 
 ```bash
