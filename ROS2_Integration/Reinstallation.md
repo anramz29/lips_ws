@@ -6,11 +6,13 @@
 ### 1) Backup existing ros1 data set
 
 ```bash
-mv ~/interbotix_ws ~/interbotix_ws_ros1_backup
-mv ~/apriltag_ws ~/apriltag_ws_ros1_backup
-mv ~/ros1_bridge_ws ~/ros1_bridge_ws_backup
-mv ~/create3_ros1_ws ~/create3_ros1_ws_backup
-mv ~/create3_ros2_ws ~/create3_ros2_ws_backup
+mkdir ~/ros1_backup
+mv ~/interbotix_ws_ros1_backup ~/ros1_backup/interbotix_ws_backup
+mv ~/apriltag_ws_ros1_backup ~/ros1_backup/apriltag_ws_backup
+mv ~/ros1_bridge_ws_backup ~/ros1_backup/ros1_bridge_ws_backup
+mv ~/create3_ros1_ws_backup ~/ros1_backup/create3_ros1_backup
+mv ~/create3_ros2_ws_backup ~/ros1_backup/create3_ros2_backuph
+
 ```
 
 ### 2) Comment Out Ros1 enviromental variables
