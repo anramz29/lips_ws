@@ -7,12 +7,11 @@
 
 ```bash
 mkdir ~/ros1_backup
-mv ~/interbotix_ws_ros1_backup ~/ros1_backup/interbotix_ws_backup
-mv ~/apriltag_ws_ros1_backup ~/ros1_backup/apriltag_ws_backup
-mv ~/ros1_bridge_ws_backup ~/ros1_backup/ros1_bridge_ws_backup
-mv ~/create3_ros1_ws_backup ~/ros1_backup/create3_ros1_backup
-mv ~/create3_ros2_ws_backup ~/ros1_backup/create3_ros2_backup
-
+mv ~/interbotix_ws ~/ros1_backup/interbotix_ws_ros1
+mv ~/apriltag_ws ~/ros1_backup/apriltag_ws_ros1
+mv ~/ros1_bridge_ws ~/ros1_backup/ros1_bridge_ws_ros1
+mv ~/create3_ros1_ws ~/ros1_backup/create3_ros1_ws_ros1
+mv ~/create3_ros2_ws ~/ros1_backup/create3_ros2_ws_ros1
 ```
 
 ### 2) Comment Out Ros1 enviromental variables
