@@ -7,11 +7,18 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     nano \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y ros-${ROS_DISTRO}-rmw-fastrtps-cpp
+# Install ROS dependencies: rmw_fastrtps_cpp, rviz, and rosdep
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-rmw-fastrtps-cpp \
+    ros-${ROS_DISTRO}-rviz2 \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
 
-
+# Initialize rosdep and update sources
+RUN sudo rosdep init && rosdep update
 
 # Set up a non-root user for safe operations
 ARG USERNAME=rosuser
@@ -24,7 +31,12 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
+# Set the environment to use the user and home directory
 USER $USERNAME
 WORKDIR /home/$USERNAME
 
+# Source ROS Galactic setup file on container startup
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/$USERNAME/.bashrc
+
 CMD ["/bin/bash"]
+
