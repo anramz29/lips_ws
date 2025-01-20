@@ -1,0 +1,30 @@
+# Use the official ROS base image
+FROM ros:galactic
+
+# Install basic tools and dependencies
+RUN apt-get update && apt-get install -y \
+    sudo \
+    wget \
+    curl \
+    nano \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y ros-${ROS_DISTRO}-rmw-fastrtps-cpp
+
+
+
+# Set up a non-root user for safe operations
+ARG USERNAME=rosuser
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && apt-get update && apt-get install -y sudo \
+    && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
+
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
+CMD ["/bin/bash"]
