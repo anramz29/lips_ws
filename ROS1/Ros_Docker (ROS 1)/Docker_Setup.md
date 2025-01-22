@@ -9,14 +9,14 @@ docker build -t <image_name> .
 Run the container and mount a folder from your host system to the container. This allows you to persist data (e.g., downloaded .sh scripts) between container restarts.
 
 ```bash
-docker run -it
+docker run -it --name <container_name> \
   --net=host \
   -v $(pwd):/home/rosuser/workspace \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
   -e DISPLAY=$DISPLAY \
   --privileged \
-  --name <container_name> \
   <image_name>
+
 ```
 
 Explanation of the Command:
