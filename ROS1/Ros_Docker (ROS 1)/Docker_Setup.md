@@ -55,3 +55,13 @@ Grants the container extended privileges (useful if the .sh script requires root
 Once you are in the container download the remote setup for the locobots and follow steps described in this [link](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/ros_interface/ros2/software_setup.html#remote-install)
 
 Finally ensure that the ROS middleware configuration is correct as seen in this [link](https://docs.trossenrobotics.com/interbotix_xslocobots_docs/getting_started/rmw_configuration.html#remote-computer)
+
+# Switch Locobots with the container:
+
+A switch_locobots.sh script has been provided to do this. Simply run:
+
+```
+switch_robot locobot2  # To switch to locobot2
+# or
+switch_robot locobot4  # To switch to locobot4
+```
