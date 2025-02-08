@@ -61,5 +61,5 @@ Finally ensure that the ROS middleware configuration is correct as seen in this 
 A switch_locobots.sh script has been provided to do this. Simply run:
 
 ```
-./switch_robot locobot<robot_num>
+switch_robot locobot<robot_num>
 ```
