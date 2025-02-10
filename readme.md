@@ -9,7 +9,7 @@ This repository contains resources, documentation, and scripts for working with 
 
 
 <div align="center">
-  <img src="yolo_vision_ROS1/images/Yolo_Vision.jpg" alt="YOLO Vision Demo Video" width="800"/>
+  <img src="yolo_vision_ROS1/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
   <p><em>YOLO Vision in action (Demo)</em></p>
 </div>
 
