@@ -6,6 +6,16 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Directory Structure
 
+### YOLO Vision (ROS 1)
+Contains the implementation of real-time object detection and distance estimation for Locobot.
+
+- [YOLO Vision Documentation](./yolo_vision/readme.md)
+  - Object detection using YOLO
+  - Distance estimation using depth camera
+  - RViz visualization tools
+
+---
+
 ### Archive ROS1
 Contains archived resources, issues, and quick setup for ROS1.
 
@@ -23,16 +33,8 @@ Contains archived resources, issues, and quick setup for ROS1.
   - [VS Code and Docker](./Archive%20ROS1/Ros_Docker%20(ROS%201)/VS_Code_and_Docker.md)
 
 ---
-
-### Reseach_Papers
-Contains research papers related to the project.
-
-- [Point Cloud CNN Research Paper](./Reseach_Papers/Point_Cloud_CNN.pdf)
-
----
-
-### ROS2 Integration
-Contains resources and documentation for ROS2 integration with Locobot.
+### ROS2 Integration (Failed)
+Contains resources and documentation for ROS2 integration with Locobot. This integration attempt failed due to RMW (ROS Middleware) configuration incompatibilities between the Intel NUC and iRobot Create3 base, preventing proper communication between components.
 
 - **Docker Info**
   - [Dockerfile](./ROS2_Integration/Docker_info/dockerfile)
