@@ -3,6 +3,7 @@
 By: Adrián Noé Ramírez
 
 This repository contains resources, documentation, and scripts for working with Locobot using ROS1 and ROS2. Below is an overview of the folder structure and their contents, with proper links to all files.
+
 ---
 ## Directory Structure
 ### YOLO Vision (ROS 1)
@@ -59,8 +60,13 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
    - **ROS2 Users:** Refer to the `ROS2_Integration_Failed` folder.
 2. Review the Quick Setup Guides for instructions on setting up Locobot for either ROS1 or ROS2.
 3. For Docker-based setups, refer to the respective Docker Info sections for ROS1 and ROS2.
-4. For the yolo_vision package, use respective git command line pull
+4. For the yolo_vision package, use svn to just copy the respective directory
+
+```bash
+svn export https://github.com/anramz29/Locobot_Docs/trunk/yolo_vision_ROS1
+```
 ---
+
 ## Contributing
 
 If you find any errors or have suggestions for improvements, please submit a pull request or open an issue.
