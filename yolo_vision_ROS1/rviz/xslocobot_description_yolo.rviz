@@ -3,13 +3,9 @@ Panels:
     Help Height: 70
     Name: Displays
     Property Tree Widget:
-      Expanded:
-        - /Camera1
-        - /RTAB-Map1
-        - /RTAB-Map1/MapCloud1
-        - /Move Base1
+      Expanded: ~
       Splitter Ratio: 0.5777778029441833
-    Tree Height: 70
+    Tree Height: 350
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -28,6 +24,11 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: YOLO Detection & Distance
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -228,12 +229,22 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+        locobot/laser_frame_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         locobot/left_finger_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
         locobot/left_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        locobot/lidar_tower_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -343,6 +354,8 @@ Visualization Manager:
           Value: true
         locobot/button_power:
           Value: true
+        locobot/camera_aligned_depth_to_color_frame:
+          Value: true
         locobot/camera_color_frame:
           Value: true
         locobot/camera_color_optical_frame:
@@ -397,9 +410,13 @@ Visualization Manager:
           Value: true
         locobot/ir_omni:
           Value: true
+        locobot/laser_frame_link:
+          Value: true
         locobot/left_finger_link:
           Value: true
         locobot/left_wheel:
+          Value: true
+        locobot/lidar_tower_link:
           Value: true
         locobot/lower_forearm_link:
           Value: true
@@ -429,6 +446,8 @@ Visualization Manager:
           Value: true
         locobot/wrist_link:
           Value: true
+        map:
+          Value: true
       Marker Alpha: 1
       Marker Scale: 0.15000000596046448
       Name: TF
@@ -436,100 +455,106 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        locobot/odom:
-          locobot/base_footprint:
-            {}
-          locobot/base_link:
-            locobot/bump_caster_link:
+        map:
+          locobot/odom:
+            locobot/base_footprint:
               {}
-            locobot/bump_front_center:
-              {}
-            locobot/bump_front_left:
-              {}
-            locobot/bump_front_right:
-              {}
-            locobot/bump_left:
-              {}
-            locobot/bump_right:
-              {}
-            locobot/button_1:
-              {}
-            locobot/button_2:
-              {}
-            locobot/button_power:
-              {}
-            locobot/camera_tower_link:
-              locobot/pan_link:
-                locobot/tilt_link:
-                  locobot/camera_link:
-                    locobot/camera_color_frame:
-                      locobot/camera_color_optical_frame:
+            locobot/base_link:
+              locobot/bump_caster_link:
+                {}
+              locobot/bump_front_center:
+                {}
+              locobot/bump_front_left:
+                {}
+              locobot/bump_front_right:
+                {}
+              locobot/bump_left:
+                {}
+              locobot/bump_right:
+                {}
+              locobot/button_1:
+                {}
+              locobot/button_2:
+                {}
+              locobot/button_power:
+                {}
+              locobot/camera_tower_link:
+                locobot/lidar_tower_link:
+                  locobot/laser_frame_link:
+                    {}
+                locobot/pan_link:
+                  locobot/tilt_link:
+                    locobot/camera_link:
+                      locobot/camera_aligned_depth_to_color_frame:
+                        locobot/camera_color_optical_frame:
+                          {}
+                      locobot/camera_color_frame:
                         {}
-                    locobot/camera_depth_frame:
-                      locobot/camera_depth_optical_frame:
+                      locobot/camera_depth_frame:
+                        locobot/camera_depth_optical_frame:
+                          {}
+                      locobot/camera_depth_link:
                         {}
-                    locobot/camera_depth_link:
-                      {}
-            locobot/cliff_front_left:
-              {}
-            locobot/cliff_front_right:
-              {}
-            locobot/cliff_side_left:
-              {}
-            locobot/cliff_side_right:
-              {}
-            locobot/front_caster_link:
-              {}
-            locobot/imu_link:
-              {}
-            locobot/ir_intensity_front_center_left:
-              {}
-            locobot/ir_intensity_front_center_right:
-              {}
-            locobot/ir_intensity_front_left:
-              {}
-            locobot/ir_intensity_front_right:
-              {}
-            locobot/ir_intensity_left:
-              {}
-            locobot/ir_intensity_right:
-              {}
-            locobot/ir_intensity_side_left:
-              {}
-            locobot/ir_omni:
-              {}
-            locobot/mouse:
-              {}
-            locobot/plate_link:
-              locobot/arm_stand_link:
-                locobot/arm_base_link:
-                  locobot/shoulder_link:
-                    locobot/upper_arm_link:
-                      locobot/upper_forearm_link:
-                        locobot/lower_forearm_link:
-                          locobot/wrist_link:
-                            locobot/gripper_link:
-                              locobot/ee_arm_link:
-                                locobot/ar_tag_link:
-                                  {}
-                                locobot/gripper_bar_link:
-                                  locobot/fingers_link:
-                                    locobot/ee_gripper_link:
-                                      {}
-                                    locobot/left_finger_link:
-                                      {}
-                                    locobot/right_finger_link:
-                                      {}
-                                locobot/gripper_prop_link:
-                                  {}
-              locobot/battery_link:
+              locobot/cliff_front_left:
                 {}
-            locobot/wheel_drop_left:
-              locobot/left_wheel:
+              locobot/cliff_front_right:
                 {}
-            locobot/wheel_drop_right:
-              locobot/right_wheel:
+              locobot/cliff_side_left:
                 {}
+              locobot/cliff_side_right:
+                {}
+              locobot/front_caster_link:
+                {}
+              locobot/imu_link:
+                {}
+              locobot/ir_intensity_front_center_left:
+                {}
+              locobot/ir_intensity_front_center_right:
+                {}
+              locobot/ir_intensity_front_left:
+                {}
+              locobot/ir_intensity_front_right:
+                {}
+              locobot/ir_intensity_left:
+                {}
+              locobot/ir_intensity_right:
+                {}
+              locobot/ir_intensity_side_left:
+                {}
+              locobot/ir_omni:
+                {}
+              locobot/mouse:
+                {}
+              locobot/plate_link:
+                locobot/arm_stand_link:
+                  locobot/arm_base_link:
+                    locobot/shoulder_link:
+                      locobot/upper_arm_link:
+                        locobot/upper_forearm_link:
+                          locobot/lower_forearm_link:
+                            locobot/wrist_link:
+                              locobot/gripper_link:
+                                locobot/ee_arm_link:
+                                  locobot/ar_tag_link:
+                                    {}
+                                  locobot/gripper_bar_link:
+                                    locobot/fingers_link:
+                                      locobot/ee_gripper_link:
+                                        {}
+                                      locobot/left_finger_link:
+                                        {}
+                                      locobot/right_finger_link:
+                                        {}
+                                  locobot/gripper_prop_link:
+                                    {}
+                locobot/battery_link:
+                  {}
+              locobot/wheel_drop_left:
+                locobot/left_wheel:
+                  {}
+              locobot/wheel_drop_right:
+                locobot/right_wheel:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 0.699999988079071
@@ -711,8 +736,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 1.61342191696167
-            Min Value: -0.0056909918785095215
+            Max Value: 1.5131691694259644
+            Min Value: -0.9688053131103516
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -886,11 +911,19 @@ Visualization Manager:
           Value: true
       Enabled: false
       Name: Perception
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /locobot/object_markers
+      Name: Marker
+      Namespaces:
+        detected_objects: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 0; 176; 240
     Default Light: true
-    Fixed Frame: locobot/odom
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -914,7 +947,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.9906103610992432
+      Distance: 3.428658962249756
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -922,17 +955,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -4.495349407196045
-        Y: 1.7417951822280884
-        Z: 3.081860065460205
+        X: 0.4239574372768402
+        Y: -1.604488730430603
+        Z: 3.501984119415283
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5297971367835999
+      Pitch: 0.630398154258728
       Target Frame: <Fixed Frame>
-      Yaw: 2.2313649654388428
+      Yaw: 6.248583793640137
     Saved: ~
 Window Geometry:
   Displays:
@@ -942,7 +975,7 @@ Window Geometry:
   Hide Right Dock: false
   Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000068800000359fc020000000cfb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b000000c7000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000003a8000000160000000000000000fb0000000a0049006d0061006700650000000222000000a50000001600fffffffb0000001c0059004f004c004f00200044006500740065006300740069006f006e0000000000ffffffff0000001600fffffffb000000320059004f004c004f00200044006500740065006300740069006f006e00200026002000440069007300740061006e0063006501000001080000028c0000001600ffffff000000010000010f00000396fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000002800000396000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d00650100000000000007800000030700fffffffb0000000800540069006d00650100000000000004500000000000000000000000f20000035900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001e700000359fc020000000dfb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b000001df000000c700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000003a8000000160000000000000000fb0000000a0049006d0061006700650000000222000000a50000001600fffffffb0000001c0059004f004c004f00200044006500740065006300740069006f006e0000000000ffffffff0000001600fffffffb000000320059004f004c004f00200044006500740065006300740069006f006e00200026002000440069007300740061006e0063006501000002200000009c0000001600fffffffb0000000a0056006900650077007301000002c2000000d2000000a000ffffff000000010000010f00000396fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000002800000396000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d00650100000000000007800000030700fffffffb0000000800540069006d00650100000000000004500000000000000000000005930000035900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:

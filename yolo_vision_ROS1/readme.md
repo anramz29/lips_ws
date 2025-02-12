@@ -3,6 +3,12 @@
 A ROS package that implements YOLO object detection with distance estimation for the Locobot platform.
 
 <div align="center">
+  <img src="images/object_mapper.png" alt="Object Demo Photo" width="800"/>
+  <p><em>Object Mapper in action (Demo)</em></p>
+</div>
+
+
+<div align="center">
   <img src="images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
   <p><em>YOLO Vision in action (Demo)</em></p>
 </div>
@@ -61,6 +67,15 @@ To run both YOLO detection and distance estimation:
 roslaunch yolo_vision yolo_distance.launch
 ```
 
+### Launch YOLO with Object Mapping
+
+To run YOLO detection with object mapping capabilities:
+
+```bash
+roslaunch yolo_vision object_mapper.launch
+```
+
+
 ## Parameters
 
 ### YOLO Node
@@ -72,6 +87,13 @@ roslaunch yolo_vision yolo_distance.launch
 - `depth_image_topic` (string): Depth image topic
 - `bbox_depth_topic` (string): Bounding box depth information topic
 
+### Object Mapper Node
+- `camera_frame` (string): Camera optical frame (default: `locobot/camera_color_optical_frame`)
+- `map_frame` (string): Map frame for object visualization (default: `map`)
+- `bbox_depth_topic` (string): Topic for bounding box depth information
+- `camera_info_topic` (string): Camera calibration information topic
+
+
 ## Topics
 
 ### Subscribed Topics
@@ -82,6 +104,7 @@ roslaunch yolo_vision yolo_distance.launch
 - `/locobot/camera/yolo/annotated_image` (sensor_msgs/Image)
 - `/locobot/camera/yolo/visualization` (sensor_msgs/Image)
 - `/locobot/camera/yolo/bbox_depth` (std_msgs/Float32MultiArray)
+- `/locobot/object_markers` (visualization_msgs/Marker): 3D markers for detected objects
 
 ## RViz Configuration
 
@@ -97,14 +120,16 @@ yolo_vision/
 ├── CMakeLists.txt
 ├── launch/
 │   ├── yolo_vision.launch
-│   └── yolo_distance.launch
+│   ├── yolo_distance.launch
+│   └── object_mapper.launch
 ├── models/
 │   └── best.pt
 ├── rviz/
 │   └── xslocobot_description_yolo.rviz
 └── scripts/
     ├── yolo_node.py
-    └── distance_node.py
+    ├── distance_node.py
+    └── object_mapper_node.py
 ```
 
 ## License
@@ -113,4 +138,4 @@ TODO
 
 ## Maintainer
 
-- [rosuser](mailto:rosuser@todo.todo)
+- [rosuser](mailto:anramz29@gmail.com)
