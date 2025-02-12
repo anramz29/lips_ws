@@ -131,11 +131,3 @@ yolo_vision/
     ├── distance_node.py
     └── object_mapper_node.py
 ```
-
-## License
-
-TODO
-
-## Maintainer
-
-- [rosuser](mailto:anramz29@gmail.com)

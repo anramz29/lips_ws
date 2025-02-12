@@ -36,32 +36,14 @@ Contains the implementation of real-time object detection and distance estimatio
 
 ---
 
-### Archive ROS1
-Contains archived resources, issues, and quick setup for ROS1.
-- **Issues**
-  - [Display Forwarding Issues](ROS1/Issues/Display_Forwarding_Issues.md)
-  - [Navigation Stack Issues](ROS1/Issues/Navigation_Stack_Issues.md)
-  - [Rviz Frame Odometry Issues](ROS1/Issues/Rviz_Frame_Odometry_Issues.md)
-- [Quick Setup for ROS1](ROS1/quick_setup_Ros1.md)
-- **ROS Docker (ROS1)**
-  - [Dockerfile](ROS1/Docker/Dockerfile)
-  - [Docker Tips and Tricks](ROS1/Docker/Docker_Tips_and_Tricks.md)
-  - [Server Documentation for ROS1](ROS1/Docker/Server_Documentation_Ros1.md)
-  - [VS Code and Docker](ROS1/Docker/VS_Code_and_Docker.md)
+### [ROS1](ROS1)
+Contains resources, issues, dockerfile, and quick setup for ROS1.
 
 ---
 
-### ROS2 Integration (Failed)
-Contains resources and documentation for ROS2 integration with Locobot. This integration attempt failed due to RMW (ROS Middleware) configuration incompatibilities between the Intel NUC and iRobot Create3 base, preventing proper communication between components.
+### [ROS2 Integration (Failed)](ROS2_Integration_Failed)
 
-- **Docker Info**
-  - [Dockerfile](ROS2_Integration_Failed/docker_info/Dockerfile)
-  - [Readme](ROS2_Integration_Failed/docker_info/README.md)
-  - [Server Documentation for ROS2](ROS2_Integration_Failed/docker_info/Server_Documentation_Ros2.md)
-  - [Xslocobot Remote Install Script](ROS2_Integration_Failed/docker_info/xslocobot_remote_install.sh)
-- [Quick Setup for ROS2](ROS2_Integration_Failed/quick_setup_ros2.md)
-- [Reinstallation Guide](ROS2_Integration_Failed/reinstallation.md)
-- [Troubleshooting Guide](ROS2_Integration_Failed/troubleshooting.md)
+Contains resources and documentation for ROS2 integration with Locobot. This integration attempt failed due to RMW (ROS Middleware) configuration incompatibilities between the Intel NUC and iRobot Create3 base, preventing proper communication between components.
 
 ---
 ## How to Use This Repository
@@ -82,5 +64,12 @@ svn export https://github.com/anramz29/Locobot_Docs/trunk/yolo_vision_ROS1
 If you find any errors or have suggestions for improvements, please submit a pull request or open an issue.
 
 ---
+
+## Maintainer
+
+- [Adrián Noé Ramírez](mailto:anramz29@gmail.com)
+
+---
 ## License
 This repository is open-source and available under the MIT License.
+
