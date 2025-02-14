@@ -19,6 +19,7 @@ This package provides nodes for:
 - Object detection using YOLO
 - Distance estimation using depth camera data
 - Visualization in RViz
+- Search and Approach
 
 ## Prerequisites
 
@@ -99,6 +100,7 @@ roslaunch yolo_vision object_mapper.launch
 ### Subscribed Topics
 - `/locobot/camera/color/image_raw` (sensor_msgs/Image)
 - `/locobot/camera/depth/image_rect_raw` (sensor_msgs/Image)
+- `/locobot/move_base` (move_base_msgs/MoveBaseAction)
 
 ### Published Topics
 - `/locobot/camera/yolo/annotated_image` (sensor_msgs/Image)
@@ -121,7 +123,8 @@ yolo_vision/
 ├── launch/
 │   ├── yolo_vision.launch
 │   ├── yolo_distance.launch
-│   └── object_mapper.launch
+│   ├── object_mapper.launch
+│   └── search_and_approach.launch
 ├── models/
 │   └── best.pt
 ├── rviz/
@@ -129,5 +132,6 @@ yolo_vision/
 └── scripts/
     ├── yolo_node.py
     ├── distance_node.py
-    └── object_mapper_node.py
+    ├──  object_mapper_node.py
+    └── search_and_approach.lapyunch
 ```
