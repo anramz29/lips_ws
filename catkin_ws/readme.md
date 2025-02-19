@@ -5,7 +5,7 @@ This comprises the packages that are currently being used in the lips lab. Curre
 Also Note that these scripts are meant to be used with a launch driver. In this case im using the [interbotix nav stack](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_nav) or the [interbotix control package](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_control)
 
 <div align="center">
-  <img src="catkin_ws/images/object_approach.png" alt="Object Mapper Demo Video" width="800"/>
+  <img src="images/object_approach.png" alt="Object Mapper Demo Video" width="800"/>
   <p><em>Object Approach (Demo)</em></p>
 </div>
     
