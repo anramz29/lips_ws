@@ -1,0 +1,89 @@
+locations:
+  back_room:
+    name: back_room
+    orientation:
+      w: 0.9060327210208835
+      x: 0.0
+      y: 0.0
+      z: 0.42320764222718593
+    position:
+      x: -1.0351896286010742
+      y: -1.457219123840332
+      z: 0.0
+  charger:
+    name: charger
+    orientation:
+      w: 0.932859446144613
+      x: 0.0
+      y: 0.0
+      z: 0.36024054982576
+    position:
+      x: -2.3235387802124023
+      y: 2.4160213470458984
+      z: 0.0
+  charger_closer:
+    name: charger_closer
+    orientation:
+      w: 0.9803621142087017
+      x: 0.0
+      y: 0.0
+      z: -0.19720579358691406
+    position:
+      x: 0.6210087537765503
+      y: -1.3234775066375732
+      z: 0.0
+  door:
+    name: door
+    orientation:
+      w: 0.6792891174290159
+      x: 0.0
+      y: 0.0
+      z: -0.7338707617438568
+    position:
+      x: -3.4363741874694824
+      y: 5.444314479827881
+      z: 0.0
+  lips2:
+    name: lips2
+    orientation:
+      w: 0.0770310008813585
+      x: 0.0
+      y: 0.0
+      z: -0.9970286981342192
+    position:
+      x: -0.5615341067314148
+      y: 0.8275423049926758
+      z: 0.0
+  middle_of_room:
+    name: middle_of_room
+    orientation:
+      w: 0.8245255457580642
+      x: 0.0
+      y: 0.0
+      z: 0.5658247293927389
+    position:
+      x: -0.8110711574554443
+      y: -1.8375611305236816
+      z: 0.0
+  middle_room:
+    name: middle_room
+    orientation:
+      w: 0.4475731586200724
+      x: 0.0
+      y: 0.0
+      z: 0.8942473190806062
+    position:
+      x: -2.5888781547546387
+      y: 0.93743896484375
+      z: 0.0
+  server:
+    name: server
+    orientation:
+      w: 0.8254592985740823
+      x: 0.0
+      y: 0.0
+      z: 0.5644616429816858
+    position:
+      x: -4.173403739929199
+      y: -1.2869501113891602
+      z: 0.0

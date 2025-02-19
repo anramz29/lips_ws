@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="destination" default="" doc="Optional destination name"/>
+    
+    <node pkg="move_to_pose" type="move_to_pose_node.py" name="move_to_pose" output="screen" args="$(arg destination)">
+    </node>
+</launch>

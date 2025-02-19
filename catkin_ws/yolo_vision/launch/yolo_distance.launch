@@ -1,0 +1,49 @@
+<launch>  
+   <!-- Global Arguments -->
+   <arg name="robot_name" default="locobot"/>
+   <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
+   <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
+
+   <!-- Camera Topics -->
+   <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
+   <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
+
+   <!-- YOLO Topics -->
+   <arg name="model_path" default="$(find yolo_vision)/models/best.pt"/>
+   <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
+   <arg name="bbox_depth_topic" default="camera/yolo/bbox_depth"/>
+   <arg name="visualization_topic" default="camera/yolo/distance_image"/>
+       
+   <!-- Launch YOLO node -->
+   <node name="yolo_node" pkg="yolo_vision" type="yolo_node.py" output="screen" ns="$(arg robot_name)">
+       <param name="model_path" value="$(arg model_path)"/>
+       <param name="image_topic" value="$(arg rgb_topic)"/>
+       <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+   </node>
+
+   <!-- Distance Detection Node -->
+   <node name="distance_node" pkg="yolo_vision" type="distance_node.py" output="screen" ns="$(arg robot_name)">
+       <!-- Topic configurations -->
+       <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+       <param name="depth_image_topic" value="$(arg depth_topic)"/>
+       <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
+       <param name="visualization_topic" value="$(arg visualization_topic)"/>
+       
+       <!-- Node configurations -->
+       <param name="queue_size" value="10"/>
+       <param name="sync_slop" value="0.1"/>
+       
+       <!-- Color detection parameters -->
+       <rosparam param="green_lower">[0, 255, 0]</rosparam>
+       <rosparam param="green_upper">[0, 255, 0]</rosparam>
+   </node>
+
+   <!-- RViz -->
+   <node name="rviz" pkg="rviz" type="rviz" 
+         args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+         ns="$(arg robot_name)">
+       <remap from="/clicked_point" to="clicked_point"/>
+       <remap from="/initialpose" to="initialpose"/>
+       <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+   </node>
+</launch>

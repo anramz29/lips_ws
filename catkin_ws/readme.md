@@ -1,0 +1,106 @@
+# catkin_ws
+
+This comprises the packages that are currently being used in the lips lab.
+
+## Prerequisites
+
+- ROS (tested on ROS Noetic)
+- Python 3
+- OpenCV
+- Ultralytics YOLO
+- CvBridge
+- Sensor Messages
+- Geometry Messages
+
+## Installation
+
+1. Clone this repository into your catkin workspace:
+```bash
+svn export https://github.com/anramz29/Locobot_Docs/tree/catkin_ws
+```
+
+2. Build the package:
+```bash
+cd ~/catkin_ws
+catkin_make
+```
+
+3. Source your workspace:
+```bash
+source ~/catkin_ws/devel/setup.bash
+```
+
+# Topics
+
+## Video Recorder Topics
+
+### Camera Topics
+- `rgb_topic`: RGB image raw topic 
+  - Default: `/locobot/camera/color/image_raw`
+  - Source: Color camera raw image stream
+
+
+## Move_To_Pose Topics
+
+### Move Base Topics
+- Move Base Action Server
+  - Topic: `/locobot/move_base`
+  - Type: `MoveBaseAction`
+  - Purpose: Enables navigation and movement commands for the robot
+  - Allows sending goal poses for the robot to navigate to
+
+### Costmap Topics
+- Global Costmap Topic
+  - Topic: `/locobot/move_base/global_costmap/costmap`
+  - Type: `OccupancyGrid`
+  - Purpose: Provides a 2D grid representing obstacles and traversability
+  - Used for path planning and obstacle avoidance
+  - Values:
+    - 0: Free space
+    - 100: Completely occupied
+    - -1: Unknown/unobserved space
+
+
+---
+
+## Yolo_Vision Topics
+
+### Global Arguments
+- `robot_name`: Default namespace for all nodes (default: "locobot")
+- `rviz_frame`: Frame used in RViz (default: "map")
+- `rvizconfig`: RViz configuration file path
+
+### Camera Topics
+- `rgb_topic`: RGB image raw topic 
+  - Default: `/locobot/camera/color/image_raw`
+  - Source: Color camera raw image stream
+
+- `depth_topic`: Depth image topic
+  - Default: `/locobot/camera/depth/image_rect_raw`
+  - Source: Depth camera rectified image stream
+
+### YOLO Detection Topics
+- `model_path`: Path to the YOLO model file
+  - Default: `$(find yolo_vision)/models/best.pt`
+  - Used for object detection configuration
+
+- `annotated_image_topic`: Topic for YOLO annotated images
+  - Default: `camera/yolo/annotated_image`
+  - Publishes images with bounding boxes drawn by YOLO
+
+- `bbox_depth_topic`: Topic for bounding box depth information
+  - Default: `camera/yolo/bbox_depth`
+  - Publishes detected object bounding boxes with depth information
+
+- `visualization_topic`: Topic for distance visualization
+  - Default: `camera/yolo/distance_image`
+  - Publishes visualizations of object distances
+
+### Additional Topics
+- `camera_info_topic`: Camera calibration information topic
+  - Default: `camera/color/camera_info`
+  - Provides camera intrinsic parameters
+
+- `object_marker_topic`: Topic for object markers in RViz
+  - Default: `object_markers`
+  - Publishes marker visualizations of detected objects

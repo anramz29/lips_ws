@@ -10,29 +10,16 @@ This repository contains resources, documentation, and scripts for working with 
 
 
 <div align="center">
-  <img src="yolo_vision_ROS1/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
+  <img src="catkin_ws/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
   <p><em>YOLO Vision in action (Demo)</em></p>
 </div>
 
 <div align="center">
-  <img src="yolo_vision_ROS1/images/object_mapper.png" alt="Object Mapper Demo Video" width="800"/>
+  <img src="catkin_ws/images/object_mapper.png" alt="Object Mapper Demo Video" width="800"/>
   <p><em>Object Mapper (Demo)</em></p>
 </div>
 
-Contains the implementation of real-time object detection and distance estimation for Locobot.
-- [YOLO Vision Documentation](yolo_vision_ROS1/readme.md)
-  - Object detection using YOLO
-    - [Launch Files](yolo_vision_ROS1/launch/yolo_vision.launch)
-    - [Scripts](yolo_vision_ROS1/scripts/yolo_node.py)
-    - [Models](yolo_vision_ROS1/models/)
-  - Distance estimation using depth camera
-    - [Launch Files](yolo_vision_ROS1/launch/yolo_distance.launch)
-    - [Scripts](yolo_vision_ROS1/scripts/distance_node.py)
-  - Object Mapping
-    - [Launch Files](yolo_vision_ROS1/launch/object_mapper.launch)
-    - [Scripts](yolo_vision_ROS1/scripts/object_mapper_node.py)
-  - RViz visualization tools
-    - [RViz Configurations](yolo_vision_ROS1/rviz/)
+    
 
 ---
 
@@ -45,7 +32,16 @@ Contains resources, issues, dockerfile, and quick setup for ROS1.
 
 Contains resources and documentation for ROS2 integration with Locobot. This integration attempt failed due to RMW (ROS Middleware) configuration incompatibilities between the Intel NUC and iRobot Create3 base, preventing proper communication between components.
 
----
+### [catkin_ws](catkin_ws)
+
+Contains packages:
+
+- [yolo_vision](catkin_ws/yolo_vision): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
+- [move_to_pose](/catkin_ws/move_to_pose/): A helper package that records and names different poses the robot makes on the map and once recorded has another launch script that directs the robot to move to the respective recorded position
+- [video_recorder](/catkin_ws/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
+
+#### for more information vist the respetive [catkin_ws](/catkin_ws/readme.md) readme
+
 ## How to Use This Repository
 1. Navigate to the relevant section based on your needs:
    - **ROS1 Users:** Refer to the `ROS1` folder.
@@ -55,7 +51,7 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
 4. For the `yolo_vision_Ros1` package, use svn to just copy the respective directory
 
 ```bash
-svn export https://github.com/anramz29/Locobot_Docs/trunk/yolo_vision_ROS1
+svn export https://github.com/anramz29/Locobot_Docs/tree/catkin_ws
 ```
 ---
 

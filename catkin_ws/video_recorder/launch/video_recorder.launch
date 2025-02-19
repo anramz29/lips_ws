@@ -1,0 +1,8 @@
+<launch>
+    <node pkg="video_recorder" type="video_recorder.py" name="video_recorder" output="screen">
+        <!-- Pass parameters to the node -->
+        <param name="~video_path" value="/home/rosuser/catkin_ws/src/video_recorder/videos"/>
+        <param name="~fps" value="30"/>
+        <param name="~image_topic" value="/locobot/camera/color/image_raw"/>
+    </node>
+</launch>
