@@ -32,6 +32,8 @@ Contains resources, issues, dockerfile, and quick setup for ROS1.
 
 Contains resources and documentation for ROS2 integration with Locobot. This integration attempt failed due to RMW (ROS Middleware) configuration incompatibilities between the Intel NUC and iRobot Create3 base, preventing proper communication between components.
 
+---
+
 ### [catkin_ws](catkin_ws)
 
 Contains packages:
