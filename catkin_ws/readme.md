@@ -2,6 +2,47 @@
 
 This comprises the packages that are currently being used in the lips lab.
 
+## Structure
+```
+├── move_to_pose
+│   ├── config
+│   │   └── poses.yaml
+│   ├── launch
+│   │   └── move_to_pose.launch
+│   └── scripts
+│       ├── goal_recorder.py
+│       └── move_to_pose_node.py
+├── video_recorder
+│   ├── launch
+│   │   └── video_recorder.launch
+│   ├── photos
+│   │   └── back_table.jpg
+│   ├── scripts
+│   │   ├── picture_snapper.py
+│   │   └── video_recorder.py
+│   └── videos
+│       └── video_20250126_163047.mp4
+└── yolo_vision
+    ├── launch
+    │   ├── object_mapper.launch
+    │   ├── search_and_approach.launch
+    │   ├── yolo_distance.launch
+    │   └── yolo_vision.launch
+    ├── models
+    │   ├── best.pt
+    │   └── yolo11n.pt
+    ├── rviz
+    │   └── xslocobot_description_yolo.rviz
+    └── scripts
+        ├── distance_node.py
+        ├── object_mapper_node.py
+        ├── search_and_approach_node.py
+        └── yolo_node.py
+
+15 directories, 30 files
+```
+
+
 ## Prerequisites
 
 - ROS (tested on ROS Noetic)
@@ -59,7 +100,6 @@ source ~/catkin_ws/devel/setup.bash
     - 0: Free space
     - 100: Completely occupied
     - -1: Unknown/unobserved space
-
 
 ---
 
