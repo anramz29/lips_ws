@@ -16,7 +16,7 @@ This comprises the packages that are currently being used in the lips lab.
 
 1. Clone this repository into your catkin workspace:
 ```bash
-svn export https://github.com/anramz29/Locobot_Docs/tree/catkin_ws
+svn export https://github.com/anramz29/Locobot_Docs/tree/main/catkin_ws
 ```
 
 2. Build the package:

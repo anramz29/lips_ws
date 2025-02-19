@@ -48,10 +48,10 @@ Contains packages:
    - **ROS2 Users:** Refer to the `ROS2_Integration_Failed` folder.
 2. Review the Quick Setup Guides for instructions on setting up Locobot for either ROS1 or ROS2.
 3. For Docker-based setups, refer to the respective Docker Info sections for ROS1 and ROS2.
-4. For the `yolo_vision_Ros1` package, use svn to just copy the respective directory
+4. For the `catkin_ws` packages, use svn to just copy the respective directory
 
 ```bash
-svn export https://github.com/anramz29/Locobot_Docs/tree/catkin_ws
+svn export https://github.com/anramz29/Locobot_Docs/tree/,ain/catkin_ws
 ```
 ---
 
