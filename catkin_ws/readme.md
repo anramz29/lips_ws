@@ -1,6 +1,8 @@
 # catkin_ws
 
-This comprises the packages that are currently being used in the lips lab.
+This comprises the packages that are currently being used in the lips lab. Currently working on a search and approach algorythim.
+
+Also Note that these scripts are meant to be used with a launch driver. In this case im using the [interbotix nav stack](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_nav) or the [interbotix control package](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_control)
 
 ## Structure
 ```
