@@ -95,36 +95,7 @@ class LocobotMoveToPose:
         else:
             rospy.loginfo("Marker received but not scanning")
 
-    def is_position_safe(self, x, y):
-        """Check if a position is in a safe area of the costmap"""
-        if self.costmap is None:
-            rospy.logwarn("No costmap available")
-            return False
 
-        # Convert world coordinates to costmap cell coordinates
-        cell_x = int((x - self.costmap.info.origin.position.x) / self.costmap.info.resolution)
-        cell_y = int((y - self.costmap.info.origin.position.y) / self.costmap.info.resolution)
-
-        # Check if coordinates are within costmap bounds
-        if (cell_x < 0 or cell_x >= self.costmap.info.width or
-            cell_y < 0 or cell_y >= self.costmap.info.height):
-            rospy.logwarn(f"Position ({x}, {y}) is outside costmap bounds")
-            return False
-
-        # Get cost value at position
-        index = cell_y * self.costmap.info.width + cell_x
-        cost = self.costmap.data[index]
-
-        # Cost values: -1 = unknown, 0 = free, 1-99 = cost, 100 = occupied
-        if cost == -1:
-            rospy.logwarn(f"Position ({x}, {y}) is in unknown space")
-            return False
-        elif cost >= 90:  # You can adjust this threshold
-            rospy.logwarn(f"Position ({x}, {y}) is too close to obstacles (cost: {cost})")
-            return False
-        
-        return True
-  
     def create_goal(self, pose_data):
         """Create a MoveBaseGoal from pose data"""
         goal = MoveBaseGoal()
