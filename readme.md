@@ -5,9 +5,19 @@ By: Adrián Noé Ramírez
 This repository contains resources, documentation, and scripts for working with Locobot using ROS1 and ROS2. Below is an overview of the folder structure and their contents, with proper links to all files.
 
 ---
-## Directory Structure
-### YOLO Vision (ROS 1)
 
+## Latest Work
+
+Checkout the [find object_script](/catkin_ws/move_to_pose/scripts/find_object.py) and [find object launch file](/catkin_ws/move_to_pose/launch/find_object.launch) for my latest work in autonomus navigation.
+
+<div align="center">
+  <img src="catkin_ws/images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
+  <p><em>Object Approach (Demo)</em></p>
+</div>
+
+---
+
+## Other Demos
 
 <div align="center">
   <img src="catkin_ws/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
@@ -19,9 +29,11 @@ This repository contains resources, documentation, and scripts for working with 
   <p><em>Object Mapper (Demo)</em></p>
 </div>
 
-    
 
 ---
+
+## Directory Structure
+### YOLO Vision (ROS 1)
 
 ### [ROS1](ROS1)
 Contains resources, issues, dockerfile, and quick setup for ROS1.
@@ -39,7 +51,8 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
 Contains packages:
 
 - [yolo_vision](catkin_ws/yolo_vision): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
-- [move_to_pose](/catkin_ws/move_to_pose/): A helper package that records and names different poses the robot makes on the map and once recorded has another launch script that directs the robot to move to the respective recorded position
+- [move_to_pose](/catkin_ws/move_to_pose/): The package that controls finding objects/foraging refer to the [find_object](/catkin_ws/move_to_pose/scripts/find_object.py), in addition to other helper packages for testing and position recording
+
 - [video_recorder](/catkin_ws/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
 
 #### for more information vist the respetive [catkin_ws](/catkin_ws/readme.md) readme

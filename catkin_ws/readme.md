@@ -4,19 +4,39 @@ This comprises the packages that are currently being used in the lips lab. Curre
 
 Also Note that these scripts are meant to be used with a launch driver. In this case im using the [interbotix nav stack](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_nav) or the [interbotix control package](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_control)
 
+<div align="center">
+  <img src="catkin_ws/images/object_approach.png" alt="Object Mapper Demo Video" width="800"/>
+  <p><em>Object Approach (Demo)</em></p>
+</div>
+    
+
 ## Structure
 ```
+.
+├── images
+│   ├── object_mapper.png
+│   ├── Yolo_Vision.gif
+│   └── Yolo_Vision.jpg
 ├── move_to_pose
+│   ├── CMakeLists.txt
 │   ├── config
 │   │   └── poses.yaml
 │   ├── launch
-│   │   └── move_to_pose.launch
+│   │   ├── find_object.launch
+│   │   ├── move_to_pose.launch
+│   │   └── move_to_pose_scan.launch
+│   ├── package.xml
 │   └── scripts
+│       ├── find_object.py
 │       ├── goal_recorder.py
-│       └── move_to_pose_node.py
+│       ├── move_to_pose_node.py
+│       └── move_to_pose_scan_node.py
+├── readme.md
 ├── video_recorder
+│   ├── CMakeLists.txt
 │   ├── launch
 │   │   └── video_recorder.launch
+│   ├── package.xml
 │   ├── photos
 │   │   └── back_table.jpg
 │   ├── scripts
@@ -25,6 +45,7 @@ Also Note that these scripts are meant to be used with a launch driver. In this 
 │   └── videos
 │       └── video_20250126_163047.mp4
 └── yolo_vision
+    ├── CMakeLists.txt
     ├── launch
     │   ├── object_mapper.launch
     │   ├── search_and_approach.launch
@@ -33,6 +54,7 @@ Also Note that these scripts are meant to be used with a launch driver. In this 
     ├── models
     │   ├── best.pt
     │   └── yolo11n.pt
+    ├── package.xml
     ├── rviz
     │   └── xslocobot_description_yolo.rviz
     └── scripts
@@ -41,7 +63,7 @@ Also Note that these scripts are meant to be used with a launch driver. In this 
         ├── search_and_approach_node.py
         └── yolo_node.py
 
-15 directories, 30 files
+15 directories, 34 files
 ```
 
 
@@ -102,6 +124,11 @@ source ~/catkin_ws/devel/setup.bash
     - 0: Free space
     - 100: Completely occupied
     - -1: Unknown/unobserved space
+
+### Yolo Topics
+- `object_marker_topic`: Topic for object markers in RViz
+  - Default: `object_markers`
+  - Publishes marker visualizations of detected objects
 
 ---
 

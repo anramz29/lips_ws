@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>  
+    <!-- Global Arguments -->
+    <arg name="robot_name" default="locobot"/>
+    <arg name="rviz_frame" default="map"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
+    <arg name="poses_config" default="$(find move_to_pose)/config/poses.yaml"/>
+    <arg name="pose_command" default="list"/>
+
+    <!-- Move Base Topics -->
+    <arg name="move_base_topic" default="/$(arg robot_name)/move_base"/>
+    <arg name="costmap_topic" default="/$(arg robot_name)/move_base/global_costmap/costmap"/>
+
+
+    <!-- Launch Move to Pose Scan Node -->
+    <node name="move_to_pose_scan" pkg="move_to_pose" type="move_to_pose_scan_node.py" output="screen">
+        <param name="poses_config" value="$(arg poses_config)"/>
+        <param name="move_base_topic" value="$(arg move_base_topic)"/>
+        <param name="costmap_topic" value="$(arg costmap_topic)"/>
+        <param name="pose_command" value="$(arg pose_command)"/>
+    </node>
+
+    <!-- RViz node -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-f $(arg rviz_frame) -d $(arg rvizconfig)" ns="$(arg robot_name)">
+        <remap from="/clicked_point" to="clicked_point"/>
+        <remap from="/initialpose" to="initialpose"/>
+        <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+    </node>
+
+</launch>

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>  
+    <!-- Global Arguments -->
+    <arg name="robot_name" default="locobot"/>
+    <arg name="rviz_frame" default="map"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
+    <arg name="poses_config" default="$(find move_to_pose)/config/poses.yaml"/>
+    <arg name="pose_command" default="all"/>
+
+    <!-- Move Base Topics -->
+    <arg name="move_base_topic" default="/$(arg robot_name)/move_base"/>
+    <arg name="costmap_topic" default="/$(arg robot_name)/move_base/global_costmap/costmap"/>
+
+    <!-- Object_Mapper_Topic -->
+    <arg name="object_marker_topic" default="/locobot/object_markers"/>
+
+    <!-- Include the object mapper launch file -->
+    <include file="$(find yolo_vision)/launch/object_mapper.launch">
+        <arg name="robot_name" value="$(arg robot_name)"/>
+        <arg name="rviz_frame" value="$(arg rviz_frame)"/>
+        <arg name="rvizconfig" value="$(arg rvizconfig)"/>
+        <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
+    </include>
+
+
+    <!-- Launch Move to Pose Scan Node -->
+    <node name="find_object_node" pkg="move_to_pose" type="find_object.py" output="screen">
+        <param name="poses_config" value="$(arg poses_config)"/>
+        <param name="move_base_topic" value="$(arg move_base_topic)"/>
+        <param name="costmap_topic" value="$(arg costmap_topic)"/>
+        <param name="pose_command" value="$(arg pose_command)"/>
+        <param name="object_marker_topic" value="$(arg object_marker_topic)"/>
+    </node>
+</launch>
