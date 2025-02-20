@@ -11,7 +11,7 @@ This repository contains resources, documentation, and scripts for working with 
 Checkout the [find object_script](/src/move_to_pose/scripts/find_object.py) and [find object launch file](/src/move_to_pose/launch/find_object.launch) for my latest work in autonomus navigation.
 
 <div align="center">
-  <img src="/images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
+  <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
   <p><em>Object Approach (Demo)</em></p>
 </div>
 
@@ -20,12 +20,12 @@ Checkout the [find object_script](/src/move_to_pose/scripts/find_object.py) and 
 ## Other Demos
 
 <div align="center">
-  <img src="/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
+  <img src="images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
   <p><em>YOLO Vision in action (Demo)</em></p>
 </div>
 
 <div align="center">
-  <img src="/images/object_mapper.png" alt="Object Mapper Demo Video" width="800"/>
+  <img src="images/object_mapper.png" alt="Object Mapper Demo Video" width="800"/>
   <p><em>Object Mapper (Demo)</em></p>
 </div>
 
