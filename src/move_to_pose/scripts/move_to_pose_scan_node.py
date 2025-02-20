@@ -150,6 +150,18 @@ class LocobotMoveToPose:
                 rospy.logwarn(f"Failed to reach {pose_name}, continuing to next pose...")
             rospy.sleep(1)  # Brief pause between movements
 
+    def list_available_poses(poses):
+        """List all available poses and their coordinates"""
+        if not poses:
+            rospy.logwarn("No poses available - check if poses.yaml is loaded correctly")
+            return
+
+        rospy.loginfo("\nAvailable poses:")
+        for name, pose_data in poses.items():
+            pos = pose_data['position']
+            rospy.loginfo(f"- {name}: x={pos['x']:.2f}, y={pos['y']:.2f}, z={pos['z']:.2f}")
+
+
 def main():
     try:
         mover = LocobotMoveToPose()

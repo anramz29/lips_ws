@@ -11,6 +11,7 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import math
 import tf2_ros
 from visualization_msgs.msg import Marker
+from move_to_pose.src.move_to_pose_utils import load_poses, get_robot_pose
 
 class LocobotMoveToPose:
     def __init__(self):
@@ -24,7 +25,7 @@ class LocobotMoveToPose:
         self.pose_command = rospy.get_param('~pose_command', 'list')
 
         # Load poses from config
-        self.poses = self.load_poses()
+        self.poses = load_poses(self.poses_config)
         if not self.poses:
             rospy.logerr("Failed to load poses from config!")
             sys.exit(1)
@@ -72,14 +73,6 @@ class LocobotMoveToPose:
         )
         rospy.loginfo("Received object maker")
    
-    def load_poses(self):
-        """Load poses from YAML config file"""
-        try:
-            with open(self.poses_config, 'r') as file:
-                return yaml.safe_load(file)['locations']
-        except Exception as e:
-            rospy.logerr(f"Error loading config: {str(e)}")
-            return None
 
     def costmap_callback(self, msg):
         self.costmap = msg
@@ -94,44 +87,7 @@ class LocobotMoveToPose:
             self.current_scan_interrupted = True
         else:
             rospy.loginfo("Marker received but not scanning")
-
-
-    def create_goal(self, pose_data):
-        """Create a MoveBaseGoal from pose data"""
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = "map"
-        goal.target_pose.header.stamp = rospy.Time.now()
-
-        # Set position
-        goal.target_pose.pose.position = Point(
-            pose_data['position']['x'],
-            pose_data['position']['y'],
-            pose_data['position']['z']
-        )
-
-        # Set orientation
-        goal.target_pose.pose.orientation = Quaternion(
-            pose_data['orientation']['x'],
-            pose_data['orientation']['y'],
-            pose_data['orientation']['z'],
-            pose_data['orientation']['w']
-        )
-
-        return goal
     
-    def get_robot_pose(self):
-        """Get current robot pose in map frame"""
-        try:
-            trans = self.tf_buffer.lookup_transform('map', 'locobot/base_link', rospy.Time(0))
-            current_pose = PoseStamped()
-            current_pose.pose.position.x = trans.transform.translation.x
-            current_pose.pose.position.y = trans.transform.translation.y
-            current_pose.pose.position.z = trans.transform.translation.z
-            current_pose.pose.orientation = trans.transform.rotation
-            return current_pose.pose
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            rospy.logerr(f"Failed to get robot pose: {e}")
-            return None
 
     def calculate_intermediate_goals(self, start_pose, final_goal):
         """Calculate intermediate goals every 2 meters"""
@@ -250,7 +206,7 @@ class LocobotMoveToPose:
         """Enhanced move to marker with graduated approach"""
         rospy.loginfo("Moving to detected object with graduated approach...")
         
-        current_pose = self.get_robot_pose()
+        current_pose = get_robot_pose()
         if current_pose is None:
             rospy.logerr("Failed to get robot pose")
             return False
