@@ -8,10 +8,10 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Latest Work
 
-Checkout the [find object_script](/catkin_ws/move_to_pose/scripts/find_object.py) and [find object launch file](/catkin_ws/move_to_pose/launch/find_object.launch) for my latest work in autonomus navigation.
+Checkout the [find object_script](/src/move_to_pose/scripts/find_object.py) and [find object launch file](/src/move_to_pose/launch/find_object.launch) for my latest work in autonomus navigation.
 
 <div align="center">
-  <img src="catkin_ws/images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
+  <img src="/images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
   <p><em>Object Approach (Demo)</em></p>
 </div>
 
@@ -20,12 +20,12 @@ Checkout the [find object_script](/catkin_ws/move_to_pose/scripts/find_object.py
 ## Other Demos
 
 <div align="center">
-  <img src="catkin_ws/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
+  <img src="/images/Yolo_Vision.gif" alt="YOLO Vision Demo Video" width="800"/>
   <p><em>YOLO Vision in action (Demo)</em></p>
 </div>
 
 <div align="center">
-  <img src="catkin_ws/images/object_mapper.png" alt="Object Mapper Demo Video" width="800"/>
+  <img src="/images/object_mapper.png" alt="Object Mapper Demo Video" width="800"/>
   <p><em>Object Mapper (Demo)</em></p>
 </div>
 
@@ -46,16 +46,16 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
 
 ---
 
-### [catkin_ws](catkin_ws)
+### [src](src)
 
 Contains packages:
 
-- [yolo_vision](catkin_ws/yolo_vision): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
-- [move_to_pose](/catkin_ws/move_to_pose/): The package that controls finding objects/foraging refer to the [find_object](/catkin_ws/move_to_pose/scripts/find_object.py), in addition to other helper packages for testing and position recording
+- [yolo_vision](/src/yolo_vision): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
+- [move_to_pose](/src/move_to_pose/): The package that controls finding objects/foraging refer to the [find_object](/src/move_to_pose/scripts/find_object.py), in addition to other helper packages for testing and position recording
 
-- [video_recorder](/catkin_ws/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
+- [video_recorder](/src/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
 
-#### for more information vist the respetive [catkin_ws](/catkin_ws/readme.md) readme
+#### for more information vist the respetive [src](/src/readme.md) readme
 
 ## How to Use This Repository
 1. Navigate to the relevant section based on your needs:
@@ -63,10 +63,10 @@ Contains packages:
    - **ROS2 Users:** Refer to the `ROS2_Integration_Failed` folder.
 2. Review the Quick Setup Guides for instructions on setting up Locobot for either ROS1 or ROS2.
 3. For Docker-based setups, refer to the respective Docker Info sections for ROS1 and ROS2.
-4. For the `catkin_ws` packages, use svn to just copy the respective directory
+4. For the `src` packages, use svn to just copy the respective directory
 
 ```bash
-svn export https://github.com/anramz29/Locobot_Docs/tree/,ain/catkin_ws
+git clone https://github.com/anramz29/lips_ws.git
 ```
 ---
 
