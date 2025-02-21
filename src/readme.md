@@ -1,4 +1,4 @@
-# catkin_ws
+# lips_ws Packages!
 
 This comprises the packages that are currently being used in the lips lab. Currently working on a search and approach algorythim.
 
