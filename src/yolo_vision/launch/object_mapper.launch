@@ -1,3 +1,10 @@
+<!-- Also Note that these scripts are meant to be used with a 
+launch driver. In this case the interbotix nav stack is needed-->
+
+<!-- command is: roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch 
+robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
+
+
 <launch>  
     <!-- Global Arguments -->
     <arg name="robot_name" default="locobot"/>

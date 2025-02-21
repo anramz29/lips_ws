@@ -2,7 +2,18 @@
 
 This comprises the packages that are currently being used in the lips lab. Currently working on a search and approach algorythim.
 
-Also Note that these scripts are meant to be used with a launch driver. In this case im using the [interbotix nav stack](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_nav) or the [interbotix control package](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_control)
+Also Note that these scripts are ran on a remote pc and are meant to be used with a launch driver. In this case im using the [interbotix nav stack](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_nav) or the [interbotix control package](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_control)
+
+
+for example on the locobot I run:
+```bash
+roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch 
+robot_model:=locobot_wx250s use_lidar:=true localization:=true
+```
+
+### **Important**
+If your not using a locobot check the topics in the launch scripts and adjust the launch file to your specific specs
+
 
 <div align="center">
   <img src="../images/object_approach.png" alt="Object Mapper Demo Video" width="800"/>
@@ -13,57 +24,52 @@ Also Note that these scripts are meant to be used with a launch driver. In this 
 ## Structure
 ```
 .
-├── images
-│   ├── object_mapper.png
-│   ├── Yolo_Vision.gif
-│   └── Yolo_Vision.jpg
 ├── move_to_pose
-│   ├── CMakeLists.txt
-│   ├── config
-│   │   └── poses.yaml
-│   ├── launch
-│   │   ├── find_object.launch
-│   │   ├── move_to_pose.launch
-│   │   └── move_to_pose_scan.launch
-│   ├── package.xml
-│   └── scripts
-│       ├── find_object.py
-│       ├── goal_recorder.py
-│       ├── move_to_pose_node.py
-│       └── move_to_pose_scan_node.py
-├── readme.md
+│   ├── config
+│   │   └── poses.yaml
+│   ├── launch
+│   │   ├── approach_object.launch
+│   │   ├── find_object.launch
+│   │   ├── move_to_pose.launch
+│   │   └── move_to_pose_scan.launch
+│   ├── scripts
+│   │   ├── approach_object.py
+│   │   ├── find_object.py
+│   │   ├── goal_recorder.py
+│   │   ├── move_to_pose_node.py
+│   │   └── move_to_pose_scan_node.py
+│   ├── setup.py
+│   └── src
+│       ├── __init__.py
+│       └── move_to_pose_utils.py
 ├── video_recorder
-│   ├── CMakeLists.txt
-│   ├── launch
-│   │   └── video_recorder.launch
-│   ├── package.xml
-│   ├── photos
-│   │   └── back_table.jpg
-│   ├── scripts
-│   │   ├── picture_snapper.py
-│   │   └── video_recorder.py
-│   └── videos
-│       └── video_20250126_163047.mp4
+│   ├── launch
+│   │   └── video_recorder.launch
+│   ├── photos
+│   │   └── back_table.jpg
+│   ├── scripts
+│   │   ├── picture_snapper.py
+│   │   └── video_recorder.py
+│   └── videos
+│       └── video_20250126_163047.mp4
 └── yolo_vision
-    ├── CMakeLists.txt
     ├── launch
-    │   ├── object_mapper.launch
-    │   ├── search_and_approach.launch
-    │   ├── yolo_distance.launch
-    │   └── yolo_vision.launch
+    │   ├── object_mapper.launch
+    │   ├── search_and_approach.launch
+    │   ├── yolo_distance.launch
+    │   └── yolo_vision.launch
     ├── models
-    │   ├── best.pt
-    │   └── yolo11n.pt
-    ├── package.xml
+    │   ├── best.pt
+    │   └── yolo11n.pt
     ├── rviz
-    │   └── xslocobot_description_yolo.rviz
+    │   └── xslocobot_description_yolo.rviz
     └── scripts
         ├── distance_node.py
         ├── object_mapper_node.py
         ├── search_and_approach_node.py
         └── yolo_node.py
 
-15 directories, 34 files
+15 directories, 29 files
 ```
 
 
@@ -76,12 +82,13 @@ Also Note that these scripts are meant to be used with a launch driver. In this 
 - CvBridge
 - Sensor Messages
 - Geometry Messages
+- **Interbotix ROS packages**
 
 ## Installation
 
 1. Clone this repository into your catkin workspace:
 ```bash
-svn export https://github.com/anramz29/Locobot_Docs/tree/main/catkin_ws
+git clone https://github.com/anramz29/lips_ws
 ```
 
 2. Build the package:
@@ -125,10 +132,13 @@ source ~/catkin_ws/devel/setup.bash
     - 100: Completely occupied
     - -1: Unknown/unobserved space
 
-### Yolo Topics
+### Yolo Topics Connected to the Package
 - `object_marker_topic`: Topic for object markers in RViz
   - Default: `object_markers`
   - Publishes marker visualizations of detected objects
+- `bbox_depth_topic`: Topic for bounding box depth information
+  - Default: `camera/yolo/bbox_depth`
+  - Publishes detected object bounding boxes with depth information
 
 ---
 

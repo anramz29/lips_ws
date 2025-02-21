@@ -8,7 +8,7 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Latest Work
 
-Checkout the [find object_script](/src/move_to_pose/scripts/find_object.py) and [find object launch file](/src/move_to_pose/launch/find_object.launch) for my latest work in autonomus navigation.
+Checkout the [approach object script](/src/move_to_pose/scripts/approach_object.py) and [approach object launch file](/src/move_to_pose/launch/approach_object.launch) for my latest work in autonomus navigation.
 
 <div align="center">
   <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>

@@ -21,12 +21,16 @@ robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
     <!-- Object_Mapper_Topic -->
     <arg name="object_marker_topic" default="/locobot/object_markers"/>
 
+    <arg name="bbox_depth_topic" default="camera/yolo/bbox_depth"/>
+
+
     <!-- Include the object mapper launch file -->
     <include file="$(find yolo_vision)/launch/object_mapper.launch">
         <arg name="robot_name" value="$(arg robot_name)"/>
         <arg name="rviz_frame" value="$(arg rviz_frame)"/>
         <arg name="rvizconfig" value="$(arg rvizconfig)"/>
         <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
+        <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
     </include>
 
 
@@ -37,5 +41,6 @@ robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
         <param name="costmap_topic" value="$(arg costmap_topic)"/>
         <param name="pose_command" value="$(arg pose_command)"/>
         <param name="object_marker_topic" value="$(arg object_marker_topic)"/>
+        <param name="bbox_depth_topic" value="/$(arg robot_name)/$(arg bbox_depth_topic)"/>
     </node>
 </launch>
