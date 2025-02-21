@@ -8,6 +8,10 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from nav_msgs.msg import OccupancyGrid
 import sys
 from tf.transformations import euler_from_quaternion
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.move_to_pose_utils import load_poses, list_available_poses, create_goal
 
 class LocobotMoveToPose:
     def __init__(self):
@@ -34,7 +38,10 @@ class LocobotMoveToPose:
         rospy.loginfo("Received costmap")
 
         # Load poses from config
-        self.poses = self.load_poses()
+        self.poses_config = "/home/rosuser/lips_ws/src/move_to_pose/config/poses.yaml"
+
+        # Load poses from config
+        self.poses = load_poses(self.poses_config)
         
         if not self.poses:
             rospy.logerr("Failed to load poses from config!")
@@ -42,6 +49,11 @@ class LocobotMoveToPose:
 
     def costmap_callback(self, msg):
         self.costmap = msg
+
+    def list_available_poses(self):
+        # Call the utility function with the class's poses
+        list_available_poses(self.poses)
+
 
     def is_position_safe(self, x, y):
         """Check if a position is in a safe area of the costmap"""
@@ -73,40 +85,6 @@ class LocobotMoveToPose:
         
         return True
 
-    def load_poses(self):
-        """Load poses from YAML config file"""
-        try:
-            rospack = rospkg.RosPack()
-            config_path = rospack.get_path('move_to_pose') + '/config/poses.yaml'
-            with open(config_path, 'r') as file:
-                return yaml.safe_load(file)['locations']
-        except Exception as e:
-            rospy.logerr(f"Error loading config: {str(e)}")
-            return None
-
-    def create_goal(self, pose_data):
-        """Create a MoveBaseGoal from pose data"""
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = "map"
-        goal.target_pose.header.stamp = rospy.Time.now()
-
-        # Set position
-        goal.target_pose.pose.position = Point(
-            pose_data['position']['x'],
-            pose_data['position']['y'],
-            pose_data['position']['z']
-        )
-
-        # Set orientation
-        goal.target_pose.pose.orientation = Quaternion(
-            pose_data['orientation']['x'],
-            pose_data['orientation']['y'],
-            pose_data['orientation']['z'],
-            pose_data['orientation']['w']
-        )
-
-        return goal
-
     def move_to_named_pose(self, pose_name):
         """Move to a named pose from the config"""
         if pose_name not in self.poses:
@@ -122,7 +100,7 @@ class LocobotMoveToPose:
             rospy.logerr(f"Position for {pose_name} is in unsafe area!")
             return False
 
-        goal = self.create_goal(pose_data)
+        goal = create_goal(pose_data)
         rospy.loginfo(f"Moving to location: {pose_data['name']}")
         
         # Send goal and wait for result
@@ -150,16 +128,6 @@ class LocobotMoveToPose:
                 rospy.logwarn(f"Failed to reach {pose_name}, continuing to next pose...")
             rospy.sleep(1)  # Brief pause between movements
 
-    def list_available_poses(poses):
-        """List all available poses and their coordinates"""
-        if not poses:
-            rospy.logwarn("No poses available - check if poses.yaml is loaded correctly")
-            return
-
-        rospy.loginfo("\nAvailable poses:")
-        for name, pose_data in poses.items():
-            pos = pose_data['position']
-            rospy.loginfo(f"- {name}: x={pos['x']:.2f}, y={pos['y']:.2f}, z={pos['z']:.2f}")
 
 def main():
     try:

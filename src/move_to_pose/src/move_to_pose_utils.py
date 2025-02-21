@@ -61,3 +61,15 @@ def get_robot_pose():
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
         rospy.logerr(f"Failed to get robot pose: {e}")
         return None
+
+def list_available_poses(poses):
+    """List all available poses and their coordinates"""
+    if not poses:
+        rospy.logwarn("No poses available - check if poses.yaml is loaded correctly")
+        return
+
+    rospy.loginfo("\nAvailable poses:")
+    for name, pose_data in poses.items():
+        pos = pose_data['position']
+        rospy.loginfo(f"- {name}: x={pos['x']:.2f}, y={pos['y']:.2f}, z={pos['z']:.2f}")
+

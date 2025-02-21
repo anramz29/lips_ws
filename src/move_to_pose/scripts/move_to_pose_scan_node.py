@@ -7,7 +7,9 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Pose, Point, Quaternion
 from nav_msgs.msg import OccupancyGrid
 import sys
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
+import math
+from src.move_to_pose_utils import load_poses, list_available_poses, create_goal
 
 class LocobotMoveToPose:
     def __init__(self):
@@ -34,133 +36,115 @@ class LocobotMoveToPose:
         rospy.loginfo("Received costmap")
 
         # Load poses from config
-        self.poses = self.load_poses()
+        self.poses_config = "/home/user/lips_ws/src/move_to_pose/config/poses.yaml"
+        self.poses = load_poses(self.poses_config)
         
         if not self.poses:
             rospy.logerr("Failed to load poses from config!")
             sys.exit(1)
 
-    def costmap_callback(self, msg):
-        self.costmap = msg
-
-    def is_position_safe(self, x, y):
-        """Check if a position is in a safe area of the costmap"""
-        if self.costmap is None:
-            rospy.logwarn("No costmap available")
-            return False
-
-        # Convert world coordinates to costmap cell coordinates
-        cell_x = int((x - self.costmap.info.origin.position.x) / self.costmap.info.resolution)
-        cell_y = int((y - self.costmap.info.origin.position.y) / self.costmap.info.resolution)
-
-        # Check if coordinates are within costmap bounds
-        if (cell_x < 0 or cell_x >= self.costmap.info.width or
-            cell_y < 0 or cell_y >= self.costmap.info.height):
-            rospy.logwarn(f"Position ({x}, {y}) is outside costmap bounds")
-            return False
-
-        # Get cost value at position
-        index = cell_y * self.costmap.info.width + cell_x
-        cost = self.costmap.data[index]
-
-        # Cost values: -1 = unknown, 0 = free, 1-99 = cost, 100 = occupied
-        if cost == -1:
-            rospy.logwarn(f"Position ({x}, {y}) is in unknown space")
-            return False
-        elif cost >= 90:  # You can adjust this threshold
-            rospy.logwarn(f"Position ({x}, {y}) is too close to obstacles (cost: {cost})")
-            return False
+    def perform_scan_rotation(self):
+        """Perform four 90-degree rotations in place"""
+        rospy.loginfo("Starting scan rotation sequence")
         
-        return True
+        # Create a goal that maintains current position but changes orientation
+        current_goal = MoveBaseGoal()
+        current_goal.target_pose.header.frame_id = "map"
+        current_goal.target_pose.header.stamp = rospy.Time.now()
+        
+        # Get current position (assuming we're at the intermediate point)
+        current_pose = self.client.get_state()  # You might need to implement proper pose tracking
+        
+        # Perform 4 rotations (360 degrees total)
+        for i in range(4):
+            # Calculate next orientation (90-degree increments)
+            yaw = math.pi / 2 * (i + 1)  # Convert to radians
+            quaternion = quaternion_from_euler(0, 0, yaw)
+            
+            # Update goal orientation
+            current_goal.target_pose.pose.orientation = Quaternion(*quaternion)
+            
+            # Send rotation goal
+            rospy.loginfo(f"Executing rotation {i+1}/4 ({(i+1)*90} degrees)")
+            self.client.send_goal(current_goal)
+            self.client.wait_for_result()
+            
+            # Brief pause between rotations
+            rospy.sleep(3.0)
+        
+        rospy.loginfo("Completed scan rotation sequence")
 
-    def load_poses(self):
-        """Load poses from YAML config file"""
-        try:
-            rospack = rospkg.RosPack()
-            config_path = rospack.get_path('move_to_pose') + '/config/poses.yaml'
-            with open(config_path, 'r') as file:
-                return yaml.safe_load(file)['locations']
-        except Exception as e:
-            rospy.logerr(f"Error loading config: {str(e)}")
-            return None
+    def calculate_intermediate_point(self, start_x, start_y, end_x, end_y, ratio=0.7):
+        """Calculate an intermediate point along the path"""
+        # Simple linear interpolation
+        int_x = start_x + (end_x - start_x) * ratio
+        int_y = start_y + (end_y - start_y) * ratio
+        return int_x, int_y
 
-    def create_goal(self, pose_data):
-        """Create a MoveBaseGoal from pose data"""
+    def move_to_position(self, x, y, is_final=True):
+        """Move to a specific position and perform scan if it's not the final destination"""
+        if not self.is_position_safe(x, y):
+            rospy.logerr(f"Position ({x}, {y}) is in unsafe area!")
+            return False
+
+        # Create and send goal
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.pose.position = Point(x, y, 0)
+        
+        # Use default orientation (facing forward)
+        quaternion = quaternion_from_euler(0, 0, 0)
+        goal.target_pose.pose.orientation = Quaternion(*quaternion)
 
-        # Set position
-        goal.target_pose.pose.position = Point(
-            pose_data['position']['x'],
-            pose_data['position']['y'],
-            pose_data['position']['z']
-        )
+        rospy.loginfo(f"Moving to position: x={x:.2f}, y={y:.2f}")
+        self.client.send_goal(goal)
+        wait = self.client.wait_for_result()
 
-        # Set orientation
-        goal.target_pose.pose.orientation = Quaternion(
-            pose_data['orientation']['x'],
-            pose_data['orientation']['y'],
-            pose_data['orientation']['z'],
-            pose_data['orientation']['w']
-        )
+        if not wait or self.client.get_state() != actionlib.GoalStatus.SUCCEEDED:
+            rospy.logwarn("Failed to reach position")
+            return False
 
-        return goal
+        # If this is an intermediate point, perform the scan
+        if not is_final:
+            self.perform_scan_rotation()
+
+        return True
 
     def move_to_named_pose(self, pose_name):
-        """Move to a named pose from the config"""
+        """Move to a named pose with intermediate point and scanning"""
         if pose_name not in self.poses:
             rospy.logerr(f"Unknown pose name: {pose_name}")
             return False
 
         pose_data = self.poses[pose_name]
-        x = pose_data['position']['x']
-        y = pose_data['position']['y']
+        target_x = pose_data['position']['x']
+        target_y = pose_data['position']['y']
 
-        # Check if position is safe
-        if not self.is_position_safe(x, y):
-            rospy.logerr(f"Position for {pose_name} is in unsafe area!")
+        # Get current position (you might need to implement proper pose tracking)
+        current_x = 0  # Replace with actual current position
+        current_y = 0  # Replace with actual current position
+
+        # Calculate intermediate point
+        int_x, int_y = self.calculate_intermediate_point(
+            current_x, current_y, target_x, target_y
+        )
+
+        # Move to intermediate point and perform scan
+        if not self.move_to_position(int_x, int_y, is_final=False):
             return False
 
-        goal = self.create_goal(pose_data)
-        rospy.loginfo(f"Moving to location: {pose_data['name']}")
-        
-        # Send goal and wait for result
-        self.client.send_goal(goal)
-        wait = self.client.wait_for_result()
-
-        if not wait:
-            rospy.logerr("Action server not available!")
-            return False
-        else:
-            state = self.client.get_state()
-            if state == actionlib.GoalStatus.SUCCEEDED:
-                rospy.loginfo("Goal reached successfully!")
-                return True
-            else:
-                rospy.logwarn("Goal failed with status: " + str(state))
-                return False
+        # Move to final destination
+        return self.move_to_position(target_x, target_y, is_final=True)
 
     def move_to_all_poses(self):
-        """Move to each pose in sequence"""
+        """Move to each pose in sequence, with intermediate points and scanning"""
         for pose_name in self.poses.keys():
             rospy.loginfo(f"\nMoving to: {pose_name}")
             success = self.move_to_named_pose(pose_name)
             if not success:
                 rospy.logwarn(f"Failed to reach {pose_name}, continuing to next pose...")
-            rospy.sleep(1)  # Brief pause between movements
-
-    def list_available_poses(poses):
-        """List all available poses and their coordinates"""
-        if not poses:
-            rospy.logwarn("No poses available - check if poses.yaml is loaded correctly")
-            return
-
-        rospy.loginfo("\nAvailable poses:")
-        for name, pose_data in poses.items():
-            pos = pose_data['position']
-            rospy.loginfo(f"- {name}: x={pos['x']:.2f}, y={pos['y']:.2f}, z={pos['z']:.2f}")
-
+            rospy.sleep(1)
 
 def main():
     try:
@@ -185,5 +169,6 @@ def main():
 
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation interrupted")
+
 if __name__ == '__main__':
     main()
