@@ -1,20 +1,22 @@
-<!-- Also Note that these scripts are meant to be used with a 
-launch driver. In this case the interbotix nav stack is needed-->
+<?xml version="1.0"?>
+<!-- 
+This launch file initializes the scan_and_approach_node which combines
+the functionality of move_to_pose_scan and approach_object nodes.
 
-<!-- command is: roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch 
-robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
-
-
-<launch>  
+Command to use with interbotix nav stack:
+roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_wx250s use_lidar:=true localization:=true
+-->
+<launch>
     <!-- Global Arguments -->
     <arg name="robot_name" default="locobot"/>
     <arg name="rviz_frame" default="map"/>
     <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
-
+    <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization"/>
+    
     <!-- Camera Topics -->
     <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
     <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
-
+    
     <!-- YOLO Topics -->
     <arg name="model_path" default="$(find yolo_vision)/models/best.pt"/>
     <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
@@ -22,14 +24,20 @@ robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
     <arg name="visualization_topic" default="camera/yolo/distance_image"/>
     <arg name="camera_info_topic" default="camera/color/camera_info"/>
     <arg name="object_marker_topic" default="object_markers"/>
-
+    
+    <!-- Move and scan parameters -->
+    <arg name="poses_config" default="$(find move_to_pose)/config/poses.yaml"/>
+    <arg name="pose_command" default="all"/>
+    <arg name="move_base_topic" default="/$(arg robot_name)/move_base"/>
+    <arg name="costmap_topic" default="/$(arg robot_name)/move_base/global_costmap/costmap"/>
+    
     <!-- Launch YOLO node -->
     <node name="yolo_node" pkg="yolo_vision" type="yolo_node.py" output="screen" ns="$(arg robot_name)">
         <param name="model_path" value="$(arg model_path)"/>
         <param name="image_topic" value="$(arg rgb_topic)"/>
         <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
     </node>
-
+    
     <!-- Distance Detection Node -->
     <node name="distance_node" pkg="yolo_vision" type="distance_node.py" output="screen" ns="$(arg robot_name)">
         <!-- Topic configurations -->
@@ -46,7 +54,7 @@ robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
         <rosparam param="green_lower">[0, 255, 0]</rosparam>
         <rosparam param="green_upper">[0, 255, 0]</rosparam>
     </node>
-
+    
     <!-- Object Mapper Node -->
     <node name="object_mapper" pkg="yolo_vision" type="object_mapper_node.py" output="screen" ns="$(arg robot_name)">
         <param name="camera_frame" value="$(arg robot_name)/camera_color_optical_frame"/>
@@ -55,11 +63,15 @@ robot_model:=locobot_wx250s use_lidar:=true localization:=true-->
         <param name="camera_info_topic" value="$(arg camera_info_topic)"/>
         <param name="object_marker_topic" value="$(arg object_marker_topic)"/>
     </node>
-
-    <!-- RViz node -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-f $(arg rviz_frame) -d $(arg rvizconfig)" ns="$(arg robot_name)">
-        <remap from="/clicked_point" to="clicked_point"/>
-        <remap from="/initialpose" to="initialpose"/>
-        <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
-    </node>
+    
+    <!-- RViz (conditionally launched) -->
+    <group if="$(arg use_rviz)">
+        <node name="rviz" pkg="rviz" type="rviz" 
+              args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+              ns="$(arg robot_name)">
+            <remap from="/clicked_point" to="clicked_point"/>
+            <remap from="/initialpose" to="initialpose"/>
+            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+        </node>
+    </group>
 </launch>

@@ -8,7 +8,7 @@ import os
 class GoalRecorder:
     def __init__(self):
         rospy.init_node('goal_recorder')
-        self.config_file = os.path.expanduser('/home/rosuser/catkin_ws/src/move_to_pose/config/poses.yaml')
+        self.config_file = os.path.expanduser('/home/rosuser/lips_ws/src/move_to_pose/config/poses.yaml')
         self.locations = self.load_existing_poses()
         self.goal_received = False
         self.location_name = self.get_location_name()
