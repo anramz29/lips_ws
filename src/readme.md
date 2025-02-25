@@ -24,52 +24,70 @@ If your not using a locobot check the topics in the launch scripts and adjust th
 ## Structure
 ```
 .
+├── CMakeLists.txt -> /opt/ros/noetic/share/catkin/cmake/toplevel.cmake
 ├── move_to_pose
-│   ├── config
-│   │   └── poses.yaml
-│   ├── launch
-│   │   ├── approach_object.launch
-│   │   ├── find_object.launch
-│   │   ├── move_to_pose.launch
-│   │   └── move_to_pose_scan.launch
-│   ├── scripts
-│   │   ├── approach_object.py
-│   │   ├── find_object.py
-│   │   ├── goal_recorder.py
-│   │   ├── move_to_pose_node.py
-│   │   └── move_to_pose_scan_node.py
-│   ├── setup.py
-│   └── src
-│       ├── __init__.py
-│       └── move_to_pose_utils.py
+│   ├── CMakeLists.txt
+│   ├── config
+│   │   └── poses.yaml
+│   ├── launch
+│   │   ├── approach_object.launch
+│   │   ├── move_to_pose_scan.launch
+│   │   └── scan_and_approach.launch
+│   ├── package.xml
+│   ├── scripts
+│   │   ├── __pycache__
+│   │   │   ├── approach_object.cpython-38.pyc
+│   │   │   └── move_to_pose_scan_node.cpython-38.pyc
+│   │   ├── approach_object.py
+│   │   ├── goal_recorder.py
+│   │   ├── move_to_pose_node.py
+│   │   ├── move_to_pose_scan_node.py
+│   │   └── scan_and_approach_node.py
+│   ├── setup.py
+│   └── src
+│       ├── __init__.py
+│       ├── __pycache__
+│       │   ├── __init__.cpython-38.pyc
+│       │   └── move_to_pose_utils.cpython-38.pyc
+│       └── move_to_pose_utils.py
+├── readme.md
 ├── video_recorder
-│   ├── launch
-│   │   └── video_recorder.launch
-│   ├── photos
-│   │   └── back_table.jpg
-│   ├── scripts
-│   │   ├── picture_snapper.py
-│   │   └── video_recorder.py
-│   └── videos
-│       └── video_20250126_163047.mp4
+│   ├── CMakeLists.txt
+│   ├── launch
+│   │   └── video_recorder.launch
+│   ├── package.xml
+│   ├── photos
+│   │   └── back_table.jpg
+│   ├── scripts
+│   │   ├── picture_snapper.py
+│   │   └── video_recorder.py
+│   └── videos
+│       └── video_20250126_163047.mp4
 └── yolo_vision
+    ├── CMakeLists.txt
+    ├── include
+    │   ├── distance_node.hpp
+    │   └── yolo_node.hpp
     ├── launch
-    │   ├── object_mapper.launch
-    │   ├── search_and_approach.launch
-    │   ├── yolo_distance.launch
-    │   └── yolo_vision.launch
+    │   ├── object_mapper.launch
+    │   ├── yolo_distance.launch
+    │   └── yolo_vision.launch
     ├── models
-    │   ├── best.pt
-    │   └── yolo11n.pt
+    │   ├── best.pt
+    │   └── yolo11n.pt
+    ├── package.xml
     ├── rviz
-    │   └── xslocobot_description_yolo.rviz
-    └── scripts
-        ├── distance_node.py
-        ├── object_mapper_node.py
-        ├── search_and_approach_node.py
-        └── yolo_node.py
+    │   └── xslocobot_description_yolo.rviz
+    ├── scripts
+    │   ├── distance_node.py
+    │   ├── object_mapper_node.py
+    │   ├── search_and_approach_node.py
+    │   └── yolo_node.py
+    └── src
+        ├── distance_node.cpp
+        └── yolo_node.cpp
 
-15 directories, 29 files
+20 directories, 43 files
 ```
 
 

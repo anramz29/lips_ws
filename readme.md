@@ -8,7 +8,7 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Latest Work
 
-Checkout the [approach object script](/src/move_to_pose/scripts/approach_object.py) and [approach object launch file](/src/move_to_pose/launch/approach_object.launch) for my latest work in autonomus navigation.
+Checkout the [scan and object script](/src/move_to_pose/scripts/scan_and_approach_node.py) and [approach object launch file](/src/move_to_pose/launch/scan_and_approach.launch) for my latest work in autonomus navigation.
 
 <div align="center">
   <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
@@ -51,7 +51,7 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
 Contains packages:
 
 - [yolo_vision](/src/yolo_vision): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
-- [move_to_pose](/src/move_to_pose/): The package that controls finding objects/foraging refer to the [find_object](/src/move_to_pose/scripts/find_object.py), in addition to other helper packages for testing and position recording
+- [move_to_pose](/src/move_to_pose/): The package that controls finding objects/foraging refer to the [scan and approach](/src/move_to_pose/scripts/move_to_pose_scan_node.py), in addition to other helper packages for testing and position recording
 
 - [video_recorder](/src/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
 
