@@ -69,7 +69,7 @@ Contains packages:
 git clone https://github.com/anramz29/lips_ws.git
 ```
 
-## Now Navigate and Build the Repository
+## Now Run these to build the workstation
 ```bash 
 cd lips_ws
 catkin_make
