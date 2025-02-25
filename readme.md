@@ -63,10 +63,16 @@ Contains packages:
    - **ROS2 Users:** Refer to the `ROS2_Integration_Failed` folder.
 2. Review the Quick Setup Guides for instructions on setting up Locobot for either ROS1 or ROS2.
 3. For Docker-based setups, refer to the respective Docker Info sections for ROS1 and ROS2.
-4. For the `src` packages, use svn to just copy the respective directory
+4. For the `src` packages, use a git to just copy the respective directory, then run a `catkin_make`
 
 ```bash
 git clone https://github.com/anramz29/lips_ws.git
+```
+
+```bash 
+cd lips_ws
+catkin_make
+source devel/setup.bash # or add this to your bashrc
 ```
 ---
 
