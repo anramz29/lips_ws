@@ -8,7 +8,7 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Latest Work
 
-Checkout the [approach object script](/src/move_to_pose/scripts/approach_object.py) and [approach object launch file](/src/move_to_pose/launch/approach_object.launch) for my latest work in autonomus navigation.
+Checkout the [scan and object script](/src/move_to_pose/scripts/scan_and_approach_node.py) and [approach object launch file](/src/move_to_pose/launch/scan_and_approach.launch) for my latest work in autonomus navigation.
 
 <div align="center">
   <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
@@ -51,7 +51,7 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
 Contains packages:
 
 - [yolo_vision](/src/yolo_vision): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
-- [move_to_pose](/src/move_to_pose/): The package that controls finding objects/foraging refer to the [find_object](/src/move_to_pose/scripts/find_object.py), in addition to other helper packages for testing and position recording
+- [move_to_pose](/src/move_to_pose/): The package that controls finding objects/foraging refer to the [scan and approach](/src/move_to_pose/scripts/move_to_pose_scan_node.py), in addition to other helper packages for testing and position recording
 
 - [video_recorder](/src/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
 
@@ -63,10 +63,17 @@ Contains packages:
    - **ROS2 Users:** Refer to the `ROS2_Integration_Failed` folder.
 2. Review the Quick Setup Guides for instructions on setting up Locobot for either ROS1 or ROS2.
 3. For Docker-based setups, refer to the respective Docker Info sections for ROS1 and ROS2.
-4. For the `src` packages, use svn to just copy the respective directory
+4. For the `src` packages, use a git to just copy the respective directory, then run a `catkin_make`
 
 ```bash
 git clone https://github.com/anramz29/lips_ws.git
+```
+
+## Now Run these to build the workstation
+```bash 
+cd lips_ws
+catkin_make
+source devel/setup.bash 
 ```
 ---
 

@@ -1,6 +1,6 @@
 # lips_ws Packages!
 
-This comprises the packages that are currently being used in the lips lab. Currently working on a search and approach algorythim.
+This comprises the packages that are currently being used in the lips lab. Currently finished the preliminary [search alogrithim](/src/move_to_pose/launch/scan_and_approach.launch)
 
 Also Note that these scripts are ran on a remote pc and are meant to be used with a launch driver. In this case im using the [interbotix nav stack](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_nav) or the [interbotix control package](https://github.com/Interbotix/interbotix_ros_rovers/tree/main/interbotix_ros_xslocobots/interbotix_xslocobot_control)
 
@@ -25,51 +25,56 @@ If your not using a locobot check the topics in the launch scripts and adjust th
 ```
 .
 ├── move_to_pose
-│   ├── config
-│   │   └── poses.yaml
-│   ├── launch
-│   │   ├── approach_object.launch
-│   │   ├── find_object.launch
-│   │   ├── move_to_pose.launch
-│   │   └── move_to_pose_scan.launch
-│   ├── scripts
-│   │   ├── approach_object.py
-│   │   ├── find_object.py
-│   │   ├── goal_recorder.py
-│   │   ├── move_to_pose_node.py
-│   │   └── move_to_pose_scan_node.py
-│   ├── setup.py
-│   └── src
-│       ├── __init__.py
-│       └── move_to_pose_utils.py
+│   ├── config
+│   │   └── poses.yaml
+│   ├── launch
+│   │   ├── approach_object.launch
+│   │   ├── move_to_pose_scan.launch
+│   │   └── scan_and_approach.launch
+│   ├── scripts
+│   │   ├── approach_object.py
+│   │   ├── goal_recorder.py
+│   │   ├── move_to_pose_node.py
+│   │   ├── move_to_pose_scan_node.py
+│   │   └── scan_and_approach_node.py
+│   ├── setup.py
+│   └── src
+│       ├── __init__.py
+│       └── move_to_pose_utils.py
+├── readme.md
 ├── video_recorder
-│   ├── launch
-│   │   └── video_recorder.launch
-│   ├── photos
-│   │   └── back_table.jpg
-│   ├── scripts
-│   │   ├── picture_snapper.py
-│   │   └── video_recorder.py
-│   └── videos
-│       └── video_20250126_163047.mp4
+│   ├── launch
+│   │   └── video_recorder.launch
+│   ├── photos
+│   │   └── back_table.jpg
+│   ├── scripts
+│   │   ├── picture_snapper.py
+│   │   └── video_recorder.py
+│   └── videos
+│       └── video_20250126_163047.mp4
 └── yolo_vision
+    ├── include
+    │   ├── distance_node.hpp
+    │   └── yolo_node.hpp
     ├── launch
-    │   ├── object_mapper.launch
-    │   ├── search_and_approach.launch
-    │   ├── yolo_distance.launch
-    │   └── yolo_vision.launch
+    │   ├── object_mapper.launch
+    │   ├── yolo_distance.launch
+    │   └── yolo_vision.launch
     ├── models
-    │   ├── best.pt
-    │   └── yolo11n.pt
+    │   ├── best.pt
+    │   └── yolo11n.pt
     ├── rviz
-    │   └── xslocobot_description_yolo.rviz
-    └── scripts
-        ├── distance_node.py
-        ├── object_mapper_node.py
-        ├── search_and_approach_node.py
-        └── yolo_node.py
+    │   └── xslocobot_description_yolo.rviz
+    ├── scripts
+    │   ├── distance_node.py
+    │   ├── object_mapper_node.py
+    │   ├── search_and_approach_node.py
+    │   └── yolo_node.py
+    └── src
+        ├── distance_node.cpp
+        └── yolo_node.cpp
 
-15 directories, 29 files
+18 directories, 32 files
 ```
 
 
