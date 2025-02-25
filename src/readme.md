@@ -24,20 +24,14 @@ If your not using a locobot check the topics in the launch scripts and adjust th
 ## Structure
 ```
 .
-├── CMakeLists.txt -> /opt/ros/noetic/share/catkin/cmake/toplevel.cmake
 ├── move_to_pose
-│   ├── CMakeLists.txt
 │   ├── config
 │   │   └── poses.yaml
 │   ├── launch
 │   │   ├── approach_object.launch
 │   │   ├── move_to_pose_scan.launch
 │   │   └── scan_and_approach.launch
-│   ├── package.xml
 │   ├── scripts
-│   │   ├── __pycache__
-│   │   │   ├── approach_object.cpython-38.pyc
-│   │   │   └── move_to_pose_scan_node.cpython-38.pyc
 │   │   ├── approach_object.py
 │   │   ├── goal_recorder.py
 │   │   ├── move_to_pose_node.py
@@ -46,16 +40,11 @@ If your not using a locobot check the topics in the launch scripts and adjust th
 │   ├── setup.py
 │   └── src
 │       ├── __init__.py
-│       ├── __pycache__
-│       │   ├── __init__.cpython-38.pyc
-│       │   └── move_to_pose_utils.cpython-38.pyc
 │       └── move_to_pose_utils.py
 ├── readme.md
 ├── video_recorder
-│   ├── CMakeLists.txt
 │   ├── launch
 │   │   └── video_recorder.launch
-│   ├── package.xml
 │   ├── photos
 │   │   └── back_table.jpg
 │   ├── scripts
@@ -64,7 +53,6 @@ If your not using a locobot check the topics in the launch scripts and adjust th
 │   └── videos
 │       └── video_20250126_163047.mp4
 └── yolo_vision
-    ├── CMakeLists.txt
     ├── include
     │   ├── distance_node.hpp
     │   └── yolo_node.hpp
@@ -75,7 +63,6 @@ If your not using a locobot check the topics in the launch scripts and adjust th
     ├── models
     │   ├── best.pt
     │   └── yolo11n.pt
-    ├── package.xml
     ├── rviz
     │   └── xslocobot_description_yolo.rviz
     ├── scripts
@@ -87,7 +74,7 @@ If your not using a locobot check the topics in the launch scripts and adjust th
         ├── distance_node.cpp
         └── yolo_node.cpp
 
-20 directories, 43 files
+18 directories, 32 files
 ```
 
 
