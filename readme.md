@@ -69,10 +69,11 @@ Contains packages:
 git clone https://github.com/anramz29/lips_ws.git
 ```
 
+## Now Navigate and Build the Repository
 ```bash 
 cd lips_ws
 catkin_make
-source devel/setup.bash # or add this to your bashrc
+source devel/setup.bash 
 ```
 ---
 
