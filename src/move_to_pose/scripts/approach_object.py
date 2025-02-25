@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 import rospy
 import actionlib
-import yaml
-import rospkg
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped
+from geometry_msgs.msg import Quaternion 
 from nav_msgs.msg import OccupancyGrid
 import sys
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from tf.transformations import quaternion_from_euler
 import math
 import tf2_ros
 from visualization_msgs.msg import Marker
+from std_msgs.msg import Float32MultiArray
+import actionlib_msgs.msg
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.move_to_pose_utils import load_poses, get_robot_pose
-from std_msgs.msg import Float32MultiArray
-from actionlib_msgs.msg import GoalID
-import actionlib_msgs.msg
 
+# helper functions
+from src.move_to_pose_utils import (
+    load_poses,
+    get_robot_pose,
+    calculate_safe_approach_point,
+    is_position_safe_approach
+)
 
 class ApproachObject:
     def __init__(self):
@@ -88,6 +91,7 @@ class ApproachObject:
             self.depth_callback
         )
         self.current_depth = None
+        self.object_reached = False
 
         self.cancel_pub = rospy.Publisher('/locobot/move_base/cancel', actionlib_msgs.msg.GoalID, queue_size=1)
 
@@ -99,6 +103,10 @@ class ApproachObject:
                 return
             self.object_marker = msg
             self.current_scan_interrupted = True
+        # if object already reached log info once and return
+        elif self.object_reached:
+            rospy.loginfo("Object already reached")
+            return
         else:
             rospy.loginfo("Marker received but not scanning")
 
@@ -120,78 +128,6 @@ class ApproachObject:
         cancel_msg = actionlib_msgs.msg.GoalID()
         self.cancel_pub.publish(cancel_msg)
         rospy.loginfo("Sent navigation cancellation commands")  
-    
-    def calculate_safe_approach_point(self, target_x, target_y, current_pose, max_step=1.0):
-        """Calculate a safe intermediate point towards the target that maintains 1.5m distance"""
-        dx = target_x - current_pose.position.x
-        dy = target_y - current_pose.position.y
-        target_distance = math.sqrt(dx*dx + dy*dy)
-        
-        # Calculate the final target point (1.5m away from object)
-        if target_distance <= 2.0:  # If we're getting close to the target
-            # Calculate point that's 1.5m away from target
-            direction_x = dx / target_distance
-            direction_y = dy / target_distance
-            
-            # Move back from target position to maintain 1.5m distance
-            return (
-                target_x - (direction_x * 1.5),  # 1.5 is our desired distance
-                target_y - (direction_y * 1.5)
-            )
-        
-        # If we're far away, take a step toward the target while maintaining heading
-        step_size = min(max_step, target_distance - 1.5)  # Don't overshoot the 1.5m mark
-        dx = (dx/target_distance) * step_size
-        dy = (dy/target_distance) * step_size
-        
-        return current_pose.position.x + dx, current_pose.position.y + dy
-
-    def get_adaptive_cost_threshold(self, distance):
-        """Get cost threshold that becomes more lenient with distance"""
-        # Base threshold for close distances
-        base_threshold = 90
-        # Reduce threshold (become more lenient) as distance increases
-        distance_factor = min(distance / 2.0, 1.0)  # Cap at 2 meters
-        return base_threshold * (1.0 - distance_factor * 0.3)  # Can go down to 70% of base threshold
-
-    def is_position_safe(self, x, y, current_pose=None):
-        """Enhanced safety check with distance-based threshold"""
-        if self.costmap is None:
-            rospy.logwarn("No costmap available")
-            return False
-
-        # Convert world coordinates to costmap cell coordinates
-        cell_x = int((x - self.costmap.info.origin.position.x) / self.costmap.info.resolution)
-        cell_y = int((y - self.costmap.info.origin.position.y) / self.costmap.info.resolution)
-
-        # Check if coordinates are within costmap bounds
-        if (cell_x < 0 or cell_x >= self.costmap.info.width or
-            cell_y < 0 or cell_y >= self.costmap.info.height):
-            rospy.logwarn(f"Position ({x}, {y}) is outside costmap bounds")
-            return False
-
-        # Get cost value at position
-        index = cell_y * self.costmap.info.width + cell_x
-        cost = self.costmap.data[index]
-
-        # If we have current pose, use distance-based threshold
-        if current_pose is not None:
-            distance = math.sqrt(
-                (x - current_pose.position.x)**2 + 
-                (y - current_pose.position.y)**2
-            )
-            threshold = self.get_adaptive_cost_threshold(distance)
-        else:
-            threshold = 90  # Default threshold
-
-        if cost == -1:
-            rospy.logwarn(f"Position ({x}, {y}) is in unknown space")
-            return False
-        elif cost >= threshold:
-            rospy.logwarn(f"Position ({x}, {y}) is too close to obstacles (cost: {cost}, threshold: {threshold})")
-            return False
-        
-        return True
 
     def move_to_marker(self, marker):
         """Enhanced move to marker with graduated approach and robust cancellation"""
@@ -224,17 +160,17 @@ class ApproachObject:
                 return True
 
             # Calculate next waypoint towards target
-            next_x, next_y = self.calculate_safe_approach_point(
+            next_x, next_y = calculate_safe_approach_point(
                 target_x, target_y, current_pose
             )
             
             # Verify the calculated position is safe
-            if not self.is_position_safe(next_x, next_y, current_pose):
+            if not is_position_safe_approach(self.costmap, next_x, next_y, current_pose):
                 # Try a shorter step
-                next_x, next_y = self.calculate_safe_approach_point(
+                next_x, next_y = calculate_safe_approach_point(
                     target_x, target_y, current_pose, max_step=0.5
                 )
-                if not self.is_position_safe(next_x, next_y, current_pose):
+                if not is_position_safe_approach(next_x, next_y, current_pose):
                     rospy.logerr("Cannot find safe approach path!")
                     return False
             
@@ -338,6 +274,7 @@ class ApproachObject:
                 if 1.4 <= self.current_depth <= 1.6:  # Check depth instead of geometric distance
                     rospy.loginfo(f"Already at correct viewing distance ({self.current_depth:.2f}m)")
                     self.scanning_in_progress = False
+                    self.object_reached = True
                 else:
                     success = self.move_to_marker(self.object_marker)
                     if success:
@@ -350,8 +287,7 @@ class ApproachObject:
         
         rate.sleep()
 
-
-if __name__ == '__main__':
+if __name__ == '__main__':  
     try:
         node = ApproachObject()
         rospy.loginfo("=== Approach Object Node Started ===")

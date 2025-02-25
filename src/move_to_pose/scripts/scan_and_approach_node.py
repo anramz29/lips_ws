@@ -20,7 +20,7 @@ from src.move_to_pose_utils import (
     is_position_safe,
     calculate_intermediate_point,
     calculate_safe_approach_point,
-    get_adaptive_cost_threshold
+    is_position_safe_approach
 )
 from std_msgs.msg import Float32MultiArray
 from actionlib_msgs.msg import GoalID
@@ -108,39 +108,15 @@ class MoveAndScanAndApproach:
         """Callback for costmap updates"""
         self.costmap = msg
 
-
     def object_marker_callback(self, msg):
         """Callback for receiving object marker messages with sustained detection"""
         if self.scanning_in_progress:
             if msg.header.frame_id != "map":
                 rospy.logwarn(f"Marker not in map frame: {msg.header.frame_id}")
                 return
-            
-            # Apply basic validation to reduce false positives
-            
-            # Skip if marker has inappropriate size (adjust thresholds as needed)
-            marker_size = max(msg.scale.x, msg.scale.y, msg.scale.z)
-            if marker_size < 0.05 or marker_size > 1.0:
-                rospy.logdebug(f"Ignoring marker with unusual size: {marker_size}m")
-                return
-            
-            # If we already have a marker, check if this one is consistent with it
-            if self.object_marker is not None:
-                # Calculate distance between current and previous detection
-                dx = self.object_marker.pose.position.x - msg.pose.position.x
-                dy = self.object_marker.pose.position.y - msg.pose.position.y
-                distance = math.sqrt(dx*dx + dy*dy)
-                
-                # If position jumped significantly, might be a false positive
-                if distance > 1.0 :  # 1.0 meter threshold, adjust as needed
-                    rospy.logwarn(f"Detection position jumped by {distance:.2f}m, resetting sustained detection")
-                    self.sustained_detection_start = None
-                    
+    
             # Store the validated marker
             self.object_marker = msg
-            
-            # Note: The actual sustained detection logic is in the perform_scan_rotation method
-            # where we track how long we've continuously seen this object
     
     def reset_detection_state(self):
         """Reset detection state between scans"""
@@ -166,16 +142,12 @@ class MoveAndScanAndApproach:
         rospy.loginfo("Sent navigation cancellation commands")
 
     def perform_scan_rotation(self):
-        """Perform four 90-degree rotations in place, checking for objects"""
-        rospy.loginfo("Starting scan rotation sequence")
+        """Perform rotations to cover a full 360-degree view with stabilization and sustained detection"""
+        rospy.loginfo("Starting scan rotation sequence with five rotations")
         
         # Set scanning flag to true
         self.scanning_in_progress = True
         self.object_detected = False
-        
-        # Variables for sustained detection
-        self.sustained_detection_start = None
-        self.required_detection_duration = rospy.Duration(2.0)  # 2 seconds sustained detection required
         
         # Get current position
         current_pose = get_robot_pose()
@@ -193,44 +165,18 @@ class MoveAndScanAndApproach:
             0
         )
         
-        # Function to check for sustained detection
-        def check_sustained_detection():
-            # If we have a marker but sustained_detection_start is not set, start the timer
-            if self.object_marker is not None and self.sustained_detection_start is None:
-                self.sustained_detection_start = rospy.Time.now()
-                rospy.loginfo("Potential object detected, starting sustained detection timer")
-                return False
-            
-            # If we have a start time, check if we've maintained detection for the required duration
-            elif self.object_marker is not None and self.sustained_detection_start is not None:
-                elapsed = rospy.Time.now() - self.sustained_detection_start
-                if elapsed >= self.required_detection_duration:
-                    rospy.loginfo(f"Object detection sustained for {elapsed.to_sec():.2f} seconds")
-                    self.object_detected = True
-                    return True
-                return False
-            
-            # If we've lost detection, reset the timer
-            elif self.object_marker is None and self.sustained_detection_start is not None:
-                rospy.logwarn("Lost detection during sustainment period, resetting timer")
-                self.sustained_detection_start = None
-                return False
-            
-            return False
+        # Five rotations of 72 degrees each to cover 360 degrees
+        rotation_angles = [0, 60, 120, 180, 240, 300]  # Degrees
+        num_rotations = len(rotation_angles)
         
-        # Perform 4 rotations (360 degrees total)
-        for i in range(4):
-            # Reset sustained detection timer for each rotation
-            self.sustained_detection_start = None
+        # Perform the rotations
+        for i, angle in enumerate(rotation_angles):
+            # Reset object detection status for this rotation
             self.object_marker = None
+            self.object_detected = False
             
-            # Check if object detected during previous rotation
-            if self.object_detected:
-                rospy.loginfo("Object detected during scanning, stopping rotation sequence")
-                break
-                
-            # Calculate next orientation (90-degree increments)
-            yaw = math.pi / 2 * (i + 1)  # Convert to radians
+            # Calculate orientation in radians
+            yaw = math.radians(angle)
             quaternion = quaternion_from_euler(0, 0, yaw)
             
             # Update goal orientation
@@ -238,63 +184,69 @@ class MoveAndScanAndApproach:
             current_goal.target_pose.pose.orientation = Quaternion(*quaternion)
             
             # Send rotation goal
-            rospy.loginfo(f"Executing rotation {i+1}/4 ({(i+1)*90} degrees)")
+            rospy.loginfo(f"Executing rotation {i+1}/{num_rotations} ({angle} degrees)")
             self.client.send_goal(current_goal)
             
-            # Monitor for goal completion
-            goal_reached = False
-            start_time = rospy.Time.now()
-            timeout = rospy.Duration(40.0)  # 40 seconds timeout
-            rate = rospy.Rate(10)  # 10Hz checking rate
+            # Wait for rotation to complete
+            timeout = rospy.Duration(45.0)  # 30 seconds timeout
             
-            while not rospy.is_shutdown() and not self.object_detected:
-                # Check for sustained detection
-                check_sustained_detection()
-                
-                # Check if we've timed out
-                if (rospy.Time.now() - start_time) > timeout:
-                    rospy.logwarn("Rotation timeout reached")
-                    break
-                
-                # Check goal status
-                state = self.client.get_state()
-                if state == actionlib.GoalStatus.SUCCEEDED:
-                    goal_reached = True
-                    break
-                elif state in [actionlib.GoalStatus.ABORTED, actionlib.GoalStatus.REJECTED]:
-                    rospy.logwarn("Rotation goal aborted or rejected")
-                    break
-                
-                rate.sleep()
+            if not self.client.wait_for_result(timeout):
+                rospy.logwarn("Rotation timeout reached")
+                continue
             
-            # If object detected during rotation, cancel navigation and break
+            if self.client.get_state() != actionlib.GoalStatus.SUCCEEDED:
+                rospy.logwarn("Rotation goal failed")
+                continue
+            
+            # Rotation complete, wait for camera to stabilize to avoid motion blur
+            rospy.loginfo("Rotation complete, waiting for camera stabilization...")
+            stabilization_time = 1.0  # 1 second to let camera stabilize
+            rospy.sleep(stabilization_time)
+            
+            # Clear any previous detection that might be from motion blur
+            self.object_marker = None
+            
+            # Now scan for objects with sustained detection requirement
+            rospy.loginfo(f"Starting object detection at {angle} degrees...")
+            
+            # Variables for sustained detection
+            detection_start = None
+            required_duration = rospy.Duration(2.0)  # Require 1 second of sustained detection
+            scan_timeout = rospy.Duration(3.0)  # Total scan time at this position
+            scan_start = rospy.Time.now()
+            
+            while (rospy.Time.now() - scan_start) < scan_timeout and not rospy.is_shutdown():
+                # Check if we have a marker
+                if self.object_marker is not None:
+                    # Start or continue timing the sustained detection
+                    if detection_start is None:
+                        detection_start = rospy.Time.now()
+                        rospy.loginfo("Potential object detected, timing sustained detection...")
+                    else:
+                        # Check if we've maintained detection long enough
+                        elapsed = rospy.Time.now() - detection_start
+                        if elapsed >= required_duration:
+                            self.object_detected = True
+                            rospy.loginfo(f"Sustained object detection for {elapsed.to_sec():.2f} seconds!")
+                            break
+                else:
+                    # Lost detection, reset the timer
+                    if detection_start is not None:
+                        rospy.logwarn("Lost detection during sustainment period, resetting timer")
+                        detection_start = None
+                
+                rospy.sleep(0.1)  # Check at 10Hz
+            
+            # If object detected with sustained requirement, exit the rotation sequence
             if self.object_detected:
-                self.cancel_navigation()
+                rospy.loginfo("Confirmed object detection, stopping scan sequence")
                 break
-            
-            # After completing the rotation, pause to allow detection to stabilize
-            if goal_reached:
-                rospy.loginfo(f"Rotation {i+1}/4 complete, pausing for detection stabilization...")
-                
-                # Clear any previous markers that might influence detection
-                self.object_marker = None
-                self.sustained_detection_start = None
-                
-                stabilization_time = 5.0  # 5 seconds stabilization time
-                stabilization_start = rospy.Time.now() + rospy.Duration(1.0)  # Start after 1 second
-                
-                # Check for detections during the stabilization period
-                while (rospy.Time.now() - stabilization_start) < rospy.Duration(stabilization_time) and not rospy.is_shutdown():
-                    # Check for sustained detection
-                    if check_sustained_detection():
-                        rospy.loginfo("Sustained object detection during stabilization period!")
-                        break
-                    rospy.sleep(0.1)  # Sleep for 100ms between checks
-                
-                # Brief additional pause before next rotation if no detection
-                if not self.object_detected:
-                    rospy.sleep(1.0)
+                    
+            # Brief pause between rotations
+            if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
+                rospy.sleep(0.5)
         
+        # End of rotation sequence
         detected = self.object_detected
         
         # Reset scanning flag if no detection
@@ -450,12 +402,12 @@ class MoveAndScanAndApproach:
             )
             
             # Verify the calculated position is safe
-            if not is_position_safe(self.costmap, next_x, next_y):
+            if not is_position_safe_approach(self.costmap, next_x, next_y):
                 # Try a shorter step
                 next_x, next_y = calculate_safe_approach_point(
                     target_x, target_y, current_pose, max_step=0.5
                 )
-                if not is_position_safe(self.costmap, next_x, next_y):
+                if not is_position_safe_approach(self.costmap, next_x, next_y):
                     rospy.logerr("Cannot find safe approach path!")
                     self.scanning_in_progress = False
                     return False

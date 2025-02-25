@@ -7,7 +7,7 @@ import tf2_ros
 from geometry_msgs.msg import PoseStamped
 import actionlib
 import math
-
+from tf.transformations import quaternion_from_euler
 
 
 def create_goal(pose_data):
@@ -63,8 +63,6 @@ def get_robot_pose():
         rospy.logerr(f"Failed to get robot pose: {e}")
         return None
     
-
-
 def list_available_poses(poses):
     """
     List all available poses and their coordinates
@@ -83,7 +81,6 @@ def list_available_poses(poses):
             rospy.loginfo(f"- {name}: x={pos.get('x', 0):.2f}, y={pos.get('y', 0):.2f}, z={pos.get('z', 0):.2f}")
         else:
             rospy.logwarn(f"Invalid pose data format for {name}")
-
 
 def is_position_safe(costmap, x, y):
     """Check if a position is in a safe area of the costmap"""
@@ -148,9 +145,48 @@ def get_adaptive_cost_threshold(distance):
     distance_factor = min(distance / 2.0, 1.0)  # Cap at 2 meters
     return base_threshold * (1.0 - distance_factor * 0.3)  # Can go down to 70% of base threshold
 
-
 def calculate_intermediate_point(start_pose, end_pose, ratio=0.5):
     """Calculate the midpoint between start and end pose"""
     int_x = start_pose.position.x + (end_pose.position.x - start_pose.position.x) * ratio
     int_y = start_pose.position.y + (end_pose.position.y - start_pose.position.y) * ratio
     return int_x, int_y
+
+def is_position_safe_approach(costmap, x, y, current_pose=None):
+    """Enhanced safety check with distance-based threshold"""
+    if costmap is None:
+        rospy.logwarn("No costmap available")
+        return False
+
+    # Convert world coordinates to costmap cell coordinates
+    cell_x = int((x - costmap.info.origin.position.x) / costmap.info.resolution)
+    cell_y = int((y - costmap.info.origin.position.y) / costmap.info.resolution)
+
+    # Check if coordinates are within costmap bounds
+    if (cell_x < 0 or cell_x >= costmap.info.width or
+        cell_y < 0 or cell_y >= costmap.info.height):
+        rospy.logwarn(f"Position ({x}, {y}) is outside costmap bounds")
+        return False
+
+    # Get cost value at position
+    index = cell_y * costmap.info.width + cell_x
+    cost = costmap.data[index]
+
+    # If we have current pose, use distance-based threshold
+    if current_pose is not None:
+        distance = math.sqrt(
+            (x - current_pose.position.x)**2 + 
+            (y - current_pose.position.y)**2
+        )
+        threshold = get_adaptive_cost_threshold(distance)
+    else:
+        threshold = 90  # Default threshold
+
+    if cost == -1:
+        rospy.logwarn(f"Position ({x}, {y}) is in unknown space")
+        return False
+    elif cost >= threshold:
+        rospy.logwarn(f"Position ({x}, {y}) is too close to obstacles (cost: {cost}, threshold: {threshold})")
+        return False
+    
+    return True
+    
