@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <!-- Robot name parameter -->
+    <arg name="robot_name" default="locobot" />
+    
+    <!-- Topic parameters -->
+    <arg name="object_marker_topic" default="/$(arg robot_name)/detected_object/marker" />
+    <arg name="bbox_depth_topic" default="/$(arg robot_name)/camera/yolo/bbox_depth" />
+    
+    <!-- Launch the navigation controller that scanner depends on -->
+    <include file="$(find object_scout)/launch/navigation.launch">
+        <arg name="robot_name" value="$(arg robot_name)" />
+    </include>
+    
+    <!-- Include yolo_vision for object detection if needed -->
+    <arg name="include_yolo" default="true" />
+    <group if="$(arg include_yolo)">
+        <include file="$(find yolo_vision)/launch/object_detector.launch">
+            <arg name="robot_name" value="$(arg robot_name)"/>
+            <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
+            <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
+            <arg name="use_rviz" value="false"/>
+        </include>
+    </group>
+    
+    <!-- Launch the object scanner node -->
+    <node name="object_scanner" pkg="object_scout" type="scanner_node.py" output="screen">
+        <param name="robot_name" value="$(arg robot_name)" />
+        <param name="object_marker_topic" value="$(arg object_marker_topic)" />
+    </node>
+</launch>

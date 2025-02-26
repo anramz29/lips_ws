@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+import rospy
+import sys
+import tf2_ros
+from object_scout.navigation_controller import NavigationController
+from object_scout.object_scanner import ObjectScanner, ScanResult
+from object_scout.object_approacher import ObjectApproacher
+from object_scout.pose_manager import PoseManager
+from object_scout.utils import get_robot_pose
+
+
+class ScoutCoordinator:
+    """
+    Main coordinator for the object scouting mission
+    """
+    def __init__(self, init_node=True):
+        """
+        Initialize the coordinator
+        
+        Args:
+            init_node: Whether to initialize a ROS node
+        """
+        if init_node:
+            rospy.init_node('scout_coordinator', anonymous=False)
+        
+        # Get ROS parameters
+        self.robot_name = rospy.get_param('~robot_name', 'locobot')
+        self.poses_config = rospy.get_param('~poses_config', '')
+        self.pose_command = rospy.get_param('~pose_command', 'all')
+        
+        # Setup TF listener
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Initialize components
+        self.nav_controller = NavigationController(self.robot_name)
+        self.pose_manager = PoseManager(self.poses_config)
+        self.scanner = ObjectScanner(self.robot_name, self.nav_controller)
+        self.approacher = ObjectApproacher(self.robot_name, self.nav_controller)
+        
+    def move_to_named_pose(self, pose_name):
+        """
+        Move to a named pose with intermediate scanning
+        
+        Args:
+            pose_name: Name of the pose in configuration
+            
+        Returns:
+            bool: Success flag
+        """
+        # Get current robot pose
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            return False
+            
+        # Get target pose from pose manager
+        target_pose = self.pose_manager.get_pose(pose_name)
+        if target_pose is None:
+            return False
+        
+        # Calculate intermediate point for scanning
+        from object_scout.utils import calculate_intermediate_point
+        int_x, int_y = calculate_intermediate_point(current_pose, target_pose)
+        
+        # Move to intermediate point
+        rospy.loginfo(f"Moving to intermediate point: x={int_x:.2f}, y={int_y:.2f}")
+        if not self.nav_controller.move_to_position(int_x, int_y):
+            rospy.logerr("Failed to reach intermediate point")
+            return False
+            
+        # Perform scan at intermediate point
+        rospy.loginfo("Scanning at intermediate point...")
+        detection = self.scanner.perform_scan_rotation()
+        
+        # If object detected, approach it and consider mission successful
+        if detection == ScanResult.OBJECT_DETECTED:
+            result = self.approacher.approach_object(self.scanner.object_marker)
+            rospy.loginfo(f"Object approach at intermediate point result: {result}")
+            return True  # Mission successful if an object was approached
+        
+        # Move to final destination
+        rospy.loginfo(f"Moving to final position: {pose_name}")
+        success = self.nav_controller.move_to_position(
+            target_pose.position.x,
+            target_pose.position.y
+        )
+        
+        if success:
+            # Scan at final destination
+            rospy.loginfo(f"Scanning at final position: {pose_name}")
+            detection = self.scanner.perform_scan_rotation()
+            
+            # If object detected, approach it
+            if detection == ScanResult.OBJECT_DETECTED:
+                return self.approacher.approach_object(self.scanner.object_marker)
+                
+        return success
+        
+    def move_to_all_poses(self):
+        """
+        Move through all poses, scanning and approaching if objects found
+        
+        Returns:
+            bool: True if object found, False otherwise
+        """
+        found_object = False
+        
+        for pose_name in self.pose_manager.get_all_pose_names():
+            if found_object:
+                rospy.loginfo("Object already found and approached, ending navigation sequence")
+                break
+                
+            rospy.loginfo(f"\nMoving to: {pose_name}")
+            success = self.move_to_named_pose(pose_name)
+            
+            # If success and object detected by scanner, set flag
+            if success and self.scanner.object_detected:
+                found_object = True
+                rospy.loginfo(f"Object detected at {pose_name}, stopping navigation sequence")
+
+            if not success:
+                rospy.logwarn(f"Failed to reach {pose_name}, continuing to next pose...")
+                
+            rospy.sleep(1)  # Brief pause between movements
+            
+        return found_object
+        
+    def main(self):
+        """
+        Main execution function
+        
+        Returns:
+            bool: Success flag indicating if an object was found
+        """
+        rospy.loginfo("=== Object Scout Mission Started ===")
+        result = self.move_to_all_poses()
+        
+        if result:
+            rospy.loginfo("Successfully completed mission and found an object!")
+        else:
+            rospy.loginfo("Completed mission, no objects approached")
+            
+        return result
+
+
+if __name__ == "__main__":
+    try:
+        coordinator = ScoutCoordinator(init_node=True)
+        result = coordinator.main()
+        if not result:
+            rospy.spin()  # Keep node running if no object was found
+    except rospy.ROSInterruptException:
+        rospy.loginfo("Scout coordinator interrupted")
