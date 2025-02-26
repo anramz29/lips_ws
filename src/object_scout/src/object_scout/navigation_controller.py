@@ -65,7 +65,7 @@ class NavigationController:
         """Callback for costmap updates"""
         self.costmap = msg
         
-    def move_to_position(self, x, y, orientation=None, timeout=30.0):
+    def move_to_position(self, x, y, orientation=None, timeout=90.0):
         """
         Move to a specific position with optional orientation
         

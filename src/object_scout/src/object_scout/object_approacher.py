@@ -1,342 +1,297 @@
 #!/usr/bin/env python3
 import rospy
-import math
-import actionlib
-from std_msgs.msg import Float32MultiArray
-from tf.transformations import quaternion_from_euler
-from geometry_msgs.msg import Quaternion
-from visualization_msgs.msg import Marker
-
-# Import utilities
-from object_scout.utils import get_robot_pose, calculate_safe_approach_point, is_position_safe_approach
+import sys
+import tf2_ros
+from object_scout.navigation_controller import NavigationController
+from object_scout.object_scanner import ObjectScanner, ScanResult
+from object_scout.object_approacher import ObjectApproacher
+from object_scout.pose_manager import PoseManager
+from object_scout.utils import get_robot_pose
 
 
-class ObjectApproacher:
+class RobustScoutCoordinator:
     """
-    Handles approaching detected objects
+    Enhanced coordinator for the object scouting mission with improved fallback behavior
     """
-    def __init__(self, robot_name, nav_controller, init_node=False):
+    def __init__(self, init_node=True):
         """
-        Initialize the approacher
+        Initialize the coordinator
         
         Args:
-            robot_name: Name of the robot for topic namespacing
-            nav_controller: Instance of NavigationController for movement commands
-            init_node: Whether to initialize a ROS node (standalone mode)
+            init_node: Whether to initialize a ROS node
         """
         if init_node:
-            rospy.init_node('object_approacher', anonymous=False)
-            
-        self.robot_name = robot_name
-        self.nav_controller = nav_controller
-        self.costmap = nav_controller.costmap
+            rospy.init_node('robust_scout_coordinator', anonymous=False)
         
-        # Approacher state
-        self.current_depth = None
-        self.MAX_DETECTION_FAILURES = 3
+        # Get ROS parameters
+        self.robot_name = rospy.get_param('~robot_name', 'locobot')
+        self.poses_config = rospy.get_param('~poses_config', '')
+        self.pose_command = rospy.get_param('~pose_command', 'all')
+        self.max_approach_retries = rospy.get_param('~max_approach_retries', 2)
+        self.retry_delay = rospy.get_param('~retry_delay', 3.0)  # seconds
+        self.min_detection_confidence = rospy.get_param('~min_detection_confidence', 0.6)
+        self.fallback_poses_enabled = rospy.get_param('~fallback_poses_enabled', True)
+        self.max_fallback_retries = rospy.get_param('~max_fallback_retries', 3)
         
-        # Approach parameters
-        self.approach_min_depth = 1.0  # meters
-        self.approach_max_depth = 1.2  # meters
-        self.navigation_timeout = 40.0  # seconds
+        # Setup TF listener
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         
-        # Set up depth subscription
-        self.bbox_depth_topic = rospy.get_param('~bbox_depth_topic', 
-                                               f'/{robot_name}/camera/yolo/bbox_depth')
-        self.depth_sub = rospy.Subscriber(
-            self.bbox_depth_topic,
-            Float32MultiArray,
-            self.depth_callback
-        )
-
-            # Set up object marker subscription
-        self.object_marker_topic = rospy.get_param('~object_marker_topic', 
-                                                f'/{robot_name}/object_markers')
-        self.object_marker_sub = rospy.Subscriber(
-            self.object_marker_topic,
-            Marker,  # Assuming this is the correct message type
-            self.object_marker_callback
-        )
-
-        self.object_marker = None    # Set up object marker subscription
-        self.object_marker_topic = rospy.get_param('~object_marker_topic', 
-                                                f'/{robot_name}/object_markers')
-        self.object_marker_sub = rospy.Subscriber(
-            self.object_marker_topic,
-            Marker,  # Assuming this is the correct message type
-            self.object_marker_callback
-        )
-    
-        self.object_marker = None
-
-    def object_marker_callback(self, msg):
+        # Initialize components
+        self.nav_controller = NavigationController(self.robot_name)
+        self.pose_manager = PoseManager(self.poses_config)
+        self.scanner = ObjectScanner(self.robot_name, self.nav_controller)
+        self.approacher = ObjectApproacher(self.robot_name, self.nav_controller)
+        
+        # Tracking state for fallback behavior
+        self.approach_attempts = 0
+        self.fallback_attempts = 0
+        self.current_fallback_pose_index = 0
+        self.fallback_poses = {}
+        
+    def initialize_fallback_poses(self):
         """
-        Process object marker messages
+        Initialize fallback poses for each primary pose
         
-        Args:
-            msg: Marker message from object detection
+        Each primary pose will have a list of nearby alternative poses to try
+        if the sustained detection fails at the primary pose
         """
-        # Store the latest marker for approach
-        self.object_marker = msg
-
-    
-    def approach_object(self, object_marker):
-        """
-        Approach a detected object with improved marker persistence
+        all_poses = self.pose_manager.get_all_pose_names()
         
-        Args:
-            object_marker: The marker for the detected object
-            
-        Returns:
-            bool: Success flag
-        """
-        rospy.loginfo("Moving to detected object with graduated approach...")
-        
-        if object_marker is None:
-            rospy.logerr("No object marker available to approach")
-            return False
-        
-        # Store initial marker details as a fallback
-        initial_target_x = object_marker.pose.position.x
-        initial_target_y = object_marker.pose.position.y
-        
-        # Get initial robot pose (save for potential fallback)
-        original_pose = get_robot_pose()
-        if original_pose is None:
-            rospy.logerr("Failed to get robot pose")
-            return False
-        
-        # Track detection reliability
-        consecutive_detection_failures = 0
-        max_detection_failures = 5
-        
-        # Approach loop
-        while not rospy.is_shutdown():
-            # If we've lost too many detections, abort
-            if consecutive_detection_failures >= max_detection_failures:
-                rospy.logwarn("Repeated detection failures. Aborting approach.")
-                return False
-            
-            # Use initial target if marker is lost
-            target_x = (self.object_marker.pose.position.x 
-                        if self.object_marker is not None 
-                        else initial_target_x)
-            target_y = (self.object_marker.pose.position.y 
-                        if self.object_marker is not None 
-                        else initial_target_y)
-            
-            # Depth and marker validation
-            depth_check = self._enhanced_depth_and_marker_check(
-                initial_target_x, initial_target_y
-            )
-            
-            if depth_check is True:
-                return True
-            elif depth_check is False:
-                consecutive_detection_failures += 1
-                rospy.logwarn(f"Detection failure. Attempts: {consecutive_detection_failures}")
-                rospy.sleep(0.5)  # Brief pause between attempts
+        # For each primary pose, create a list of fallback poses
+        for pose_name in all_poses:
+            # Get primary pose
+            primary_pose = self.pose_manager.get_pose(pose_name)
+            if primary_pose is None:
                 continue
+                
+            # Create fallback poses around the primary pose
+            # These are slightly offset positions to try if detection fails
+            fallbacks = []
             
-            # Calculate next approach waypoint
-            current_pose = get_robot_pose()
-            if current_pose is None:
-                rospy.logerr("Failed to get current robot pose")
-                return False
+            # Create a grid of fallback positions around the primary pose
+            offsets = [(-0.3, 0), (0.3, 0), (0, -0.3), (0, 0.3), 
+                      (-0.3, -0.3), (-0.3, 0.3), (0.3, -0.3), (0.3, 0.3)]
             
-            next_x, next_y = self._calculate_approach_waypoint(target_x, target_y, current_pose)
-            if next_x is None:
-                rospy.logerr("Cannot find safe approach path!")
-                return False
+            for i, (x_offset, y_offset) in enumerate(offsets):
+                fallback_name = f"{pose_name}_fallback_{i+1}"
+                fallback_pose = self.pose_manager.create_pose(
+                    fallback_name,
+                    primary_pose.position.x + x_offset,
+                    primary_pose.position.y + y_offset,
+                    primary_pose.orientation
+                )
+                fallbacks.append(fallback_name)
+                
+            self.fallback_poses[pose_name] = fallbacks
             
-            # Execute approach step
-            approach_result = self._execute_approach_step(
-                next_x, next_y, target_x, target_y, current_pose
+        rospy.loginfo(f"Initialized fallback poses for {len(self.fallback_poses)} primary poses")
+        
+    def move_to_named_pose(self, pose_name, is_fallback=False):
+        """
+        Move to a named pose and scan for objects with enhanced fallback
+        
+        Args:
+            pose_name: Name of the pose in configuration
+            is_fallback: Whether this is a fallback pose
+            
+        Returns:
+            tuple: (success, approach_attempted, approach_succeeded)
+            - success: Whether navigation and scanning succeeded
+            - approach_attempted: Whether approach was attempted
+            - approach_succeeded: Whether approach succeeded
+        """
+        # Get current robot pose
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            return False, False, False
+            
+        # Get target pose from pose manager
+        target_pose = self.pose_manager.get_pose(pose_name)
+        if target_pose is None:
+            rospy.logerr(f"Failed to get pose: {pose_name}")
+            return False, False, False
+        
+        # Move to final destination
+        pose_type = "fallback" if is_fallback else "primary"
+        rospy.loginfo(f"Moving to {pose_type} position: {pose_name}")
+        success = self.nav_controller.move_to_position(
+            target_pose.position.x,
+            target_pose.position.y
+        )
+        
+        if not success:
+            rospy.logwarn(f"Failed to reach {pose_name}")
+            return False, False, False
+            
+        # Scan at destination
+        rospy.loginfo(f"Scanning at position: {pose_name}")
+        detection = self.scanner.perform_scan_rotation()
+        
+        # If object detected, attempt approach
+        if detection == ScanResult.OBJECT_DETECTED:
+            rospy.loginfo(f"Object detected at {pose_name}, initiating approach...")
+            approach_result = self.approacher.approach_object(self.scanner.object_marker)
+            
+            if approach_result:
+                rospy.loginfo(f"Successfully approached object at {pose_name}")
+                return True, True, True
+            else:
+                rospy.logwarn(f"Failed to approach object at {pose_name}: {self.approacher.get_failure_reason()}")
+                return True, True, False
+        else:
+            rospy.loginfo(f"No objects detected at {pose_name}")
+            
+        return True, False, False
+        
+    def try_fallback_poses(self, primary_pose_name):
+        """
+        Try fallback poses for a primary pose where detection failed
+        
+        Args:
+            primary_pose_name: The primary pose that failed
+            
+        Returns:
+            tuple: (approach_attempted, approach_succeeded)
+            - approach_attempted: Whether approach was attempted
+            - approach_succeeded: Whether approach succeeded
+        """
+        if not self.fallback_poses_enabled:
+            rospy.loginfo("Fallback poses disabled, skipping fallbacks")
+            return False, False
+            
+        fallbacks = self.fallback_poses.get(primary_pose_name, [])
+        if not fallbacks:
+            rospy.logwarn(f"No fallback poses available for {primary_pose_name}")
+            return False, False
+            
+        rospy.loginfo(f"Trying {len(fallbacks)} fallback poses for {primary_pose_name}")
+        
+        for i, fallback_name in enumerate(fallbacks):
+            if self.fallback_attempts >= self.max_fallback_retries:
+                rospy.logwarn(f"Reached maximum fallback retry limit ({self.max_fallback_retries})")
+                break
+                
+            rospy.loginfo(f"Trying fallback pose {i+1}/{len(fallbacks)}: {fallback_name}")
+            success, approach_attempted, approach_succeeded = self.move_to_named_pose(
+                fallback_name, is_fallback=True
             )
             
-            # Interpret approach result
-            if approach_result is False:
-                consecutive_detection_failures += 1
-            elif approach_result is True:
-                return True
-        
-        return False
-
-    def _enhanced_depth_and_marker_check(self, initial_x, initial_y):
-        """
-        Enhanced depth and marker validation
-        
-        Args:
-            initial_x: Initial target X coordinate
-            initial_y: Initial target Y coordinate
-        
-        Returns:
-            None: Continue approach
-            True: Successfully reached target
-            False: Detection failure
-        """
-        # Comprehensive logging
-        rospy.logdebug(f"Depth check - Current depth: {self.current_depth}")
-        rospy.logdebug(f"Object marker status: {'Present' if self.object_marker is not None else 'None'}")
-        
-        # Depth information check
-        if self.current_depth is None:
-            rospy.logwarn("Waiting for depth information...")
-            rospy.sleep(0.5)
-            return None
-        
-        # Depth target check
-        if self.approach_min_depth <= self.current_depth <= self.approach_max_depth:
-            rospy.loginfo(f"Reached target depth: {self.current_depth:.2f}m")
+            self.fallback_attempts += 1
             
-            # Cancel active navigation if needed
-            if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
-                self.nav_controller.cancel_navigation()
-                rospy.sleep(0.5)
-            
-            return True
-        
-        # If no marker, use initial coordinates for logging
-        marker_x = (self.object_marker.pose.position.x 
-                    if self.object_marker is not None 
-                    else initial_x)
-        marker_y = (self.object_marker.pose.position.y 
-                    if self.object_marker is not None 
-                    else initial_y)
-        
-        # Marker validation with more context
-        if self.object_marker is None:
-            rospy.logwarn(f"Lost object marker. Last known position: x={initial_x}, y={initial_y}")
-            rospy.logwarn(f"Current depth: {self.current_depth}")
-            return False
-        
-        return None
-
-
-            
-    def _calculate_approach_waypoint(self, target_x, target_y, current_pose, retry=True):
-        """
-        Calculate the next waypoint for approaching the target
-        
-        Args:
-            target_x: Target X coordinate
-            target_y: Target Y coordinate
-            current_pose: Current robot pose
-            retry: Whether to retry with a smaller step if first attempt fails
-            
-        Returns:
-            (next_x, next_y) or (None, None) if no safe path found
-        """
-        # Calculate next waypoint towards target
-        next_x, next_y = calculate_safe_approach_point(
-            target_x, target_y, current_pose
-        )
-        
-        # Verify the calculated position is safe
-        if not is_position_safe_approach(self.costmap, next_x, next_y):
-            # If retry enabled, try a shorter step
-            if retry:
-                next_x, next_y = calculate_safe_approach_point(
-                    target_x, target_y, current_pose, max_step=0.5
-                )
-                if not is_position_safe_approach(self.costmap, next_x, next_y):
-                    return None, None
-            else:
-                return None, None
-                
-        return next_x, next_y
-            
-    def _execute_approach_step(self, next_x, next_y, target_x, target_y, current_pose):
-        """
-        Execute a single step in the approach sequence
-        
-        Args:
-            next_x: Next waypoint X coordinate
-            next_y: Next waypoint Y coordinate
-            target_x: Target X coordinate
-            target_y: Target Y coordinate
-            current_pose: Current robot pose
-            
-        Returns:
-            None to continue approach
-            True if target reached
-            False if error occurred
-        """
-        # Calculate orientation to face the target
-        dx = target_x - next_x
-        dy = target_y - next_y
-        angle = math.atan2(dy, dx)
-        quaternion = quaternion_from_euler(0, 0, angle)
-        
-        # Create navigation goal with orientation facing the target
-        goal = self.nav_controller.create_navigation_goal(
-            next_x, 
-            next_y,
-            Quaternion(*quaternion)
-        )
-        
-        # Send the goal
-        self.nav_controller.client.send_goal(goal)
-        
-        # Monitor the goal with a timeout
-        timeout = rospy.Duration(self.navigation_timeout)
-        rate = rospy.Rate(10)  # 10Hz checking rate
-        start_time = rospy.Time.now()
-        
-        while not rospy.is_shutdown():
-            # Check if we've reached target depth during movement
-            if self.current_depth is not None and (
-               self.approach_min_depth <= self.current_depth <= self.approach_max_depth):
-                rospy.loginfo(f"Reached target depth during movement: {self.current_depth:.2f}m")
-                self.nav_controller.cancel_navigation()
-                rospy.sleep(0.5)  # Wait for cancellation to take effect
-                
-                # Verify cancellation state
-                if self.nav_controller.client.get_state() in [
-                    actionlib.GoalStatus.PREEMPTED,
-                    actionlib.GoalStatus.RECALLED,
-                    actionlib.GoalStatus.ABORTED
-                ]:
-                    return True
+            if approach_attempted:
+                if approach_succeeded:
+                    rospy.loginfo(f"Successfully approached object from fallback pose {fallback_name}")
+                    return True, True
                 else:
-                    rospy.logwarn(f"Unexpected state after cancellation: {self.nav_controller.client.get_state()}")
-                    return False
-
-            # Check if we've timed out
-            if (rospy.Time.now() - start_time) > timeout:
-                rospy.logwarn("Goal timeout reached")
-                self.nav_controller.cancel_navigation()
-                return False
-
-            # Check goal status
-            state = self.nav_controller.client.get_state()
-            if state == actionlib.GoalStatus.SUCCEEDED:
-                return None  # Continue to next approach step
-            elif state in [actionlib.GoalStatus.ABORTED, actionlib.GoalStatus.REJECTED]:
-                rospy.logwarn("Goal aborted or rejected")
-                return False
-
-            rate.sleep()
+                    rospy.logwarn(f"Approach failed from fallback pose {fallback_name}")
             
-        return False  # If we get here, we've been shutdown
+            if not success:
+                rospy.logwarn(f"Failed to navigate to fallback pose {fallback_name}")
+                
+            # Brief pause between fallback attempts
+            rospy.sleep(1.0)
+            
+        rospy.loginfo(f"Completed all fallback poses for {primary_pose_name} without success")
+        return True, False
         
-    def depth_callback(self, msg):
+    def move_to_all_poses(self):
         """
-        Process depth information of detected objects
+        Move through all poses, scanning and approaching if objects found.
+        Uses fallback poses when detection or approach fails.
         
-        Args:
-            msg: Float32MultiArray containing depth data
+        Returns:
+            bool: True if object found and successfully approached, False otherwise
         """
-        if msg.data and len(msg.data) >= 5:
-            self.current_depth = msg.data[4]
+        all_pose_names = self.pose_manager.get_all_pose_names()
+        successful_approach = False
+        
+        # Initialize fallback poses
+        self.initialize_fallback_poses()
+        
+        # Set to track poses we've visited
+        visited_poses = set()
+        visited_fallbacks = set()
+        
+        # Try to visit all poses
+        pose_index = 0
+        
+        while pose_index < len(all_pose_names) and not rospy.is_shutdown():
+            pose_name = all_pose_names[pose_index]
+            
+            # Skip if we've already visited this pose
+            if pose_name in visited_poses:
+                pose_index += 1
+                continue
+                
+            rospy.loginfo(f"\nMoving to pose: {pose_name} ({pose_index + 1}/{len(all_pose_names)})")
+            success, approach_attempted, approach_succeeded = self.move_to_named_pose(pose_name)
+            
+            # Mark this pose as visited
+            visited_poses.add(pose_name)
+            
+            # Handle approach results
+            if approach_attempted:
+                if approach_succeeded:
+                    # Successfully approached object!
+                    successful_approach = True
+                    rospy.loginfo(f"Successfully approached object at {pose_name}")
+                    break  # End the mission on successful approach
+                else:
+                    # Primary approach failed, could try fallbacks but continue for now
+                    # Fallbacks are typically for detection failures
+                    rospy.logwarn(f"Approach failed at {pose_name}, continuing with remaining poses")
+            elif success and not approach_attempted:
+                # Detection failed, try fallback poses
+                rospy.loginfo(f"No detection at {pose_name}, trying fallback poses")
+                fallback_attempted, fallback_succeeded = self.try_fallback_poses(pose_name)
+                
+                if fallback_succeeded:
+                    # Successfully approached from a fallback pose!
+                    successful_approach = True
+                    rospy.loginfo(f"Successfully approached object using fallback pose for {pose_name}")
+                    break  # End the mission on successful approach
+                elif fallback_attempted:
+                    rospy.logwarn("All fallback approaches failed, continuing with remaining poses")
+                else:
+                    rospy.loginfo("No fallbacks were attempted, continuing with remaining poses")
+                    
+            # Move to next pose
+            pose_index += 1
+            
+            # If we've reached the end without success, end the mission
+            if pose_index >= len(all_pose_names):
+                rospy.loginfo("Completed all poses, no successful object approach")
+                
+            rospy.sleep(1)  # Brief pause between movements
+            
+        return successful_approach
+        
+    def main(self):
+        """
+        Main execution function
+        
+        Returns:
+            bool: Success flag indicating if an object was found
+        """
+        rospy.loginfo("=== Robust Object Scout Mission Started ===")
+        result = self.move_to_all_poses()
+        
+        if result:
+            rospy.loginfo("Successfully completed mission and approached an object!")
         else:
-            rospy.logwarn("Invalid depth data received")
+            rospy.loginfo("Completed mission, no objects successfully approached")
+            
+        return result
 
 
 if __name__ == "__main__":
     try:
-        # This class requires a NavigationController, so we can't run it directly
-        # You would need to create a node that instantiates both
-        rospy.loginfo("ObjectApproacher cannot be run directly as it requires a NavigationController")
+        coordinator = RobustScoutCoordinator(init_node=True)
+        result = coordinator.main()
+        if not result:
+            rospy.loginfo("Mission complete without success. Keeping node alive...")
+            rospy.spin()  # Keep node running if no object was found
     except rospy.ROSInterruptException:
-        rospy.loginfo("Object approacher interrupted")
+        rospy.loginfo("Robust scout coordinator interrupted")

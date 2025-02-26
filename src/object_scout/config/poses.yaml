@@ -1,15 +1,15 @@
 locations:
-  # middle_room:
-  #   name: middle_room
-  #   orientation:
-  #     w: 0.9997958534830108
-  #     x: 0.0
-  #     y: 0.0
-  #     z: -0.020205230960768764
-  #   position:
-  #     x: -1.0178780555725098
-  #     y: -0.017987489700317383
-  #     z: 0.0
+  middle_room:
+    name: middle_room
+    orientation:
+      w: 0.9997958534830108
+      x: 0.0
+      y: 0.0
+      z: -0.020205230960768764
+    position:
+      x: -1.0178780555725098
+      y: -0.017987489700317383
+      z: 0.0
   front_room:
     name: front_room
     orientation:

@@ -85,7 +85,7 @@ class ObjectScanner:
         
         
         # Rotation angles - seven rotations of 45 degrees each
-        rotation_angles = [45, 90, 135, 180, 225, 270, 315]
+        rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
     
         num_rotations = len(rotation_angles)
         
