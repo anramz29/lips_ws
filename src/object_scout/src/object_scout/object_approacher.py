@@ -32,6 +32,7 @@ class ObjectApproacher:
         
         # Approacher state
         self.current_depth = None
+        self.MAX_DETECTION_FAILURES = 3
         
         # Approach parameters
         self.approach_min_depth = 1.0  # meters
@@ -46,10 +47,22 @@ class ObjectApproacher:
             Float32MultiArray,
             self.depth_callback
         )
+
+        self.object_marker = None
+
+    def object_marker_callback(self, msg):
+        """
+        Process object marker messages
         
+        Args:
+            msg: Marker message from object detection
+        """
+        # Store the latest marker for approach
+        self.object_marker = msg
+
     def approach_object(self, object_marker):
         """
-        Approach a detected object with graduated approach
+        Approach a detected object with improved robustness and fallback mechanisms
         
         Args:
             object_marker: The marker for the detected object
@@ -63,9 +76,9 @@ class ObjectApproacher:
             rospy.logerr("No object marker available to approach")
             return False
             
-        # Get initial robot pose
-        current_pose = get_robot_pose()
-        if current_pose is None:
+        # Get initial robot pose (save for potential fallback)
+        original_pose = get_robot_pose()
+        if original_pose is None:
             rospy.logerr("Failed to get robot pose")
             return False
         
@@ -73,38 +86,61 @@ class ObjectApproacher:
         target_x = object_marker.pose.position.x
         target_y = object_marker.pose.position.y
         
+        # IMPORTANT: Initialize current_pose here
+        current_pose = original_pose
+        
+        # Track detection reliability
+        consecutive_detection_failures = 0
+        
         # Approach loop
         while not rospy.is_shutdown():
-            # Check depth information
-            approach_result = self._check_approach_depth()
+            # Check depth information and detection reliability
+            approach_result = self._check_approach_depth_and_reliability()
             if approach_result is not None:
                 return approach_result
+            
+            # If we've lost detection multiple times, consider fallback strategy
+            if consecutive_detection_failures >= self.MAX_DETECTION_FAILURES:
+                rospy.logwarn("Repeated detection failures. Initiating fallback strategy.")
                 
+                # Option 1: Return to original pose
+                rospy.loginfo("Returning to original pose")
+                fallback_success = self.nav_controller.move_to_position(
+                    original_pose.position.x,
+                    original_pose.position.y
+                )
+                
+                return False
+            
             # Calculate next approach waypoint
             next_x, next_y = self._calculate_approach_waypoint(target_x, target_y, current_pose)
             if next_x is None:
                 rospy.logerr("Cannot find safe approach path!")
                 return False
-                
-            # Execute approach step
-            approach_result = self._execute_approach_step(next_x, next_y, target_x, target_y, current_pose)
             
-            # If we reached the goal or had an error, return result
-            if approach_result is not None:
-                return approach_result
-                
-            # Otherwise, update pose and continue to next approach step
+            # Execute approach step
+            approach_result = self._execute_approach_step(
+                next_x, next_y, target_x, target_y, current_pose
+            )
+            
+            # Track detection reliability
+            if approach_result is False:
+                consecutive_detection_failures += 1
+            elif approach_result is True:
+                return True
+            
+            # Update current pose for next iteration
             current_pose = get_robot_pose()
             if current_pose is None:
                 rospy.logerr("Failed to get updated robot pose")
                 return False
-                
-        # If we get here, we've been shutdown
-        return False
         
-    def _check_approach_depth(self):
+        return False 
+    
+
+    def _check_approach_depth_and_reliability(self):
         """
-        Check if the current depth to object meets the approach criteria
+        Enhanced depth and detection reliability check
         
         Returns:
             None if approach should continue
@@ -117,16 +153,22 @@ class ObjectApproacher:
             rospy.sleep(1)
             return None
 
-        # Check if we've already reached the desired depth
+        # Check if object marker is still valid
+        if self.object_marker is None:
+            rospy.logwarn("Lost object marker during approach")
+            return False
+
+        # Check depth criteria
         if self.approach_min_depth <= self.current_depth <= self.approach_max_depth:
-            rospy.loginfo(f"Already at target depth: {self.current_depth:.2f}m")
+            rospy.loginfo(f"Reached target depth: {self.current_depth:.2f}m")
             # If there's an active goal, cancel it
             if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
                 self.nav_controller.cancel_navigation()
                 rospy.sleep(0.5)  # Give time for cancellation to take effect
             return True
-            
-        return None  # Approach should continue
+        
+        return None
+
             
     def _calculate_approach_waypoint(self, target_x, target_y, current_pose, retry=True):
         """

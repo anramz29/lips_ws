@@ -10,17 +10,6 @@ locations:
       x: -1.0178780555725098
       y: -0.017987489700317383
       z: 0.0
-  back_room:
-    name: back_room
-    orientation:
-      w: 0.028088526626833626
-      x: 0.0
-      y: 0.0
-      z: 0.9996054394969716
-    position:
-      x: -2.9987573623657227
-      y: 0.3085533380508423
-      z: 0.0
   front_room:
     name: front_room
     orientation:
@@ -31,6 +20,17 @@ locations:
     position:
       x: 1.8006725311279297
       y: -0.15507090091705322
+      z: 0.0
+  back_room:
+    name: back_room
+    orientation:
+      w: 0.028088526626833626
+      x: 0.0
+      y: 0.0
+      z: 0.9996054394969716
+    position:
+      x: -2.9987573623657227
+      y: 0.3085533380508423
       z: 0.0
   server:
     name: server

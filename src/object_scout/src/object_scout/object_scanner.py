@@ -83,8 +83,10 @@ class ObjectScanner:
             self.scanning_in_progress = False
             return ScanResult.ERROR
         
-        # Rotation angles - six rotations of 60 degrees each to cover 360 degrees
-        rotation_angles = [0, 60, 120, 180, 240, 300]  # Degrees
+        
+        # Rotation angles - seven rotations of 45 degrees each
+        rotation_angles = [45, 90, 135, 180, 225, 270, 315]
+    
         num_rotations = len(rotation_angles)
         
         # Perform the rotations

@@ -7,7 +7,7 @@
     <arg name="poses_config" default="$(find object_scout)/config/poses.yaml" />
 
     <!-- Topic parameters -->
-    <arg name="object_marker_topic" default="/$(arg robot_name)/detected_object/marker" />
+    <arg name="object_marker_topic" default="/$(arg robot_name)/object_markers" />
     <arg name="bbox_depth_topic" default="/$(arg robot_name)/camera/yolo/bbox_depth" />
     
     <!-- Visualization parameters -->
