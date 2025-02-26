@@ -59,25 +59,25 @@ class ScoutCoordinator:
         if target_pose is None:
             return False
         
-        # Calculate intermediate point for scanning
-        from object_scout.utils import calculate_intermediate_point
-        int_x, int_y = calculate_intermediate_point(current_pose, target_pose)
+        # # Calculate intermediate point for scanning
+        # from object_scout.utils import calculate_intermediate_point
+        # int_x, int_y = calculate_intermediate_point(current_pose, target_pose)
         
-        # Move to intermediate point
-        rospy.loginfo(f"Moving to intermediate point: x={int_x:.2f}, y={int_y:.2f}")
-        if not self.nav_controller.move_to_position(int_x, int_y):
-            rospy.logerr("Failed to reach intermediate point")
-            return False
+        # # Move to intermediate point
+        # rospy.loginfo(f"Moving to intermediate point: x={int_x:.2f}, y={int_y:.2f}")
+        # if not self.nav_controller.move_to_position(int_x, int_y):
+        #     rospy.logerr("Failed to reach intermediate point")
+        #     return False
             
-        # Perform scan at intermediate point
-        rospy.loginfo("Scanning at intermediate point...")
-        detection = self.scanner.perform_scan_rotation()
+        # # Perform scan at intermediate point
+        # rospy.loginfo("Scanning at intermediate point...")
+        # detection = self.scanner.perform_scan_rotation()
         
-        # If object detected, approach it and consider mission successful
-        if detection == ScanResult.OBJECT_DETECTED:
-            result = self.approacher.approach_object(self.scanner.object_marker)
-            rospy.loginfo(f"Object approach at intermediate point result: {result}")
-            return True  # Mission successful if an object was approached
+        # # If object detected, approach it and consider mission successful
+        # if detection == ScanResult.OBJECT_DETECTED:
+        #     result = self.approacher.approach_object(self.scanner.object_marker)
+        #     rospy.loginfo(f"Object approach at intermediate point result: {result}")
+        #     return True  # Mission successful if an object was approached
         
         # Move to final destination
         rospy.loginfo(f"Moving to final position: {pose_name}")

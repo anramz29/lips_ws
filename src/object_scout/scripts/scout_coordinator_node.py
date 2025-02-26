@@ -9,7 +9,7 @@ rospack = rospkg.RosPack()
 pkg_path = rospack.get_path('object_scout')
 sys.path.append(os.path.join(pkg_path, 'src'))
 
-from src.object_scout.scout_coordinator import ScoutCoordinator
+from object_scout.scout_coordinator import ScoutCoordinator
 
 def main():
     # Create the coordinator

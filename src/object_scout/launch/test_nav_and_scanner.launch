@@ -3,34 +3,36 @@
     <!-- Robot name parameter -->
     <arg name="robot_name" default="locobot" />
     
-    <!-- Configuration file path -->
-    <arg name="poses_config" default="$(find object_scout)/config/poses.yaml" />
-
+    <!-- Set test mode -->
+    <arg name="test_mode" default="true" />
+    
     <!-- Topic parameters -->
     <arg name="object_marker_topic" default="/$(arg robot_name)/detected_object/marker" />
     <arg name="bbox_depth_topic" default="/$(arg robot_name)/camera/yolo/bbox_depth" />
     
     <!-- Visualization parameters -->
     <arg name="rviz_frame" default="map" />
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/lips_ws/src/yolo_vision/rviz/xslocobot_description_yolo.rviz" />
     <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization" />
     
-    <!-- Include the YOLO vision system -->
-    <include file="$(find yolo_vision)/launch/object_mapper.launch">
+    <!-- Launch the navigation controller that scanner depends on -->
+    <include file="$(find object_scout)/launch/navigation.launch">
+        <arg name="robot_name" value="$(arg robot_name)" />
+    </include>
+    
+    <!-- Include yolo_vision for object detection -->
+    <include file="$(find yolo_vision)/launch/object_detector.launch">
         <arg name="robot_name" value="$(arg robot_name)"/>
-        <arg name="rviz_frame" value="$(arg rviz_frame)"/>
-        <arg name="rvizconfig" value="$(arg rvizconfig)"/>
         <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
         <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
         <arg name="use_rviz" value="false"/>
     </include>
     
-    <!-- Launch the coordinator node with all components packaged inside -->
-    <node name="scout_coordinator" pkg="object_scout" type="scout_coordinator_node.py" output="screen">
+    <!-- Launch the object scanner node in test mode -->
+    <node name="object_scanner" pkg="object_scout" type="scanner_node.py" output="screen">
         <param name="robot_name" value="$(arg robot_name)" />
-        <param name="poses_config" value="$(arg poses_config)" />
         <param name="object_marker_topic" value="$(arg object_marker_topic)" />
-        <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)" />
+        <param name="test_mode" value="$(arg test_mode)" />
     </node>
     
     <!-- RViz (conditionally launched) -->
