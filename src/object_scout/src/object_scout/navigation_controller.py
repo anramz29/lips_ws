@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 import actionlib
+import math
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Pose, Point, Quaternion
 from nav_msgs.msg import OccupancyGrid
@@ -88,7 +89,7 @@ class NavigationController:
             return False
 
         # Create navigation goal
-        goal = self.create_navigation_goal(x, y, orientation)
+        goal = self.create_navigation_goal(x, y, orientation, current_pose)
         
         # Send the goal
         rospy.loginfo(f"Moving to position: x={x:.2f}, y={y:.2f}")
@@ -132,7 +133,7 @@ class NavigationController:
         self.cancel_pub.publish(cancel_msg)
         rospy.loginfo("Sent navigation cancellation commands")
         
-    def create_navigation_goal(self, x, y, orientation=None):
+    def create_navigation_goal(self, x, y, orientation=None, current_pose=None):
         """
         Create a MoveBaseGoal message for the specified position and orientation
         
@@ -140,6 +141,7 @@ class NavigationController:
             x: X coordinate in the map frame
             y: Y coordinate in the map frame
             orientation: Optional Quaternion orientation
+            current_pose: Current robot pose for calculating direction
             
         Returns:
             MoveBaseGoal: The configured goal message
@@ -149,12 +151,57 @@ class NavigationController:
         goal.target_pose.header.stamp = rospy.Time.now()
         goal.target_pose.pose.position = Point(x, y, 0)
         
-        # Use provided orientation or default to facing forward
+        # Handle orientation
         if orientation:
-            goal.target_pose.pose.orientation = orientation
+            # Validate the quaternion
+            norm = math.sqrt(
+                orientation.x**2 + orientation.y**2 + 
+                orientation.z**2 + orientation.w**2
+            )
+            
+            # If the quaternion is nearly zero length or very far from unit length
+            if norm < 0.1:
+                rospy.logwarn(f"Quaternion has length close to zero: {norm}, using default")
+                # Use default orientation instead
+                if current_pose:
+                    # Calculate angle to target
+                    dx = x - current_pose.position.x
+                    dy = y - current_pose.position.y
+                    angle = math.atan2(dy, dx)
+                    quat = quaternion_from_euler(0, 0, angle)
+                    goal.target_pose.pose.orientation = Quaternion(*quat)
+                else:
+                    # Default facing forward
+                    quat = quaternion_from_euler(0, 0, 0)
+                    goal.target_pose.pose.orientation = Quaternion(*quat)
+            elif abs(norm - 1.0) > 0.01:
+                # Normalize the quaternion if it's not unit length
+                rospy.logwarn(f"Quaternion not normalized (norm={norm}), normalizing")
+                factor = 1.0 / norm
+                normalized_quat = Quaternion(
+                    orientation.x * factor,
+                    orientation.y * factor,
+                    orientation.z * factor,
+                    orientation.w * factor
+                )
+                goal.target_pose.pose.orientation = normalized_quat
+            else:
+                # Use the provided orientation as is
+                goal.target_pose.pose.orientation = orientation
         else:
-            quaternion = quaternion_from_euler(0, 0, 0)
-            goal.target_pose.pose.orientation = Quaternion(*quaternion)
+            # No orientation provided, calculate one
+            if current_pose:
+                # Face the direction of movement
+                dx = x - current_pose.position.x
+                dy = y - current_pose.position.y
+                angle = math.atan2(dy, dx)
+                quat = quaternion_from_euler(0, 0, angle)
+                rospy.loginfo(f"Setting orientation to face direction of travel (yaw: {math.degrees(angle):.2f} degrees)")
+            else:
+                # Default facing forward (positive x-axis)
+                quat = quaternion_from_euler(0, 0, 0)
+                
+            goal.target_pose.pose.orientation = Quaternion(*quat)
             
         return goal
 
