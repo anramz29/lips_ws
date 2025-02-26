@@ -27,8 +27,6 @@ class ScoutCoordinator:
         self.robot_name = rospy.get_param('~robot_name', 'locobot')
         self.poses_config = rospy.get_param('~poses_config', '')
         self.pose_command = rospy.get_param('~pose_command', 'all')
-        self.max_approach_retries = rospy.get_param('~max_approach_retries', 2)
-        self.retry_delay = rospy.get_param('~retry_delay', 3.0)  # seconds
         
         # Setup TF listener
         self.tf_buffer = tf2_ros.Buffer()
@@ -40,114 +38,87 @@ class ScoutCoordinator:
         self.scanner = ObjectScanner(self.robot_name, self.nav_controller)
         self.approacher = ObjectApproacher(self.robot_name, self.nav_controller)
         
-        # Tracking state for fallback behavior
-        self.approach_attempts = 0
-        
     def move_to_named_pose(self, pose_name):
         """
-        Move to a named pose and scan for objects
+        Move to a named pose with intermediate scanning
         
         Args:
             pose_name: Name of the pose in configuration
             
         Returns:
-            tuple: (success, approach_attempted, approach_succeeded)
-            - success: Whether navigation and scanning succeeded
-            - approach_attempted: Whether approach was attempted
-            - approach_succeeded: Whether approach succeeded
+            bool: Success flag
         """
         # Get current robot pose
         current_pose = get_robot_pose()
         if current_pose is None:
             rospy.logerr("Failed to get current robot pose")
-            return False, False, False
+            return False
             
         # Get target pose from pose manager
         target_pose = self.pose_manager.get_pose(pose_name)
         if target_pose is None:
-            return False, False, False
+            return False
         
         # Move to final destination
-        rospy.loginfo(f"Moving to position: {pose_name}")
+        rospy.loginfo(f"Moving to final position: {pose_name}")
         success = self.nav_controller.move_to_position(
             target_pose.position.x,
             target_pose.position.y
         )
         
-        if not success:
-            rospy.logwarn(f"Failed to reach {pose_name}")
-            return False, False, False
+        if success:
+            # Scan at final destination
+            rospy.loginfo(f"Scanning at final position: {pose_name}")
+            detection = self.scanner.perform_scan_rotation()
             
-        # Scan at destination
-        rospy.loginfo(f"Scanning at position: {pose_name}")
-        detection = self.scanner.perform_scan_rotation()
-        
-        # If object detected, attempt approach
-        if detection == ScanResult.OBJECT_DETECTED:
-            rospy.loginfo(f"Object detected at {pose_name}, initiating approach...")
-            approach_result = self.approacher.approach_object(self.scanner.object_marker)
+            # If object detected, approach it
+            if detection == ScanResult.OBJECT_DETECTED:
             
-            if approach_result:
-                rospy.loginfo(f"Successfully approached object at {pose_name}")
-                return True, True, True
+                approach_success = self.approacher.approach_object(self.scanner.object_marker)
+                if approach_success:
+                    # Handle successful approach
+                    rospy.loginfo("Successfully approached object")
+                    # Add any follow-up actions here
+                    return True
+                else:
+                    # Handle failed approach
+                    rospy.logwarn("Failed to approach object")
+                    # Add any fallback behavior here
+                    return False
             else:
-                rospy.logwarn(f"Failed to approach object at {pose_name}: {self.approacher.get_failure_reason()}")
-                return True, True, False
-        
-        return True, False, False
+                rospy.loginfo("No object detected at final position")
+                return True
+        else:
+            return False
         
     def move_to_all_poses(self):
         """
-        Move through all poses, scanning and approaching if objects found.
-        If approach fails, continue with remaining poses.
+        Move through all poses, scanning and approaching if objects found
         
         Returns:
-            bool: True if object found and successfully approached, False otherwise
+            bool: True if object found, False otherwise
         """
-        all_pose_names = self.pose_manager.get_all_pose_names()
-        successful_approach = False
+        found_object = False
         
-        # Set to track poses we've visited
-        visited_poses = set()
-        
-        # Try to visit all poses
-        pose_index = 0
-        
-        while pose_index < len(all_pose_names) and not rospy.is_shutdown():
-            pose_name = all_pose_names[pose_index]
-            
-            # Skip if we've already visited this pose
-            if pose_name in visited_poses:
-                pose_index += 1
-                continue
+        for pose_name in self.pose_manager.get_all_pose_names():
+            if found_object:
+                rospy.loginfo("Object already found and approached, ending navigation sequence")
+                break
                 
-            rospy.loginfo(f"\nMoving to pose: {pose_name} ({pose_index + 1}/{len(all_pose_names)})")
-            success, approach_attempted, approach_succeeded = self.move_to_named_pose(pose_name)
+            rospy.loginfo(f"\nMoving to: {pose_name}")
+            success = self.move_to_named_pose(pose_name)
             
-            # Mark this pose as visited
-            visited_poses.add(pose_name)
-            
-            # Handle approach results
-            if approach_attempted:
-                if approach_succeeded:
-                    # Successfully approached object!
-                    successful_approach = True
-                    rospy.loginfo(f"Successfully approached object at {pose_name}")
-                    break  # End the mission on successful approach
-                else:
-                    # Approach failed, but we should continue with other poses
-                    rospy.logwarn(f"Approach failed at {pose_name}, continuing with remaining poses")
-                    
-            # Move to next pose
-            pose_index += 1
-            
-            # If we've reached the end without success, end the mission
-            if pose_index >= len(all_pose_names):
-                rospy.loginfo("Completed all poses, no successful object approach")
+            # If success and object detected by scanner, set flag
+            if success and self.scanner.object_detected:
+                found_object = True
+                rospy.loginfo(f"Object detected at {pose_name}, stopping navigation sequence")
+
+            if not success:
+                rospy.logwarn(f"Failed to reach {pose_name}, continuing to next pose...")
                 
             rospy.sleep(1)  # Brief pause between movements
             
-        return successful_approach
+        return found_object
         
     def main(self):
         """
@@ -160,9 +131,9 @@ class ScoutCoordinator:
         result = self.move_to_all_poses()
         
         if result:
-            rospy.loginfo("Successfully completed mission and approached an object!")
+            rospy.loginfo("Successfully completed mission and found an object!")
         else:
-            rospy.loginfo("Completed mission, no objects successfully approached")
+            rospy.loginfo("Completed mission, no objects approached")
             
         return result
 
