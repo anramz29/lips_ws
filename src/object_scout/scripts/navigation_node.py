@@ -10,7 +10,7 @@ rospack = rospkg.RosPack()
 pkg_path = rospack.get_path('object_scout')
 sys.path.append(os.path.join(pkg_path, 'src'))
 
-from src.object_scout.navigation_controller import NavigationController
+from object_scout.navigation_controller import NavigationController
 
 # Custom service message imports (you would need to define these)
 # from object_scout.srv import MoveToPosition, MoveToPositionResponse

@@ -5,8 +5,8 @@
 
     <!-- Rviz Param -->
     <arg name="rviz_frame" default="map" />
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/lips_ws/src/yolo_vision/rviz/xslocobot_description_yolo.rviz" />
-    <arg name="use_rviz" default="false" doc="Set to false to disable RViz visualization" />
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
+    <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization" />
   
   <!-- Launch the navigation controller node independently -->
   <node name="navigation_controller" pkg="object_scout" type="navigation_node.py" output="screen">
