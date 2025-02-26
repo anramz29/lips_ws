@@ -5,6 +5,7 @@ import actionlib
 from std_msgs.msg import Float32MultiArray
 from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import Quaternion
+from visualization_msgs.msg import Marker
 
 # Import utilities
 from object_scout.utils import get_robot_pose, calculate_safe_approach_point, is_position_safe_approach
@@ -48,6 +49,24 @@ class ObjectApproacher:
             self.depth_callback
         )
 
+            # Set up object marker subscription
+        self.object_marker_topic = rospy.get_param('~object_marker_topic', 
+                                                f'/{robot_name}/object_markers')
+        self.object_marker_sub = rospy.Subscriber(
+            self.object_marker_topic,
+            Marker,  # Assuming this is the correct message type
+            self.object_marker_callback
+        )
+
+        self.object_marker = None    # Set up object marker subscription
+        self.object_marker_topic = rospy.get_param('~object_marker_topic', 
+                                                f'/{robot_name}/object_markers')
+        self.object_marker_sub = rospy.Subscriber(
+            self.object_marker_topic,
+            Marker,  # Assuming this is the correct message type
+            self.object_marker_callback
+        )
+    
         self.object_marker = None
 
     def object_marker_callback(self, msg):
@@ -60,9 +79,10 @@ class ObjectApproacher:
         # Store the latest marker for approach
         self.object_marker = msg
 
+    
     def approach_object(self, object_marker):
         """
-        Approach a detected object with improved robustness and fallback mechanisms
+        Approach a detected object with improved marker persistence
         
         Args:
             object_marker: The marker for the detected object
@@ -75,44 +95,55 @@ class ObjectApproacher:
         if object_marker is None:
             rospy.logerr("No object marker available to approach")
             return False
-            
+        
+        # Store initial marker details as a fallback
+        initial_target_x = object_marker.pose.position.x
+        initial_target_y = object_marker.pose.position.y
+        
         # Get initial robot pose (save for potential fallback)
         original_pose = get_robot_pose()
         if original_pose is None:
             rospy.logerr("Failed to get robot pose")
             return False
         
-        # Get target coordinates from marker
-        target_x = object_marker.pose.position.x
-        target_y = object_marker.pose.position.y
-        
-        # IMPORTANT: Initialize current_pose here
-        current_pose = original_pose
-        
         # Track detection reliability
         consecutive_detection_failures = 0
+        max_detection_failures = 5
         
         # Approach loop
         while not rospy.is_shutdown():
-            # Check depth information and detection reliability
-            approach_result = self._check_approach_depth_and_reliability()
-            if approach_result is not None:
-                return approach_result
-            
-            # If we've lost detection multiple times, consider fallback strategy
-            if consecutive_detection_failures >= self.MAX_DETECTION_FAILURES:
-                rospy.logwarn("Repeated detection failures. Initiating fallback strategy.")
-                
-                # Option 1: Return to original pose
-                rospy.loginfo("Returning to original pose")
-                fallback_success = self.nav_controller.move_to_position(
-                    original_pose.position.x,
-                    original_pose.position.y
-                )
-                
+            # If we've lost too many detections, abort
+            if consecutive_detection_failures >= max_detection_failures:
+                rospy.logwarn("Repeated detection failures. Aborting approach.")
                 return False
             
+            # Use initial target if marker is lost
+            target_x = (self.object_marker.pose.position.x 
+                        if self.object_marker is not None 
+                        else initial_target_x)
+            target_y = (self.object_marker.pose.position.y 
+                        if self.object_marker is not None 
+                        else initial_target_y)
+            
+            # Depth and marker validation
+            depth_check = self._enhanced_depth_and_marker_check(
+                initial_target_x, initial_target_y
+            )
+            
+            if depth_check is True:
+                return True
+            elif depth_check is False:
+                consecutive_detection_failures += 1
+                rospy.logwarn(f"Detection failure. Attempts: {consecutive_detection_failures}")
+                rospy.sleep(0.5)  # Brief pause between attempts
+                continue
+            
             # Calculate next approach waypoint
+            current_pose = get_robot_pose()
+            if current_pose is None:
+                rospy.logerr("Failed to get current robot pose")
+                return False
+            
             next_x, next_y = self._calculate_approach_waypoint(target_x, target_y, current_pose)
             if next_x is None:
                 rospy.logerr("Cannot find safe approach path!")
@@ -123,51 +154,64 @@ class ObjectApproacher:
                 next_x, next_y, target_x, target_y, current_pose
             )
             
-            # Track detection reliability
+            # Interpret approach result
             if approach_result is False:
                 consecutive_detection_failures += 1
             elif approach_result is True:
                 return True
-            
-            # Update current pose for next iteration
-            current_pose = get_robot_pose()
-            if current_pose is None:
-                rospy.logerr("Failed to get updated robot pose")
-                return False
         
-        return False 
-    
+        return False
 
-    def _check_approach_depth_and_reliability(self):
+    def _enhanced_depth_and_marker_check(self, initial_x, initial_y):
         """
-        Enhanced depth and detection reliability check
+        Enhanced depth and marker validation
+        
+        Args:
+            initial_x: Initial target X coordinate
+            initial_y: Initial target Y coordinate
         
         Returns:
-            None if approach should continue
-            True if target depth reached
-            False if error occurred
+            None: Continue approach
+            True: Successfully reached target
+            False: Detection failure
         """
-        # First check if we have depth information
+        # Comprehensive logging
+        rospy.logdebug(f"Depth check - Current depth: {self.current_depth}")
+        rospy.logdebug(f"Object marker status: {'Present' if self.object_marker is not None else 'None'}")
+        
+        # Depth information check
         if self.current_depth is None:
             rospy.logwarn("Waiting for depth information...")
-            rospy.sleep(1)
+            rospy.sleep(0.5)
             return None
-
-        # Check if object marker is still valid
-        if self.object_marker is None:
-            rospy.logwarn("Lost object marker during approach")
-            return False
-
-        # Check depth criteria
+        
+        # Depth target check
         if self.approach_min_depth <= self.current_depth <= self.approach_max_depth:
             rospy.loginfo(f"Reached target depth: {self.current_depth:.2f}m")
-            # If there's an active goal, cancel it
+            
+            # Cancel active navigation if needed
             if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
                 self.nav_controller.cancel_navigation()
-                rospy.sleep(0.5)  # Give time for cancellation to take effect
+                rospy.sleep(0.5)
+            
             return True
         
+        # If no marker, use initial coordinates for logging
+        marker_x = (self.object_marker.pose.position.x 
+                    if self.object_marker is not None 
+                    else initial_x)
+        marker_y = (self.object_marker.pose.position.y 
+                    if self.object_marker is not None 
+                    else initial_y)
+        
+        # Marker validation with more context
+        if self.object_marker is None:
+            rospy.logwarn(f"Lost object marker. Last known position: x={initial_x}, y={initial_y}")
+            rospy.logwarn(f"Current depth: {self.current_depth}")
+            return False
+        
         return None
+
 
             
     def _calculate_approach_waypoint(self, target_x, target_y, current_pose, retry=True):
