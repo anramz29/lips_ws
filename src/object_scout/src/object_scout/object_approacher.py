@@ -16,14 +16,6 @@ class ObjectApproacher:
     Handles approaching detected objects
     """
     def __init__(self, robot_name, nav_controller, init_node=False):
-        """
-        Initialize the approacher
-        
-        Args:
-            robot_name: Name of the robot for topic namespacing
-            nav_controller: Instance of NavigationController for movement commands
-            init_node: Whether to initialize a ROS node (standalone mode)
-        """
         if init_node:
             rospy.init_node('object_approacher', anonymous=False)
             
@@ -33,7 +25,6 @@ class ObjectApproacher:
         
         # Approacher state
         self.current_depth = None
-        self.MAX_DETECTION_FAILURES = 3
         
         # Approach parameters
         self.approach_min_depth = 1.0  # meters
@@ -71,7 +62,18 @@ class ObjectApproacher:
         # Store the latest marker for approach
         self.object_marker = msg
 
-    
+    def depth_callback(self, msg):
+        """
+        Process depth information of detected objects
+        
+        Args:
+            msg: Float32MultiArray containing depth data
+        """
+        if msg.data and len(msg.data) >= 5:
+            self.current_depth = msg.data[4]
+        else:
+            rospy.logwarn("Invalid depth data received")
+
     def approach_object(self, object_marker):
         """
         Approach a detected object with improved marker persistence
@@ -84,8 +86,9 @@ class ObjectApproacher:
         """
         rospy.loginfo("Moving to detected object with graduated approach...")
         
+
         if object_marker is None:
-            rospy.logerr("No object marker available to approach")
+            rospy.logerr("No object marker available to approach, check topic")
             return False
         
         # Store initial marker details as a fallback
@@ -100,14 +103,10 @@ class ObjectApproacher:
         
         # Track detection reliability
         consecutive_detection_failures = 0
-        max_detection_failures = 5
+
         
         # Approach loop
         while not rospy.is_shutdown():
-            # If we've lost too many detections, abort
-            if consecutive_detection_failures >= max_detection_failures:
-                rospy.logwarn("Repeated detection failures. Aborting approach.")
-                return False
             
             # Use initial target if marker is lost
             target_x = (self.object_marker.pose.position.x 
@@ -119,17 +118,15 @@ class ObjectApproacher:
             
             # Depth and marker validation
             depth_check = self._depth_and_marker_check(
-                initial_target_x, initial_target_y
+                target_x, target_y
             )
             
+            # if depth_check is None, continue to next iteration
             if depth_check is True:
                 return True
             elif depth_check is False:
-                consecutive_detection_failures += 1
-                rospy.logwarn(f"Detection failure. Attempts: {consecutive_detection_failures}")
-                rospy.sleep(0.5)  # Brief pause between attempts
-                continue
-            
+                return False
+
             # Calculate next approach waypoint
             current_pose = get_robot_pose()
             if current_pose is None:
@@ -156,7 +153,7 @@ class ObjectApproacher:
 
     def _depth_and_marker_check(self, initial_x, initial_y):
         """
-        Enhanced depth and marker validation
+        depth and marker validation with sustained detection for 1 second
         
         Args:
             initial_x: Initial target X coordinate
@@ -167,42 +164,38 @@ class ObjectApproacher:
             True: Successfully reached target
             False: Detection failure
         """
-        # Comprehensive logging
-        rospy.logdebug(f"Depth check - Current depth: {self.current_depth}")
-        rospy.logdebug(f"Object marker status: {'Present' if self.object_marker is not None else 'None'}")
+        # Start time for sustained detection check
+        start_time = rospy.Time.now()
+        detection_duration = rospy.Duration(1.0)  # 1 second sustained detection
         
-        # Depth information check
-        if self.current_depth is None:
-            rospy.logwarn("Waiting for depth information...")
+        # Rate for checking
+        rate = rospy.Rate(10)  # 10 Hz
+        
+        while (rospy.Time.now() - start_time) < detection_duration:
+            # Comprehensive logging
+            rospy.logdebug(f"Depth check - Current depth: {self.current_depth}")
+            rospy.logdebug(f"Object marker status: {'Present' if self.object_marker is not None else 'None'}")
+            
+            # Depth information check
+            if (self.current_depth is None or 
+                self.object_marker is None or 
+                not (self.approach_min_depth <= self.current_depth <= self.approach_max_depth)):
+                
+                rospy.logwarn("Lost sustained detection")
+                return False
+            
+            # Wait before next check
+            rate.sleep()
+        
+        # Sustained detection successful
+        rospy.loginfo(f"Sustained detection confirmed at depth: {self.current_depth:.2f}m")
+        
+        # Cancel active navigation if needed
+        if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
+            self.nav_controller.cancel_navigation()
             rospy.sleep(0.5)
-            return None
         
-        # Depth target check
-        if self.approach_min_depth <= self.current_depth <= self.approach_max_depth:
-            rospy.loginfo(f"Reached target depth: {self.current_depth:.2f}m")
-            
-            # Cancel active navigation if needed
-            if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
-                self.nav_controller.cancel_navigation()
-                rospy.sleep(0.5)
-            
-            return True
-        
-        # If no marker, use initial coordinates for logging
-        marker_x = (self.object_marker.pose.position.x 
-                    if self.object_marker is not None 
-                    else initial_x)
-        marker_y = (self.object_marker.pose.position.y 
-                    if self.object_marker is not None 
-                    else initial_y)
-        
-        # Marker validation with more context
-        if self.object_marker is None:
-            rospy.logwarn(f"Lost object marker. Last known position: x={initial_x}, y={initial_y}")
-            rospy.logwarn(f"Current depth: {self.current_depth}")
-            return False
-        
-        return None
+        return True
 
 
             
@@ -232,6 +225,7 @@ class ObjectApproacher:
                     target_x, target_y, current_pose, max_step=0.5
                 )
                 if not is_position_safe_approach(self.costmap, next_x, next_y):
+                    rospy.logerr("Cannot find safe approach path! line 239 object_approacher.py")
                     return None, None
             else:
                 return None, None
@@ -312,18 +306,6 @@ class ObjectApproacher:
             
         return False  # If we get here, we've been shutdown
         
-    def depth_callback(self, msg):
-        """
-        Process depth information of detected objects
-        
-        Args:
-            msg: Float32MultiArray containing depth data
-        """
-        if msg.data and len(msg.data) >= 5:
-            self.current_depth = msg.data[4]
-        else:
-            rospy.logwarn("Invalid depth data received")
-
 
 if __name__ == "__main__":
     try:

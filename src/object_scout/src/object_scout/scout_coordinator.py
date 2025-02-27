@@ -73,18 +73,47 @@ class ScoutCoordinator:
             
             # If object detected, approach it
             if detection == ScanResult.OBJECT_DETECTED:
-            
-                approach_success = self.approacher.approach_object(self.scanner.object_marker)
-                if approach_success:
-                    # Handle successful approach
-                    rospy.loginfo("Successfully approached object")
-                    # Add any follow-up actions here
-                    return True
-                else:
-                    # Handle failed approach
-                    rospy.logwarn("Failed to approach object")
-                    # Add any fallback behavior here
-                    return False
+                # Maximum number of approach attempts
+                max_attempts = 3
+                current_attempt = 1
+                approach_success = False
+                
+                # Try approaching until successful or max attempts reached
+                while current_attempt <= max_attempts and not approach_success:
+                    rospy.loginfo(f"Approach attempt {current_attempt}/{max_attempts}")
+                    
+                    # Try to approach the object
+                    approach_success = self.approacher.approach_object(self.scanner.object_marker)
+                    
+                    if approach_success:
+                        # Handle successful approach
+                        rospy.loginfo(f"Successfully approached object on attempt {current_attempt}")
+                        # Add any follow-up actions here
+                        return True
+                    else:
+                        # Handle failed approach
+                        rospy.logwarn(f"Failed to approach object on attempt {current_attempt}")
+                        
+                        if current_attempt < max_attempts:
+                            # Reset detection state before attempting the offset scan
+                            self.scanner.reset_detection_state()
+                            
+                            # Calculate offset angle (45 degrees × attempt number)
+                            offset_angle = 45 * current_attempt
+                            rospy.loginfo(f"Trying offset scan with {offset_angle} degree rotation")
+                            
+                            # Resume scan with calculated offset
+                            offset_detection = self.scanner.resume_scan_with_offset(offset_degrees=offset_angle)
+                            
+                            if offset_detection != ScanResult.OBJECT_DETECTED:
+                                rospy.logwarn("No object detected during offset scan")
+                                # Exit the loop if we no longer detect the object
+                                break
+                        
+                    current_attempt += 1
+                
+                rospy.logwarn(f"Failed to approach object after {max_attempts} attempts")
+                return False
             else:
                 rospy.loginfo("No object detected at final position")
                 return True

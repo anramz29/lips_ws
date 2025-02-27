@@ -88,6 +88,8 @@ class ObjectScanner:
         rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
     
         num_rotations = len(rotation_angles)
+
+        
         
         # Perform the rotations
         for i, angle in enumerate(rotation_angles):
@@ -195,6 +197,181 @@ class ObjectScanner:
             rospy.sleep(0.1)  # Check at 10Hz
         
         return False  # No sustained detection within timeout
+    
+    def resume_scan_with_offset(self, offset_degrees=45):
+        """
+        Resume scanning from current position with an additional rotation offset
+        
+        This function:
+        1. Determines the current rotation index
+        2. Applies an additional rotation (default 45 degrees)
+        3. Continues the scan with only the remaining rotations
+        
+        Args:
+            offset_degrees: Additional degrees to rotate (default: 45)
+            
+        Returns:
+            ScanResult: The result of the scanning operation
+        """
+        # First, save current position to determine where we are
+        current_index = self.save_current_scan_position()
+        if current_index == -1:
+            rospy.logerr("Failed to determine current scan position")
+            return ScanResult.ERROR
+            
+        # Get current position for the new rotation
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            self.scanning_in_progress = False
+            return ScanResult.ERROR
+            
+        # Calculate the new angle (current + offset)
+        rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        current_angle = rotation_angles[current_index]
+        new_angle = (current_angle + offset_degrees) % 360
+        
+        rospy.loginfo(f"Current angle: {current_angle} degrees")
+        rospy.loginfo(f"Adding offset of {offset_degrees} degrees")
+        rospy.loginfo(f"New angle: {new_angle} degrees")
+        
+        # First, rotate to the offset position
+        # Calculate orientation quaternion for the offset
+        yaw = math.radians(new_angle)
+        quaternion = quaternion_from_euler(0, 0, yaw)
+        
+        # Create goal at current position with new orientation
+        offset_goal = self.nav_controller.create_navigation_goal(
+            current_pose.position.x,
+            current_pose.position.y,
+            Quaternion(*quaternion)
+        )
+        
+        # Send rotation goal for the offset
+        rospy.loginfo(f"Executing offset rotation to {new_angle} degrees")
+        self.nav_controller.client.send_goal(offset_goal)
+        
+        # Wait for rotation to complete with timeout
+        timeout = rospy.Duration(45.0)
+        if not self.nav_controller.client.wait_for_result(timeout):
+            rospy.logwarn("Offset rotation timeout reached")
+            return ScanResult.ERROR
+        
+        if self.nav_controller.client.get_state() != actionlib.GoalStatus.SUCCEEDED:
+            rospy.logwarn("Offset rotation goal failed")
+            return ScanResult.ERROR
+        
+        # Rotation complete, wait for camera to stabilize
+        rospy.loginfo(f"Offset rotation to {new_angle} degrees complete, waiting for camera stabilization...")
+        rospy.sleep(self.scan_stabilization_time)
+        
+        # Find the closest standard angle to our new position
+        closest_angle_index = min(range(len(rotation_angles)), 
+                                key=lambda i: abs(rotation_angles[i] - new_angle))
+        
+        # Now continue with the remaining rotations
+        return self.resume_scan_from_saved_position(closest_angle_index)
+    
+    def resume_scan_from_saved_position(self, saved_angle_index):
+        """
+        Perform a scan rotation sequence starting from a saved position
+        
+        The robot will resume scanning from the last saved position,
+        continuing with only the remaining rotations in the sequence.
+        
+        Args:
+            saved_angle_index: Index of the last completed rotation angle
+            
+        Returns:
+            ScanResult: The result of the scanning operation
+        """
+        rospy.loginfo(f"Resuming scan rotation sequence from index {saved_angle_index}")
+        
+        # Set scanning flag to true
+        self.scanning_in_progress = True
+        self.object_detected = False
+        
+        # Get current position
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            self.scanning_in_progress = False
+            return ScanResult.ERROR
+        
+        # Rotation angles - seven rotations of 45 degrees each
+        rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        
+        # Calculate remaining rotations (starting from the next one)
+        remaining_angles = rotation_angles[saved_angle_index + 1:]
+        
+        num_rotations = len(remaining_angles)
+        if num_rotations == 0:
+            rospy.loginfo("No remaining rotations to perform")
+            self.scanning_in_progress = False
+            return ScanResult.NO_DETECTION
+        
+        rospy.loginfo(f"Performing {num_rotations} remaining rotations")
+        
+        # Perform the remaining rotations
+        for i, angle in enumerate(remaining_angles):
+            if self._perform_single_rotation_scan(current_pose, angle, i, num_rotations):
+                # Object detected with sustained requirement
+                return ScanResult.OBJECT_DETECTED
+                
+            # Brief pause between rotations
+            if i < len(remaining_angles) - 1:  # Don't pause after the last rotation
+                rospy.sleep(0.5)
+        
+        # End of rotation sequence - no detection
+        self.scanning_in_progress = False
+        rospy.loginfo("Completed resumed scan rotation sequence, no objects detected")
+        return ScanResult.NO_DETECTION
+
+
+    def save_current_scan_position(self):
+        """
+        Save the current scan position for later resumption
+        
+        Returns:
+            int: Index of the current rotation in the sequence, 
+                or -1 if not currently scanning or position couldn't be determined
+        """
+        if not self.scanning_in_progress:
+            rospy.logwarn("Cannot save position: No scan in progress")
+            return -1
+        
+        # Get current position and orientation
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose to save position")
+            return -1
+        
+        # Convert current orientation to degrees
+        current_quat = [
+            current_pose.orientation.x,
+            current_pose.orientation.y, 
+            current_pose.orientation.z,
+            current_pose.orientation.w
+        ]
+        
+        # Import here to avoid circular imports
+        from tf.transformations import euler_from_quaternion
+        
+        roll, pitch, yaw = euler_from_quaternion(current_quat)
+        current_degrees = math.degrees(yaw) % 360
+        
+        # Find the closest standard rotation angle
+        rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        closest_angle_index = min(range(len(rotation_angles)), 
+                                key=lambda i: abs(rotation_angles[i] - current_degrees))
+        
+        rospy.loginfo(f"Current orientation: {current_degrees:.1f} degrees, closest to index {closest_angle_index} ({rotation_angles[closest_angle_index]} degrees)")
+        
+        # Save this position (you might want to expand this to save the actual pose too)
+        self.saved_scan_index = closest_angle_index
+        rospy.loginfo(f"Saved scan position at index {self.saved_scan_index}")
+        
+        return closest_angle_index
         
     def object_marker_callback(self, msg):
         """
