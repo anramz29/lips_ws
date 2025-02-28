@@ -5,6 +5,7 @@
     
     <!-- Configuration file path -->
     <arg name="poses_config" default="$(find object_scout)/config/poses.yaml" />
+    <arg name="max_objects" default="3" />
 
     <!-- Topic parameters -->
     <arg name="object_marker_topic" default="/$(arg robot_name)/object_markers" />
@@ -14,6 +15,8 @@
     <arg name="rviz_frame" default="map" />
     <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
     <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization" />
+
+
     
     <!-- Include the YOLO vision system -->
     <include file="$(find yolo_vision)/launch/object_mapper.launch">
@@ -31,6 +34,7 @@
         <param name="poses_config" value="$(arg poses_config)" />
         <param name="object_marker_topic" value="$(arg object_marker_topic)" />
         <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)" />
+        <param name="max_objects" value="$(arg max_objects)" />
     </node>
     
     <!-- RViz (conditionally launched) -->

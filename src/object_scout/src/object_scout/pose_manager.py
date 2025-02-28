@@ -61,6 +61,7 @@ class PoseManager:
             list: List of all pose names
         """
         return list(self.poses.keys())
+    
 
 
 if __name__ == "__main__":

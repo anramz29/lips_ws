@@ -28,11 +28,18 @@ class ScoutCoordinator:
         self.poses_config = rospy.get_param('~poses_config', '')
         self.pose_command = rospy.get_param('~pose_command', 'all')
         self.max_objects = rospy.get_param('~max_objects', 0)  # 0 means find all objects
-        
+
+  
+
+
         # Setup TF listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        
+
+        # Get world and robot frames
+        self.world_frame = "map"
+        self.robot_frame = f"{self.robot_name}/base_link"
+
         # Initialize components
         self.nav_controller = NavigationController(self.robot_name)
         self.pose_manager = PoseManager(self.poses_config)
@@ -41,6 +48,8 @@ class ScoutCoordinator:
         
         # Track found objects
         self.found_objects = []
+
+
 
     def start_mission(self):
         """
@@ -52,7 +61,11 @@ class ScoutCoordinator:
         for pose_name in poses:
             rospy.loginfo(f"Moving to pose: {pose_name}")
             pose_position = self.pose_manager.get_pose(pose_name)
-            success = self.nav_controller.move_to_position(pose_position)
+
+            x = pose_position.position.x
+            y = pose_position.position.y
+
+            success = self.nav_controller.move_to_position(x, y)
             
             if not success:
                 rospy.logwarn(f"Failed to navigate to pose {pose_name}, continuing to next pose")
@@ -64,13 +77,17 @@ class ScoutCoordinator:
                 break
 
             # Initial scan at the pose
-            scan_result = self.scanner.perform_scan_rotation()
+            scan_result, remaining_angles = self.scanner.perform_scan_rotation(self.scanner.rotation_angles)
             
             # Loop to handle resuming scans and approaching objects
             while scan_result == ScanResult.OBJECT_DETECTED:
                 # Get the object marker from the scanner
                 object_marker = self.scanner.object_marker
+
                 
+                # get robot coordinates
+                x_detected, y_detected, orientation_detected = self.get_robot_coordinates()
+
                 if object_marker is None:
                     rospy.logwarn("Object detected but no marker available")
                     break
@@ -80,18 +97,30 @@ class ScoutCoordinator:
 
                 if approach_success:
                     rospy.loginfo(f"Successfully approached object at pose {pose_name}")
+                    rospy.sleep(1.0)  # Pause for a moment
                     self.found_objects.append(pose_name)
                     
                     # Check if we've reached the maximum number of objects
                     if self.max_objects > 0 and len(self.found_objects) >= self.max_objects:
                         rospy.loginfo(f"Reached maximum number of objects ({self.max_objects}), ending mission")
                         break
+
+                    # Move to the detected object
+                    self.nav_controller.move_to_position(x_detected, y_detected, orientation_detected)
+
+                    # Perform another scan rotation
+                    scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles)
+
                 else:
                     rospy.logwarn("Failed to approach object")
+                    self.nav_controller.move_to_position(x_detected, y_detected, orientation_detected)
+
+                    # Perform another scan rotation
+                    scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles)
+
                 
-                # Continue scanning from current position with an offset
-                # regardless of whether approach was successful or not
-                scan_result = self.scanner.resume_scan_with_offset()
+
+                rospy.loginfo(f"Moving to pose: {pose_name}")
                 
                 # If no more objects detected or an error occurred, exit the inner loop
                 if scan_result != ScanResult.OBJECT_DETECTED:
@@ -100,6 +129,36 @@ class ScoutCoordinator:
                     
         rospy.loginfo(f"Mission complete. Found {len(self.found_objects)} objects: {self.found_objects}")
         return len(self.found_objects)
+    
+    def get_robot_coordinates(self):
+        """
+        Get the current position and orientation of the robot
+        
+        Returns:
+            x, y, z, orientation :coordinates and orientation of the robot, 
+                or None if not available
+        """
+        try:
+            # Look up the transform from world frame to robot frame
+            transform = self.tf_buffer.lookup_transform(
+                self.world_frame,
+                self.robot_frame,
+                rospy.Time(0),  # Get the most recent transform
+                rospy.Duration(1.0)  # Wait up to 1 second for the transform
+            )
+            
+            # Extract position
+            x = transform.transform.translation.x
+            y = transform.transform.translation.y
+
+            # Extract orientation
+            orientation = transform.transform.rotation
+            
+            return x, y, orientation
+            
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Failed to get robot coordinates: {e}")
+            return None
 
 if __name__ == "__main__":
     try:

@@ -111,31 +111,52 @@ def is_position_safe(costmap, x, y):
         return False
     
     return True
-
-def calculate_safe_approach_point(target_x, target_y, current_pose, max_step=1.0):
-    """Calculate a safe intermediate point towards the target that maintains 1.5m distance"""
+def calculate_safe_approach_point(target_x, target_y, current_pose, max_step=1.0, target_distance=1.1):
+    """
+    Calculate a safe intermediate point towards the target at a desired distance
+    
+    Args:
+        target_x: Target X coordinate
+        target_y: Target Y coordinate  
+        current_pose: Current robot pose
+        max_step: Maximum step size to take
+        target_distance: Desired final distance from target (defaults to 1.1m, middle of 1.0-1.2m range)
+        
+    Returns:
+        (next_x, next_y): Coordinates for the next waypoint
+    """
     dx = target_x - current_pose.position.x
     dy = target_y - current_pose.position.y
-    target_distance = math.sqrt(dx*dx + dy*dy)
+    current_target_distance = math.sqrt(dx*dx + dy*dy)
     
-    # Calculate the final target point (1.5m away from object)
-    if target_distance <= 2.0:  # If we're getting close to the target
-        # Calculate point that's 1.5m away from target
-        direction_x = dx / target_distance
-        direction_y = dy / target_distance
-        
-        # Move back from target position to maintain 1.5m distance
+    # Calculate unit direction vector
+    direction_x = dx / current_target_distance if current_target_distance > 0 else 0
+    direction_y = dy / current_target_distance if current_target_distance > 0 else 0
+    
+    # If we're already very close to the target distance, make small adjustments
+    if abs(current_target_distance - target_distance) < 0.1:
+        # Make a small adjustment to get closer to exact target distance
+        adjustment = (target_distance - current_target_distance) * 0.5  # 50% adjustment
         return (
-            target_x - (direction_x * 1.5),  # 1.5 is our desired distance
-            target_y - (direction_y * 1.5)
+            current_pose.position.x + direction_x * adjustment,
+            current_pose.position.y + direction_y * adjustment
         )
     
-    # If we're far away, take a step toward the target while maintaining heading
-    step_size = min(max_step, target_distance - 1.5)  # Don't overshoot the 1.5m mark
-    dx = (dx/target_distance) * step_size
-    dy = (dy/target_distance) * step_size
+    # If we're too close to the target, back up
+    if current_target_distance < target_distance:
+        # Calculate point that's at target_distance away from target (back up)
+        return (
+            target_x - (direction_x * target_distance),
+            target_y - (direction_y * target_distance)
+        )
     
-    return current_pose.position.x + dx, current_pose.position.y + dy
+    # If we're far away, take a step toward the target
+    step_size = min(max_step, current_target_distance - target_distance)
+    return (
+        current_pose.position.x + direction_x * step_size,
+        current_pose.position.y + direction_y * step_size
+    )
+
 
 def get_adaptive_cost_threshold(distance):
     """Get cost threshold that becomes more lenient with distance"""

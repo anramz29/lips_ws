@@ -3,32 +3,54 @@ import rospy
 import sys
 import os
 import rospkg
+import time
 
 # Ensure the package is in the Python path
 rospack = rospkg.RosPack()
 pkg_path = rospack.get_path('object_scout')
 sys.path.append(os.path.join(pkg_path, 'src'))
 
-from object_scout.scout_coordinator import ScoutCoordinator
+from object_scout.scout_coordinator import ScoutCoordinator # type: ignore
+
+def prompt_user():
+    """Prompt the user to start the mission"""
+    print("\n===== Object Scout Mission =====")
+    print("This will start the robot's object scouting mission.")
+    print("The robot will navigate to predefined poses and look for objects.")
+    
+    while True:
+        response = input("\nDo you want to start the mission? (yes/no): ").strip().lower()
+        if response in ['yes', 'y']:
+            return True
+        elif response in ['no', 'n']:
+            return False
+        else:
+            print("Please enter 'yes' or 'no'.")
 
 def main():
-    # Create the coordinator
+    # Create the coordinator without starting the mission yet
     coordinator = ScoutCoordinator(init_node=True)
     
     # Log startup
     rospy.loginfo("=== Object Scout Coordinator Node Started ===")
+
+    rospy.sleep(5)  # Wait for other nodes to start
     
-    # Run the main mission
-    result = coordinator.move_to_all_poses()
-    
-    if result:
-        rospy.loginfo("Successfully completed mission and found an object!")
-    else:
-        rospy.loginfo("Completed mission, no objects approached")
+    # Prompt user to start the mission
+    if prompt_user():
+        rospy.loginfo("Starting mission as requested by user...")
+        # Add a small delay for better user experience
+        time.sleep(1)
         
+        # Run the main mission
+        coordinator.start_mission()
+
+    else:
+        rospy.loginfo("Mission start cancelled by user")
+    
     # Keep the node running
-    if not result:
-        rospy.spin()  # Keep node running if no object was found
+    rospy.loginfo("Scout coordinator is now idle. Press Ctrl+C to exit.")
+    rospy.spin()
 
 if __name__ == '__main__':
     try:

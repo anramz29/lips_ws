@@ -37,16 +37,13 @@ class YoloNode:
         self.min_process_interval = rospy.Duration(0.1)  # 10 Hz maximum
         
 
-        # If using CUDA, optimize for GPU
-        if torch.cuda.is_available():
-            self.model.to('cuda')
-            torch.backends.cudnn.benchmark = True
-            rospy.loginfo("CUDA enabled.")
-        else:   
-            rospy.loginfo("CUDA not available. Running on CPU.")
-
-
-        rospy.loginfo("YoloNode initialized.")
+        # # If using CUDA, optimize for GPU
+        # if torch.cuda.is_available():
+        #     self.model.to('cuda')
+        #     torch.backends.cudnn.benchmark = True
+        #     rospy.loginfo("CUDA enabled.")
+        # else:   
+        #     rospy.loginfo("CUDA not available. Running on CPU.")
 
     def image_callback(self, ros_image):
         # Rate limiting
