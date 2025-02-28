@@ -6,6 +6,7 @@ from tf.transformations import quaternion_from_euler
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point, Quaternion
 from std_msgs.msg import Float32MultiArray
+from object_scout.navigation_controller import NavigationController
 
 # Import actionlib for navigation
 import actionlib
@@ -87,8 +88,7 @@ class ObjectScanner:
         
         # Set scanning flag to true
         self.scanning_in_progress = True
-        self.object_detected = False
-        num_rotations = len(rotation_angles)
+        self.object_detected = False    
         self.remaining_angles = rotation_angles
         
         # Get current position
@@ -120,11 +120,7 @@ class ObjectScanner:
             if result == ScanResult.OBJECT_DETECTED:
                 self.scanning_in_progress = False
                 rospy.loginfo(f"Object detected during scan rotation at angle {current_angle}")
-                if not self.current_depth > 5.0:
-                    return ScanResult.OBJECT_DETECTED, self.remaining_angles
-                else:
-                    rospy.loginfo("Object detected is too far away")
-            
+        
             # Brief pause between rotations
             if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
                 rospy.sleep(0.5)
@@ -185,6 +181,7 @@ class ObjectScanner:
         
         # Scan for objects with sustained detection requirement
         detected = self._scan_with_sustained_detection(angle)
+
         
         # Convert boolean result to ScanResult enum
         return ScanResult.OBJECT_DETECTED if detected else ScanResult.NO_DETECTION
@@ -217,9 +214,13 @@ class ObjectScanner:
                     # Check if we've maintained detection long enough
                     elapsed = rospy.Time.now() - detection_start
                     if elapsed >= self.required_detection_duration:
-                        self.object_detected = True
-                        rospy.loginfo(f"Sustained object detection for {elapsed.to_sec():.2f} seconds!")
-                        return True
+                        if self.current_depth is not None and self.current_depth < 5.0:
+                            
+                            self.object_detected = True
+                            
+                            rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth}")
+                            
+                            return True
             else:
                 # Lost detection, reset the timer
                 if detection_start is not None:
