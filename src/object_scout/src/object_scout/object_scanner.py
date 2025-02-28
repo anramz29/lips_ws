@@ -10,8 +10,6 @@ from std_msgs.msg import Float32MultiArray
 # Import actionlib for navigation
 import actionlib
 
-
-
 # Import utilities
 from object_scout.utils import get_robot_pose
 
