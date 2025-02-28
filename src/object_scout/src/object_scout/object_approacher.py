@@ -151,7 +151,7 @@ class ObjectApproacher:
         
         return False
 
-    def _depth_and_marker_check(self, initial_x, initial_y):
+    def _depth_and_marker_check(self):
         """
         depth and marker validation with sustained detection for 1 second
         
@@ -177,11 +177,11 @@ class ObjectApproacher:
             rospy.logdebug(f"Object marker status: {'Present' if self.object_marker is not None else 'None'}")
             
             # Depth information check
-            if (self.current_depth is None or 
-                self.object_marker is None or 
-                not (self.approach_min_depth <= self.current_depth <= self.approach_max_depth)):
-                
-                rospy.logwarn("Lost sustained detection")
+            if self.current_depth is None:
+                rospy.logwarn("No depth information available")
+                return False
+            elif self.object_marker is None:
+                rospy.logwarn("Incomplete marker information")
                 return False
             
             # Wait before next check
@@ -189,12 +189,19 @@ class ObjectApproacher:
         
         # Sustained detection successful
         rospy.loginfo(f"Sustained detection confirmed at depth: {self.current_depth:.2f}m")
-        
-        # Cancel active navigation if needed
-        if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
-            self.nav_controller.cancel_navigation()
-            rospy.sleep(0.5)
-        
+
+        if self.approach_min_depth <= self.current_depth <= self.approach_max_depth:      
+            # Cancel active navigation if needed
+            if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
+                self.nav_controller.cancel_navigation()
+                rospy.sleep(0.5)
+        else:
+            # Object is detected but not at the correct distance yet
+            rospy.loginfo(f"Object detected but not at correct distance yet. Current: \
+                          {self.current_depth:.2f}m, Target: {self.approach_min_depth:.2f} \
+                          m-{self.approach_max_depth:.2f}m")
+            return None
+    
         return True
 
 
