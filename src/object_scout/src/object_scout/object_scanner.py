@@ -5,6 +5,7 @@ from enum import Enum
 from tf.transformations import quaternion_from_euler
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point, Quaternion
+from std_msgs.msg import Float32MultiArray
 
 # Import actionlib for navigation
 import actionlib
@@ -45,6 +46,7 @@ class ObjectScanner:
         self.scanning_in_progress = False
         self.object_marker = None
         self.object_detected = False
+        self.current_depth = None
         
         # Scanner parameters
         self.scan_stabilization_time = 1.0  # seconds
@@ -58,6 +60,15 @@ class ObjectScanner:
             self.object_marker_topic,
             Marker,
             self.object_marker_callback
+        )
+
+                # Set up depth subscription
+        self.bbox_depth_topic = rospy.get_param('~bbox_depth_topic', 
+                                               f'/{robot_name}/camera/yolo/bbox_depth')
+        self.depth_sub = rospy.Subscriber(
+            self.bbox_depth_topic,
+            Float32MultiArray,
+            self.depth_callback
         )
 
         self.rotation_angles =  [0, 45, 90, 135, 180, 225, 270, 315]
@@ -111,7 +122,10 @@ class ObjectScanner:
             if result == ScanResult.OBJECT_DETECTED:
                 self.scanning_in_progress = False
                 rospy.loginfo(f"Object detected during scan rotation at angle {current_angle}")
-                return ScanResult.OBJECT_DETECTED, self.remaining_angles
+                if not self.current_depth > 5.0:
+                    return ScanResult.OBJECT_DETECTED, self.remaining_angles
+                else:
+                    rospy.loginfo("Object detected is too far away")
             
             # Brief pause between rotations
             if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
@@ -242,6 +256,18 @@ class ObjectScanner:
     def get_remaining_angles(self):
         return self.rotation_angles
 
+
+    def depth_callback(self, msg):
+        """
+        Process depth information of detected objects
+        
+        Args:
+            msg: Float32MultiArray containing depth data
+        """
+        if msg.data and len(msg.data) >= 5:
+            self.current_depth = msg.data[4]
+        else:
+            rospy.logwarn("Invalid depth data received")
 
 if __name__ == "__main__":
     try:
