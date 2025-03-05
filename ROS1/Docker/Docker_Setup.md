@@ -5,6 +5,11 @@ Build the Docker image with a meaningful name:
 docker build -t <image_name> .
 ```
 
+if your using a non linux system with the docker image specify the platform explicitly for example with a macbook
+```bash
+docker build --platform linux/amd64 -t <image_name> .
+```
+
 # Run the Docker Container with a Mounted Volume
 Run the container and mount a folder from your host system to the container. This allows you to persist data (e.g., downloaded .sh scripts) between container restarts.
 
