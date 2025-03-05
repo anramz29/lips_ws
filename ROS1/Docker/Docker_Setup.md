@@ -1,4 +1,3 @@
-```markdown
 # Locobot ROS Docker Setup Guide
 
 This guide will help you set up a Docker environment for working with Locobots using ROS.
