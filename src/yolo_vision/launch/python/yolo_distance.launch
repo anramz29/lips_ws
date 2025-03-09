@@ -23,7 +23,7 @@ robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
    <arg name="visualization_topic" default="camera/yolo/distance_image"/>
        
    <!-- Launch YOLO node -->
-   <node name="yolo_node" pkg="yolo_vision" type="yolo_node.py" output="screen" ns="$(arg robot_name)">
+   <node name="yolo_node" pkg="yolo_vision" type="yolo_node_python.py" output="screen" ns="$(arg robot_name)">
        <param name="model_path" value="$(arg model_path)"/>
        <param name="image_topic" value="$(arg rgb_topic)"/>
        <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>

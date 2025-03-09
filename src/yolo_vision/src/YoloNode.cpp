@@ -45,7 +45,13 @@ void YoloNode::loadModel(const std::string& model_path)
         model_ = cv::dnn::readNet(model_path);
         
         // Check if GPU is available and set preference
-        if (cv::cuda::getCudaEnabledDeviceCount() > 0) {
+        bool cuda_available = false;
+        
+        #ifdef HAVE_OPENCV_CUDA
+        cuda_available = cv::cuda::deviceCount() > 0;  // Use deviceCount() instead
+        #endif
+        
+        if (cuda_available) {
             model_.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
             model_.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
             ROS_INFO("CUDA enabled.");
@@ -72,21 +78,7 @@ void YoloNode::loadModel(const std::string& model_path)
         throw;
     }
 }
-
-cv::Mat YoloNode::preprocess(const cv::Mat& frame) 
-{
-    // Pre-process image for YOLO
-    cv::Mat blob = cv::dnn::blobFromImage(
-        frame,          // Input image
-        1/255.0,        // Scale factor
-        cv::Size(640, 640), // Target size
-        cv::Scalar(0,0,0),  // Mean subtraction
-        true,           // Swap Red and Blue channels
-        false           // Do not crop
-    );
-    
-    return blob;
-}
+        
 
 std::vector<Detection> YoloNode::runInference(const cv::Mat& blob, const cv::Mat& frame) 
 {
@@ -166,6 +158,26 @@ std::vector<Detection> YoloNode::runInference(const cv::Mat& blob, const cv::Mat
     }
     
     return detections;
+}
+
+cv::Mat YoloNode::preprocess(const cv::Mat& frame)
+{
+    cv::Mat blob;
+    
+    // Convert the frame to a blob that can be processed by the DNN
+    // Parameters:
+    // - input image
+    // - output blob
+    // - scale factor (1/255 to normalize pixel values between 0 and 1)
+    // - Size of the output image (depends on your YOLO model, common sizes are 416x416, 512x512, or 608x608)
+    // - mean values (zeros for no mean subtraction)
+    // - swapRB flag (true to swap first and last channels, OpenCV uses BGR by default but DNN expects RGB)
+    // - crop flag (false to not crop the image)
+    // - ddepth (CV_32F is common for neural network inputs)
+    cv::dnn::blobFromImage(frame, blob, 1/255.0, cv::Size(416, 416), 
+                           cv::Scalar(0,0,0), true, false, CV_32F);
+    
+    return blob;
 }
 
 void YoloNode::visualizeDetections(cv::Mat& frame, const std::vector<Detection>& detections) 

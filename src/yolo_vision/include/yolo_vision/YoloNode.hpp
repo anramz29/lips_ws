@@ -8,6 +8,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/dnn/dnn.hpp>
+#include <opencv2/core/cuda.hpp>
 #include <string>
 #include <vector>
 
