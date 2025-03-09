@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!-- Also Note that these scripts are meant to be used with a 
+launch driver. In this case the interbotix control stack is
+at minimum is needed-->
+
+<!-- command is: roslaunch interbotix_xslocobot_control xslocobot_control.launch 
+robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
+
+<launch>
+   <!-- Global Arguments -->
+   <arg name="robot_name" default="locobot"/>
+   <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
+   <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
+
+   <!-- Camera Topics -->
+   <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
+
+   <!-- YOLO Topics and Parameters -->
+   <arg name="model_path" default="$(find yolo_vision)/models/best.onnx"/>
+   <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
+   
+   <!-- Additional YOLO parameters for C++ implementation -->
+   <arg name="conf_threshold" default="0.5"/>
+   <arg name="nms_threshold" default="0.4"/>
+   <arg name="max_detections" default="100"/>
+   <arg name="process_rate" default="30.0"/>
+
+   <!-- Launch YOLO node (C++ version) -->
+   <node name="yolo_node" pkg="yolo_vision" type="yolo_node" output="screen" ns="$(arg robot_name)">
+       <param name="model_path" value="$(arg model_path)"/>
+       <param name="image_topic" value="$(arg rgb_topic)"/>
+       <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+       <param name="conf_threshold" value="$(arg conf_threshold)"/>
+       <param name="nms_threshold" value="$(arg nms_threshold)"/>
+       <param name="max_detections" value="$(arg max_detections)"/>
+       <param name="process_rate" value="$(arg process_rate)"/>
+   </node>
+
+   <!-- RViz -->
+   <node name="rviz" pkg="rviz" type="rviz" 
+         args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+         ns="$(arg robot_name)">
+       <remap from="/clicked_point" to="clicked_point"/>
+       <remap from="/initialpose" to="initialpose"/>
+       <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+   </node>
+</launch>

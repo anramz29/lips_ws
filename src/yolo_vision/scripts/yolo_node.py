@@ -3,7 +3,6 @@ import rospy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
-import torch
 import numpy as np
 from ultralytics import YOLO
 
