@@ -14,7 +14,7 @@
     <!-- Visualization parameters -->
     <arg name="rviz_frame" default="map" />
     <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
-    <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization" />
+    <arg name="use_rviz" default="false" doc="Set to false to disable RViz visualization" />
 
 
     
@@ -29,7 +29,7 @@
     </include>
     
     <!-- Launch the coordinator node with all components packaged inside -->
-    <node name="scout_coordinator" pkg="object_scout" type="scout_coordinator_node.py" output="screen">
+    <node name="scout_coordinator" pkg="object_scout" type="scout_coordinator_locobot_node.py" output="screen">
         <param name="robot_name" value="$(arg robot_name)" />
         <param name="poses_config" value="$(arg poses_config)" />
         <param name="object_marker_topic" value="$(arg object_marker_topic)" />

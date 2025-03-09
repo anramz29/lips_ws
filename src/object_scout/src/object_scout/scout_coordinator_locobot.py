@@ -6,10 +6,11 @@ from object_scout.navigation_controller import NavigationController
 from object_scout.object_scanner import ObjectScanner, ScanResult
 from object_scout.object_approacher import ObjectApproacher
 from object_scout.pose_manager import PoseManager
+from object_scout.fine_approacher import FineApproacher
 from object_scout.utils import get_robot_pose
 
 
-class ScoutCoordinator:
+class ScoutCoordinatorLocobot:
     """
     Main coordinator for the object scouting mission
     """
@@ -45,6 +46,7 @@ class ScoutCoordinator:
         self.pose_manager = PoseManager(self.poses_config)
         self.scanner = ObjectScanner(self.robot_name, self.nav_controller)
         self.approacher = ObjectApproacher(self.robot_name, self.nav_controller)
+        self.fine_approacher = FineApproacher(self.robot_name, self.nav_controller)
         
         # Track found objects
         self.found_objects = []
@@ -55,6 +57,11 @@ class ScoutCoordinator:
         """
         Start the object scouting mission
         """
+        # reset camera tilt angle
+        self.fine_approacher.reset_camera_tilt()
+
+
+        # Get the robot's current pose
         rospy.loginfo("Starting object scouting mission")
         poses = self.pose_manager.get_all_pose_names()
 
@@ -86,7 +93,7 @@ class ScoutCoordinator:
 
                 
                 # get robot coordinates
-                x_detected, y_detected, orientation_detected = self.get_robot_coordinates()
+                x_was_detected, y_was_detected, orientation_detected = self.get_robot_coordinates()
 
                 if object_marker is None:
                     rospy.logwarn("Object detected but no marker available")
@@ -96,24 +103,42 @@ class ScoutCoordinator:
                 approach_success = self.approacher.approach_object(object_marker)
 
                 if approach_success:
-                    rospy.loginfo(f"Successfully approached object at pose {pose_name}")
-                    rospy.sleep(1.0)  # Pause for a moment
-                    self.found_objects.append(pose_name)
-                    
-                    # Check if we've reached the maximum number of objects
-                    if self.max_objects > 0 and len(self.found_objects) >= self.max_objects:
-                        rospy.loginfo(f"Reached maximum number of objects ({self.max_objects}), ending mission")
-                        break
+                    rospy.loginfo("Successfully approached object")
 
-                    # Move to the detected object
-                    self.nav_controller.move_to_position(x_detected, y_detected, orientation_detected)
+                    # Perform fine approach
+                    fine_approach_success = self.fine_approacher.fine_approach()
 
-                    # Perform another scan rotation
-                    scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles)
+
+                    if fine_approach_success:
+                        # Log success                    
+                        rospy.loginfo(f"Successfully approached object at pose {pose_name}")
+                        rospy.sleep(1.0)  # Pause for a moment
+                        self.found_objects.append(pose_name)
+
+                        # reset camera tilt angle
+                        self.fine_approacher.reset_camera_tilt()
+                        
+                        # Check if we've reached the maximum number of objects
+                        if self.max_objects > 0 and len(self.found_objects) >= self.max_objects:
+                            rospy.loginfo(f"Reached maximum number of objects ({self.max_objects}), ending mission")
+                            break
+
+                        # Move back to the position where the object was detected
+                        self.nav_controller.move_to_position(x_was_detected, y_was_detected, orientation_detected)
+
+                        # Perform another scan rotation
+                        scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles)
+
+                    else:
+                        rospy.logwarn("Fine approach failed")
+                        self.nav_controller.move_to_position(x_was_detected, y_was_detected, orientation_detected)
+
+                        # Perform another scan rotation
+                        scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles)
 
                 else:
                     rospy.logwarn("Failed to approach object")
-                    self.nav_controller.move_to_position(x_detected, y_detected, orientation_detected)
+                    self.nav_controller.move_to_position(x_was_detected, y_was_detected, orientation_detected)
 
                     # Perform another scan rotation
                     scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles)
@@ -162,7 +187,7 @@ class ScoutCoordinator:
 
 if __name__ == "__main__":
     try:
-        coordinator = ScoutCoordinator(init_node=True)
+        coordinator = ScoutCoordinatorLocobot(init_node=True)
         num_objects = coordinator.start_mission()
         if num_objects == 0:
             rospy.spin()  # Keep node running if no object was found
