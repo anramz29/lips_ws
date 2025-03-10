@@ -120,7 +120,8 @@ class ObjectScanner:
             if result == ScanResult.OBJECT_DETECTED:
                 self.scanning_in_progress = False
                 rospy.loginfo(f"Object detected during scan rotation at angle {current_angle}")
-        
+                return ScanResult.OBJECT_DETECTED, self.remaining_angles
+
             # Brief pause between rotations
             if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
                 rospy.sleep(0.5)

@@ -50,6 +50,7 @@ class ObjectApproacher:
         )
 
         self.object_marker = None    # Set up object marker subscription
+        self.bounding_box_cordinates = []
 
 
     def object_marker_callback(self, msg):
@@ -70,6 +71,10 @@ class ObjectApproacher:
             msg: Float32MultiArray containing depth data
         """
         if msg.data and len(msg.data) >= 5:
+            # obtain bounding box coordinates
+            self.bounding_box_cordinates = msg.data[:4]
+
+            # Store the latest depth for approach
             self.current_depth = msg.data[4]
         else:
             rospy.logwarn("Invalid depth data received")
@@ -218,18 +223,13 @@ class ObjectApproacher:
             if self.nav_controller.client.get_state() == actionlib.GoalStatus.ACTIVE:
                 self.nav_controller.cancel_navigation()
                 rospy.sleep(0.5)
-
-            centering_success = self.center_object_in_camera()
-            if not centering_success:
-                rospy.logwarn("Failed to center object in camera")
                 
             return True
         else:
             # Object is detected but not at the correct distance yet
             rospy.loginfo(f" Current:  {self.current_depth:.2f}m, \nTarget: {self.approach_min_depth:.2f} m:{self.approach_max_depth:.2f}m")
             return None
-    
-        return True
+
 
 
             
@@ -339,68 +339,6 @@ class ObjectApproacher:
             rate.sleep()
             
         return False  # If we get here, we've been shutdown
-        
-    def center_object_in_camera(self):
-        """
-        Perform a final adjustment to center the object in the camera view
-        after reaching the correct distance.
-        
-        Returns:
-            bool: Success flag
-        """
-        rospy.loginfo("Performing final adjustment to center object in camera...")
-        
-        # Check if we have valid object marker
-        if self.object_marker is None:
-            rospy.logerr("No object marker available for centering")
-            return False
-        
-        # We want to center the object in camera frame
-        # First, get the current robot pose
-        current_pose = get_robot_pose()
-        if current_pose is None:
-            rospy.logerr("Failed to get robot pose for centering")
-            return False
-        
-        # Target position to face
-        target_x = self.object_marker.pose.position.x
-        target_y = self.object_marker.pose.position.y
-        
-        # Calculate direction to face the object
-        dx = target_x - current_pose.position.x
-        dy = target_y - current_pose.position.y
-        angle = math.atan2(dy, dx)
-        quaternion = quaternion_from_euler(0, 0, angle)
-        
-        # We'll use a rotation-only command to face the object directly
-        goal = self.nav_controller.create_navigation_goal(
-            current_pose.position.x,  # Keep current position
-            current_pose.position.y,  # Keep current position
-            Quaternion(*quaternion)   # Only change orientation
-        )
-        
-        # Send the goal
-        rospy.loginfo(f"Rotating to face object at ({target_x:.2f}, {target_y:.2f})")
-        self.nav_controller.client.send_goal(goal)
-        
-        # Wait for rotation completion
-        timeout = rospy.Duration(10.0)  # 10-second timeout for rotation
-        rotation_complete = self.nav_controller.client.wait_for_result(timeout)
-        
-        if not rotation_complete:
-            rospy.logwarn("Rotation timed out")
-            self.nav_controller.cancel_navigation()
-            return False
-        
-        # Get final state
-        final_state = self.nav_controller.client.get_state()
-        if final_state == actionlib.GoalStatus.SUCCEEDED:
-            rospy.loginfo("Object centered in camera view")
-            return True
-        else:
-            rospy.logwarn(f"Failed to center object. Final state: {final_state}")
-            return False
-
 
 if __name__ == "__main__":
     try:
