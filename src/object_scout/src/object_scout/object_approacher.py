@@ -52,6 +52,11 @@ class ObjectApproacher:
         self.object_marker = None    # Set up object marker subscription
         self.bounding_box_cordinates = []
 
+        # Add marker position history buffer
+        self.marker_positions = []
+        self.max_history_length = 10  # Adjust as needed
+        self.min_positions_for_average = 3 # Minimum positions to calculate average
+
 
     def object_marker_callback(self, msg):
         """
@@ -62,6 +67,15 @@ class ObjectApproacher:
         """
         # Store the latest marker for approach
         self.object_marker = msg
+
+        # Add Position to history
+        if msg is not None:
+            position = (msg.pose.position.x, msg.pose.position.y)
+            self.marker_positions.append(position)
+
+            if len(self.marker_positions) > self.max_history_length:
+                self.marker_positions.pop(0)
+
 
     def depth_callback(self, msg):
         """
@@ -99,6 +113,9 @@ class ObjectApproacher:
         # Store initial marker details as a fallback
         initial_target_x = object_marker.pose.position.x
         initial_target_y = object_marker.pose.position.y
+
+        # Initialize marker position history with initial position
+        self.marker_positions = [(initial_target_x, initial_target_y)]
         
         # Get initial robot pose (save for potential fallback)
         original_pose = get_robot_pose()
@@ -128,14 +145,15 @@ class ObjectApproacher:
                     last_depth = self.current_depth
 
 
-            # Use initial target if marker is lost
-            target_x = (self.object_marker.pose.position.x 
-                        if self.object_marker is not None 
-                        else initial_target_x)
-            target_y = (self.object_marker.pose.position.y 
-                        if self.object_marker is not None 
-                        else initial_target_y)
-            
+            # Get average marker position or use fallback
+            avg_position = self.get_average_marker_position()
+            if avg_position is not None:
+                target_x, target_y = avg_position
+                rospy.loginfo(f"Using averaged marker position: ({target_x:.2f}, {target_y:.2f})")
+            else:
+                # Use initial target if no average available
+                target_x, target_y = initial_target_x, initial_target_y
+                rospy.logwarn("Using initial marker position as fallback")
 
             
             # Depth and marker validation
@@ -168,12 +186,8 @@ class ObjectApproacher:
             if approach_result is False:
                 consecutive_detection_failures += 1
             elif approach_result is True:
-                # center object in camera
-                centering_success = self.center_object_in_camera()
-                if centering_success:
-                    rospy.logwarn("Failed to center object in camera")
-                    return True
-
+                rospy.loginfo("Successfully reached target")
+                return True
         
         return False
 
@@ -230,6 +244,32 @@ class ObjectApproacher:
             rospy.loginfo(f" Current:  {self.current_depth:.2f}m, \nTarget: {self.approach_min_depth:.2f} m:{self.approach_max_depth:.2f}m")
             return None
 
+
+    def get_average_marker_position(self):
+        """
+        Calculate the average position from recent marker history
+        
+        Returns:
+            (avg_x, avg_y): Average coordinates, or None if insufficient data
+        """
+        if len(self.marker_positions) < self.min_positions_for_average:
+            rospy.logwarn(f"Insufficient marker positions for averaging: {len(self.marker_positions)}/{self.min_positions_for_average}")
+            if len(self.marker_positions) > 0:
+                # Return the latest position if we have at least one
+                return self.marker_positions[-1]
+            return None
+        
+        # Calculate average
+        avg_x = sum(pos[0] for pos in self.marker_positions) / len(self.marker_positions)
+        avg_y = sum(pos[1] for pos in self.marker_positions) / len(self.marker_positions)
+        
+        # Calculate standard deviation to detect outliers
+        if len(self.marker_positions) >= 5:
+            std_dev_x = math.sqrt(sum((pos[0] - avg_x)**2 for pos in self.marker_positions) / len(self.marker_positions))
+            std_dev_y = math.sqrt(sum((pos[1] - avg_y)**2 for pos in self.marker_positions) / len(self.marker_positions))
+            rospy.logdebug(f"Position std dev: x={std_dev_x:.3f}m, y={std_dev_y:.3f}m")
+        
+        return avg_x, avg_y
 
 
             
