@@ -8,6 +8,8 @@ from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker
 from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
 import sensor_msgs.msg
+import tf
+import tf2_ros
 
 
 from object_scout.utils import get_robot_pose
@@ -207,42 +209,57 @@ class FineApproach():
         
         return True
 
-    def get_current_camera_tilt(self):
+
+
+    def get_camera_tilt_angle(self, parent_frame='base_link', tilt_link='locobot/tilt_link'):
         """
-        Get the current camera tilt angle
+        Get the camera tilt angle using TF2 transform
+        
+        Args:
+            parent_frame (str): Parent reference frame (default: 'base_link')
+            tilt_link (str): Frame of the tilt link (default: 'locobot/tilt_link')
         
         Returns:
-            float: Current tilt angle in radians or None if not available
+            float: Tilt angle (pitch) in radians, or None if transform not available
         """
         try:
-            # Subscribe to joint states topic to get current positions
-            joint_states_topic = f'/{self.robot_name}/joint_states'
+            # Create a TF2 buffer and listener
+            tf_buffer = tf2_ros.Buffer()
+            tf_listener = tf2_ros.TransformListener(tf_buffer)
             
-            # Use a one-time subscriber with timeout to get the current state
-            joint_states_msg = rospy.wait_for_message(
-                joint_states_topic,
-                sensor_msgs.msg.JointState,
-                timeout=2.0
+            # Wait for the transform to be available
+            transform = tf_buffer.lookup_transform(
+                parent_frame,  # parent frame
+                tilt_link,     # child frame
+                rospy.Time(0), # get the latest available transform
+                rospy.Duration(4.0)  # wait up to 4 seconds
             )
             
-            # Find the index of the camera tilt joint in the joint_states message
-            # The camera tilt joint is typically named something like 'camera_tilt'
-            # or 'tilt' - you'll need to check the exact name for your robot
-            tilt_joint_name = 'camera_tilt'  # Adjust this name to match your robot
+            # Extract the orientation (quaternion)
+            orientation_quaternion = transform.transform.rotation
             
-            if tilt_joint_name in joint_states_msg.name:
-                tilt_index = joint_states_msg.name.index(tilt_joint_name)
-                current_tilt = joint_states_msg.position[tilt_index]
-                rospy.loginfo(f"Current camera tilt: {current_tilt} radians")
-                return current_tilt
-            else:
-                rospy.logwarn(f"Joint '{tilt_joint_name}' not found in joint states")
-                return None
-                
-        except rospy.ROSException as e:
-            rospy.logerr(f"Failed to get current camera tilt: {e}")
-            return None 
+            # Convert quaternion to euler angles (roll, pitch, yaw)
+            quaternion = (
+                orientation_quaternion.x,
+                orientation_quaternion.y,
+                orientation_quaternion.z,
+                orientation_quaternion.w
+            )
+            
+            # Convert to euler angles (roll, pitch, yaw)
+            euler_angles = tf.transformations.euler_from_quaternion(quaternion)
+            
+            # Pitch (tilt) is typically at index 1
+            tilt_angle = euler_angles[1]
+            
+            rospy.loginfo(f"Camera Tilt Angle: {tilt_angle} radians")
+            
+            return tilt_angle
         
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Could not get tilt link transform: {e}")
+            return None
+    
     def tilt_camera(self, angle):
         """
         Function that tilts the camera to a specific angle
