@@ -111,7 +111,7 @@ def is_position_safe(costmap, x, y):
         return False
     
     return True
-def calculate_safe_approach_point(target_x, target_y, current_pose, max_step=1.0, target_distance=1.1):
+def calculate_safe_approach_point(target_x, target_y, current_pose, max_step=1.0, target_distance=0.9):
     """
     Calculate a safe intermediate point towards the target at a desired distance
     

@@ -52,7 +52,6 @@ class ObjectMapperNode:
             msg: CameraInfo message containing camera parameters
         """
         self.camera_info = msg
-        rospy.loginfo("Received camera info")
 
     def bbox_callback(self, msg):
         """

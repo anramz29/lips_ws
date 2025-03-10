@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <!-- 
 This launch file initializes the scan_and_approach_node which combines
 the functionality of move_to_pose_scan and approach_object nodes.
@@ -7,8 +8,6 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
 
 -->
 
-
-<?xml version="1.0" encoding="UTF-8"?>
 <launch>
     <!-- Robot name parameter -->
     <arg name="robot_name" default="locobot" />

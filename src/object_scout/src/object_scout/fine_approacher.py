@@ -17,7 +17,7 @@ from object_scout.utils import get_robot_pose
 from object_scout.navigation_controller import NavigationController
 
 
-class FineApproach():
+class FineApproacher():
     """
     Class for fine approach of objects
     """
@@ -36,7 +36,7 @@ class FineApproach():
         self.depth_sub = rospy.Subscriber(
             self.bbox_depth_topic,
             Float32MultiArray,
-            self.depth_callback
+            self.bbox_callback
         )
 
         # Create publisher for camera joint group
@@ -46,23 +46,20 @@ class FineApproach():
             queue_size=1
         )
 
-
-        self.approach_min_depth = 0.3
-        self.approach_max_depth = 0.5
-        self.navigation_timeout = 30.0
+        self.navigation_timeout = 60.0
         self.default_camera_tilt = 0.2618
         self.image_height = 480
         self.image_width = 640
+        self.center_threshold=10.0
 
         self.bbox_depth = None
+
+
         self.y_min, self.x_min, self.y_max, self.x_max = 0, 0, 0, 0
 
-    def depth_callback(self, msg):
+    def bbox_callback(self, msg):
         """
-        Process depth information of detected objects
-        
-        Args:
-            msg: Float32MultiArray containing depth data
+        Callback function for bounding box messages 
         """
         if msg.data and len(msg.data) >= 5:
             # Extract the bounding box coordinates (x, y, w, h)
@@ -74,10 +71,12 @@ class FineApproach():
             self.y_max = float(y + h)
             self.x_max = float(x + w)
 
-            # Store the depth
-            self.bbox_depth = msg.data[4]  
+            # Extract the depth if available
+            if len(msg.data) == 5:
+                self.bbox_depth = msg.data[4]
+
         else:
-            rospy.logwarn("Received empty or invalid depth message")
+            rospy.logwarn("Received empty or invalid message")
 
     def get_camera_info(self):
         """
@@ -107,9 +106,6 @@ class FineApproach():
         """
         Calculate the center of the bounding box
         """
-        if self.bbox_depth is None:
-            rospy.logwarn("Bounding box depth is not set")
-            return None
 
         x_center = (self.x_min + self.x_max) / 2
         y_center = (self.y_min + self.y_max) / 2
@@ -155,22 +151,21 @@ class FineApproach():
 
         return horizontal_error
     
-    def calculate_tilt_gain(self):
+    def calculate_vertical_gain(self):
         """
-        Calculate the tilt gain based on the vertical error
+        Calculate the vertical gain based on the vertical error
         """
-        _, fy = self.get_camera_info()
+        fy, _ = self.get_camera_info()
 
-        # Calculate the vertical error
         if fy is None:
             rospy.logwarn("Focal length (fy) is not available")
             return 0
         
-        tilt_gain = 1.0 / fy
+        vertical_gain = 1.0 / fy
 
-        rospy.loginfo(f"Tilt gain: {tilt_gain}")
-        return tilt_gain
-    
+        rospy.loginfo(f"Vertical gain: {vertical_gain}")
+        return vertical_gain
+
     def calculate_horizontal_gain(self):
         """
         Calculate the horizontal gain based on the horizontal error
@@ -186,6 +181,38 @@ class FineApproach():
 
         rospy.loginfo(f"Horizontal gain: {horizontal_gain}")
         return horizontal_gain
+    
+    def calculate_vertical_adjustment(self):
+        """
+        Calculate the vertical adjustment based on the vertical error
+        """
+        vertical_error = self.calculate_vertical_error()
+        vertical_gain = self.calculate_vertical_gain()
+
+        if vertical_error is None or vertical_gain == 0:
+            rospy.logwarn("Vertical error or gain is not set")
+            return None
+
+        vertical_adjustment = -vertical_error * vertical_gain
+        rospy.loginfo(f"Vertical adjustment: {vertical_adjustment}")
+
+        return vertical_adjustment
+    
+    def calculate_horizontal_adjustment(self):
+        """
+        Calculate the horizontal adjustment based on the horizontal error
+        """
+        horizontal_error = self.calculate_horizontal_error()
+        horizontal_gain = self.calculate_horizontal_gain()
+
+        if horizontal_error is None or horizontal_gain == 0:
+            rospy.logwarn("Horizontal error or gain is not set")
+            return None
+
+        horizontal_adjustment = -horizontal_error * horizontal_gain
+        rospy.loginfo(f"Horizontal adjustment: {horizontal_adjustment}")
+
+        return horizontal_adjustment
     
     def check_preconditions(self, error_value, error_name):
         """
@@ -203,15 +230,9 @@ class FineApproach():
             rospy.logwarn(f"{error_name} is not set")
             return False
         
-        if self.bbox_depth is None:
-            rospy.logwarn("Bounding box depth is not set")
-            return False
-        
         return True
 
-
-
-    def get_camera_tilt_angle(self, parent_frame='base_link', tilt_link='locobot/tilt_link'):
+    def get_camera_tilt_angle(self, parent_frame='locobot/base_link', tilt_link='locobot/tilt_link'):
         """
         Get the camera tilt angle using TF2 transform
         
@@ -276,11 +297,89 @@ class FineApproach():
             rospy.sleep(1.0)
         except Exception as e:
             rospy.logerr(f"Failed to tilt camera: {e}")
-  
-    def adjust_tilt_to_bbox(self):
+
+    def reset_camera_tilt(self):
         """
-        Adjust the camera tilt to center the object vertically in the camera view
-        
+        Reset the camera tilt to the default position
+        """
+        self.tilt_camera(self.default_camera_tilt)  
+
+    def adjust_base_orientation_to_bbox(self):
+        """
+        Adjust the robot's base orientation to center the object horizontally in the camera view
+
+        Returns:
+            bool: True if adjustment succeeded, False otherwise
+        """
+        # Calculate horizontal error
+        horizontal_error = self.calculate_horizontal_error()
+
+        # Check preconditions
+        if not self.check_preconditions(horizontal_error, "Horizontal error"):
+            return False
+
+        # Allow a tolerance of 20 pixels (typically wider than vertical tolerance)
+        tolerance = 20
+
+        if abs(horizontal_error) <= tolerance:
+            rospy.loginfo("Object is centered horizontally within tolerance")
+            return True
+
+        # Calculate horizontal gain
+        horizontal_gain = self.calculate_horizontal_gain()
+
+        # If depth information is available, adjust gain based on distance
+        # Objects further away need larger rotation for the same pixel movement
+        if self.bbox_depth is not None and self.bbox_depth > 0:
+            # Scale by depth - normalized to 1 meter reference distance
+            adjusted_gain = horizontal_gain * (self.bbox_depth / 1.0)
+        else:
+            adjusted_gain = horizontal_gain
+
+        damping_factor = 0.8
+        # Calculate rotation angle (negative since positive horizontal_error
+        # means object is to the right, so robot should rotate counter-clockwise)
+        rotation_angle = -horizontal_error * adjusted_gain * damping_factor
+ 
+        # Add minimum rotation threshold to avoid very small movements
+        if abs(rotation_angle) < 0.02:  # radians, about 1.15 degrees
+            rospy.loginfo("Rotation too small, skipping adjustment")
+            return True
+
+        # Limit maximum rotation angle for safety
+        max_rotation = 0.5  # radians, about 28.6 degrees
+        rotation_angle = max(min(rotation_angle, max_rotation), -max_rotation)
+
+        # Execute the rotation using the navigation controller
+        rospy.loginfo(f"Rotating base by {rotation_angle} radians to center object")
+
+        # Create quaternion for rotation (rotate in place)
+        quat = Quaternion(*quaternion_from_euler(0, 0, rotation_angle))
+
+        # Get current robot position
+        robot_pose = get_robot_pose()
+
+        # Use the navigation controller to execute the rotation in place
+        success = self.nav_controller.move_to_position(
+            robot_pose.position.x,
+            robot_pose.position.y, 
+            quat,
+            timeout=5.0
+        )
+
+        if not success:
+            rospy.logerr("Failed to rotate the robot")
+            return False
+
+        # Wait briefly for the rotation to complete and sensors to update
+        rospy.sleep(0.5)
+
+        return True
+    
+    def adjust_base_position_to_bbox(self):
+        """
+        Adjust the robot's base position to center the object vertically in the camera view
+
         Returns:
             bool: True if adjustment succeeded, False otherwise
         """
@@ -290,195 +389,130 @@ class FineApproach():
         # Check preconditions
         if not self.check_preconditions(vertical_error, "Vertical error"):
             return False
-        
+
         # Allow a tolerance of 10 pixels
-        tolerance = 10
-        
+        tolerance = self.center_threshold
+
         if abs(vertical_error) <= tolerance:
             rospy.loginfo("Object is centered vertically within tolerance")
             return True
-        
-        # Get current tilt position
-        current_tilt = self.get_current_camera_tilt()
-        if current_tilt is None:
-            rospy.logwarn("Current camera tilt is not available")
-            return False
-        
-        # Calculate tilt gain
-        tilt_gain = self.calculate_tilt_gain()
 
-        # Calculate new tilt angle with proportional control
-        new_tilt = current_tilt + (vertical_error * tilt_gain)
-        
-        # Clamp to valid range
-        max_tilt = 1.5  # radians
-        min_tilt = -1.5 # radians
-        new_tilt = max(min_tilt, min(max_tilt, new_tilt))
-        
-        # Only move if the change is significant
-        if abs(new_tilt - current_tilt) > 0.01:  # Minimum change threshold (radians)
-            self.tilt_camera(new_tilt)
-            rospy.loginfo(f"Adjusted camera tilt from {current_tilt} to {new_tilt} radians")
-            return True
-        else:
-            rospy.loginfo("Camera tilt adjustment too small, maintaining current position")
-            return True
-        
-    def adjust_base_orientation_to_bbox(self):
-        """
-        Adjust the robot's base orientation to center the object horizontally in the camera view
-        
-        Returns:
-            bool: True if adjustment succeeded, False otherwise
-        """
-        # Calculate horizontal error
-        horizontal_error = self.calculate_horizontal_error()
-        
-        # Check preconditions
-        if not self.check_preconditions(horizontal_error, "Horizontal error"):
-            return False
-        
-        # Allow a tolerance of 20 pixels (typically wider than vertical tolerance)
-        tolerance = 20
-        
-        if abs(horizontal_error) <= tolerance:
-            rospy.loginfo("Object is centered horizontally within tolerance")
-            return True
-        
-        # Calculate horizontal gain
-        horizontal_gain = self.calculate_horizontal_gain()
-        
+        # Calculate vertical gain
+        vertical_gain = self.calculate_vertical_gain()
+
         # If depth information is available, adjust gain based on distance
-        # Objects further away need larger rotation for the same pixel movement
+        # Objects further away need larger movement for the same pixel distance
         if self.bbox_depth is not None and self.bbox_depth > 0:
             # Scale by depth - normalized to 1 meter reference distance
-            adjusted_gain = horizontal_gain * (self.bbox_depth / 1.0)
+            adjusted_gain = vertical_gain * (self.bbox_depth / 1.0)
         else:
-            adjusted_gain = horizontal_gain
+            adjusted_gain = vertical_gain
+
+        # Increase damping factor to be more aggressive with movements
+        damping_factor = 1.3 # Change from 0.85 to 1.2
+
+        # Calculate vertical movement distance - now more aggressive
+        vertical_distance = -vertical_error * adjusted_gain * damping_factor
         
-        # Calculate rotation angle (negative since positive horizontal_error
-        # means object is to the right, so robot should rotate counter-clockwise)
-        rotation_angle = -horizontal_error * adjusted_gain
-        
-        # Add minimum rotation threshold to avoid very small movements
-        if abs(rotation_angle) < 0.02:  # radians, about 1.15 degrees
-            rospy.loginfo("Rotation too small, skipping adjustment")
+        max_vertical_distance = 0.5  # meters
+        vertical_distance = max(min(vertical_distance, max_vertical_distance), -max_vertical_distance)
+
+        # Reduce minimum threshold to allow smaller corrections in final stages
+        if abs(vertical_distance) < 0.015:  # Reduce from 0.02
+            rospy.loginfo("Vertical movement too small, skipping adjustment")
             return True
         
-        # Limit maximum rotation angle for safety
-        max_rotation = 0.5  # radians, about 28.6 degrees
-        rotation_angle = max(min(rotation_angle, max_rotation), -max_rotation)
-        
-        # Execute the rotation using the navigation controller
-        rospy.loginfo(f"Rotating base by {rotation_angle} radians to center object")
-        
-        # Create quaternion for rotation (rotate in place)
-        quat = Quaternion(*quaternion_from_euler(0, 0, rotation_angle))
-        
-        # Get current robot position
+        # get current robot position
         robot_pose = get_robot_pose()
-            
-        # Use the navigation controller to execute the rotation in place
+
+        # Calculate the vertical adjustment
+        new_x = robot_pose.position.x + vertical_distance
+        new_y = robot_pose.position.y 
+        # Use the navigation controller to execute the vertical movement
+        rospy.loginfo(f"Moving base by {vertical_distance} meters to center object")
+
         success = self.nav_controller.move_to_position(
-            robot_pose.position.x,
-            robot_pose.position.y, 
-            quat,
-            timeout=5.0
+            new_x,
+            new_y,
+            timeout=20.0
         )
-        
+
         if not success:
-            rospy.logerr("Failed to rotate the robot")
+            rospy.logerr("Failed to move the robot")
             return False
         
-        # Wait briefly for the rotation to complete and sensors to update
+        # Wait briefly for the movement to complete and sensors to update
         rospy.sleep(0.5)
-        
+
         return True
-       
+        
     def fine_approach(self):
         """
-        Execute fine approach to an object by continuously adjusting camera tilt,
-        base orientation, and distance until reaching the target range
-        
-        Returns:
-            bool: True if approach succeeded, False otherwise
+        Fine approach an object by centering it in the camera view
         """
-        rospy.loginfo("Starting fine approach to object...")
-        
-        # Reset camera to default position first
-        self.tilt_camera(self.default_camera_tilt)
-        rospy.sleep(1.0)  # Allow camera to move and scene to stabilize
-        
-        # Set timeout for approach
-        start_time = rospy.Time.now()
-        timeout = rospy.Duration(self.navigation_timeout)
-        
-        # Main approach loop
-        while not rospy.is_shutdown():
-            # Check timeout
-            if (rospy.Time.now() - start_time) > timeout:
-                rospy.logwarn("Fine approach timed out")
-                return False
-            
-            # Check if we have depth information
-            if self.bbox_depth is None:
-                rospy.logwarn("No depth information available, waiting...")
-                rospy.sleep(0.5)
-                continue
-            
-            # Log current distance
-            rospy.loginfo(f"Current distance to object: {self.bbox_depth:.3f} meters")
-            
-            # Check if we've reached the target distance
-            if self.approach_min_depth <= self.bbox_depth <= self.approach_max_depth:
-                rospy.loginfo(f"Target distance reached: {self.bbox_depth:.3f} meters")
-                # One final adjustment to center the object
-                self.adjust_tilt_to_bbox()
-                self.adjust_base_orientation_to_bbox()
+        # tilt camera down to .75 radians
+        self.tilt_camera(0.75)
+
+        # Wait for the camera to tilt
+        rospy.sleep(1.0)
+
+        max_attempts = 5
+        horizontal_threshold = 70
+        vertical_threshold = 70
+
+        for attempt in range(max_attempts):
+            # Adjust base orientation to center object horizontally
+            if not self.adjust_base_orientation_to_bbox():
+                rospy.logerr("Failed to adjust base orientation")
+                break
+
+            # check if object is centered 
+            vertical_error = self.calculate_vertical_error()
+            horizontal_error = self.calculate_horizontal_error()
+
+            if abs(vertical_error) <= vertical_threshold and abs(horizontal_error) <= horizontal_threshold:
+                rospy.loginfo("Object is centered in the camera view")
+                # Reset the camera tilt to the default position
+                self.reset_camera_tilt()
+
+                rospy.loginfo("Fine approach completed")
                 return True
-            
-            # Adjust camera tilt and base orientation to keep object centered
-            tilt_success = self.adjust_tilt_to_bbox()
-            orient_success = self.adjust_base_orientation_to_bbox()
-            
-            if not (tilt_success and orient_success):
-                rospy.logwarn("Failed to adjust camera or orientation, retrying...")
-                rospy.sleep(1.0)
-                continue
-            
-            # Calculate approach distance
-            distance_error = self.bbox_depth - ((self.approach_min_depth + self.approach_max_depth) / 2)
-            
-            # Determine movement direction and distance
-            if abs(distance_error) < 0.05:  # Small tolerance to prevent tiny movements
-                rospy.loginfo("Distance nearly optimal, fine tuning position...")
-            elif distance_error > 0:  # Too far, move forward
-                # Calculate forward movement (could be proportional to error)
-                forward_distance = min(0.2, distance_error / 2)  # Limit to 20cm steps
-                rospy.loginfo(f"Moving forward {forward_distance:.2f} meters")
-                self.nav_controller.create_navigation_goal(forward_distance, 0, 0)
-            else:  # Too close, move backward
-                # Calculate backward movement (could be proportional to error)
-                backward_distance = min(0.2, abs(distance_error) / 2)  # Limit to 20cm steps
-                rospy.loginfo(f"Moving backward {backward_distance:.2f} meters")
-                self.nav_controller.create_navigation_goal(-backward_distance, 0, 0)
-            
-            # Wait for movement to complete and sensors to update
+            elif abs(vertical_error) > vertical_threshold:
+                rospy.loginfo("Object is not centered vertically, retrying...")
+            elif abs(horizontal_error) > horizontal_threshold:
+                rospy.loginfo("Object is not centered horizontally, retrying...")
+            else:
+                # Unknown error
+                rospy.logwarn("Unknown error, retrying...")
+
+
+            # Adjust base position to center object vertically
+            if not self.adjust_base_position_to_bbox():
+                rospy.logerr("Failed to adjust base position")
+                break
+
+            # Check if object is centered
+            vertical_error = self.calculate_vertical_error()
+            horizontal_error = self.calculate_horizontal_error()
+
+            if abs(vertical_error) <= vertical_threshold and abs(horizontal_error) <= horizontal_threshold:
+                rospy.loginfo("Object is centered in the camera view")
+                # Reset the camera tilt to the default position
+                self.reset_camera_tilt()
+
+                rospy.loginfo("Fine approach completed")
+                return True
+            elif abs(vertical_error) > vertical_threshold:
+                rospy.loginfo("Object is not centered vertically, retrying...")
+            elif abs(horizontal_error) > horizontal_threshold:
+                rospy.loginfo("Object is not centered horizontally, retrying...")
+            else:
+                # Unknown error
+                rospy.logwarn("Unknown error, retrying...")
+
+            rospy.loginfo("Object is not centered, retrying...")
             rospy.sleep(1.0)
-        
-        return False
-    
-
-        
 
         
 
 
-
-
-
-
-    
-
-
-    

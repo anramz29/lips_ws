@@ -27,8 +27,8 @@ class ObjectApproacher:
         self.current_depth = None
         
         # Approach parameters
-        self.approach_min_depth = 1.0  # meters
-        self.approach_max_depth = 1.2  # meters
+        self.approach_min_depth = .80  # meters
+        self.approach_max_depth = 1 # meters
         self.navigation_timeout = 40.0  # seconds
         
         # Set up depth subscription
