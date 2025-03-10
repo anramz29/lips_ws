@@ -144,6 +144,8 @@ include_directories(
 
 add_executable(object_mapper_node src/object_mapper_node.cpp)
 add_executable(distance_node src/distance_node.cpp)
+add_executable(yolo_node src/yolo_node.cpp)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

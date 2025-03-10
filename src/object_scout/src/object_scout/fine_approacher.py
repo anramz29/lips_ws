@@ -44,6 +44,7 @@ class FineApproach():
             queue_size=1
         )
 
+
         self.approach_min_depth = 0.3
         self.approach_max_depth = 0.5
         self.navigation_timeout = 30.0

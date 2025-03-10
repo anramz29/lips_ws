@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <!-- Robot and Remote PC definitions -->
+    <arg name="robot_ip" default="192.168.1.100" />
+    <arg name="remote_pc_ip" default="192.168.1.101" />
+    <arg name="robot_user" default="ubuntu" />
+    <arg name="remote_pc_user" default="user" />
+    
+    <!-- Define machines for distributed computing -->
+    <machine name="robot" address="$(arg robot_ip)" user="$(arg robot_user)" 
+             env-loader="/home/$(arg robot_user)/env_loader.sh" default="true" />
+    <machine name="remote_pc" address="$(arg remote_pc_ip)" user="$(arg remote_pc_user)" 
+             env-loader="/home/$(arg remote_pc_user)/env_loader.sh" />
+
+    <!-- Robot name parameter -->
+    <arg name="robot_name" default="locobot" />
+    
+    <!-- Configuration file path -->
+    <arg name="poses_config" default="$(find object_scout)/config/poses.yaml" />
+    <arg name="max_objects" default="3" />
+
+    <!-- Topic parameters -->
+    <arg name="object_marker_topic" default="/$(arg robot_name)/object_markers" />
+    <arg name="bbox_depth_topic" default="/$(arg robot_name)/camera/yolo/bbox_depth" />
+    
+    <!-- Visualization parameters -->
+    <arg name="rviz_frame" default="map" />
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
+    <arg name="use_rviz" default="false" doc="Set to false to disable RViz visualization" />
+
+    <!-- C++ Yolo Argument -->
+    <arg name="use_cpp_yolo" default="false" doc="Set to true to use C++ implementations instead of Python"/>
+    <arg name="use_cpp_distance" default="false" doc="Set to true to use C++ implementations instead of Python"/>
+    <arg name="use_cpp_object_mapper" default="false" doc="Set to true to use C++ implementations instead of Python"/>
+    <arg name="use_cpp_all" default="false" doc="Set to true to use C++ implementations for all nodes"/>
+    
+    <!-- Components to run on the robot -->
+    <group>
+        <!-- Launch the coordinator node on the robot -->
+        <node name="scout_coordinator" pkg="object_scout" type="scout_coordinator_locobot_node.py" 
+              output="screen" machine="robot">
+            <param name="robot_name" value="$(arg robot_name)" />
+            <param name="poses_config" value="$(arg poses_config)" />
+            <param name="object_marker_topic" value="$(arg object_marker_topic)" />
+            <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)" />
+            <param name="max_objects" value="$(arg max_objects)" />
+        </node>
+    </group>
+    
+    <!-- Components to run on the remote PC -->
+    <group>
+        <!-- Launch YOLO vision system on the remote PC -->
+        <include file="$(find yolo_vision)/launch/object_mapper.launch" machine="remote_pc">
+            <arg name="robot_name" value="$(arg robot_name)"/>
+            <arg name="rviz_frame" value="$(arg rviz_frame)"/>
+            <arg name="rvizconfig" value="$(arg rvizconfig)"/>
+            <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
+            <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
+            <arg name="use_rviz" value="$(arg use_rviz)"/>
+            <arg name="use_cpp_yolo" value="$(arg use_cpp_yolo)"/>
+            <arg name="use_cpp_distance" value="$(arg use_cpp_distance)"/>
+            <arg name="use_cpp_object_mapper" value="$(arg use_cpp_object_mapper)"/>
+            <arg name="use_cpp_all" value="$(arg use_cpp_all)"/>
+        </include>
+        
+        <!-- RViz (conditionally launched) on the remote PC -->
+        <group if="$(arg use_rviz)">
+            <node name="rviz" pkg="rviz" type="rviz" 
+                  args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+                  ns="$(arg robot_name)" machine="remote_pc">
+                <remap from="/clicked_point" to="clicked_point"/>
+                <remap from="/initialpose" to="initialpose"/>
+                <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+            </node>
+        </group>
+    </group>
+</launch>
