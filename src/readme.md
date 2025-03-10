@@ -78,9 +78,6 @@ lips_ws/
     │       └── video_20250126_163047.mp4
     │
     └── yolo_vision/
-        ├── include/
-        │   ├── distance_node.hpp
-        │   └── yolo_node.hpp
         ├── launch/
         │   ├── object_mapper.launch
         │   ├── yolo_distance.launch
