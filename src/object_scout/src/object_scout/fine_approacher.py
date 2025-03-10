@@ -10,7 +10,6 @@ from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
 import sensor_msgs.msg
 
 
-
 from object_scout.utils import get_robot_pose
 
 from object_scout.navigation_controller import NavigationController
@@ -355,8 +354,19 @@ class FineApproach():
         # Execute the rotation using the navigation controller
         rospy.loginfo(f"Rotating base by {rotation_angle} radians to center object")
         
-        # Use the navigation controller to execute the rotation
-        success = self.nav_controller.create_navigation_goal(0, 0, rotation_angle)
+        # Create quaternion for rotation (rotate in place)
+        quat = Quaternion(*quaternion_from_euler(0, 0, rotation_angle))
+        
+        # Get current robot position
+        robot_pose = get_robot_pose()
+            
+        # Use the navigation controller to execute the rotation in place
+        success = self.nav_controller.move_to_position(
+            robot_pose.position.x,
+            robot_pose.position.y, 
+            quat,
+            timeout=5.0
+        )
         
         if not success:
             rospy.logerr("Failed to rotate the robot")

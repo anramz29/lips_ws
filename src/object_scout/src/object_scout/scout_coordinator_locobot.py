@@ -21,6 +21,8 @@ class ScoutCoordinatorLocobot:
         Args:
             init_node: Whether to initialize a ROS node
         """
+
+        
         if init_node:
             rospy.init_node('scout_coordinator', anonymous=False)
         
@@ -29,9 +31,6 @@ class ScoutCoordinatorLocobot:
         self.poses_config = rospy.get_param('~poses_config', '')
         self.pose_command = rospy.get_param('~pose_command', 'all')
         self.max_objects = rospy.get_param('~max_objects', 0)  # 0 means find all objects
-
-  
-
 
         # Setup TF listener
         self.tf_buffer = tf2_ros.Buffer()

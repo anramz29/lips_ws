@@ -10,7 +10,7 @@ rospack = rospkg.RosPack()
 pkg_path = rospack.get_path('object_scout')
 sys.path.append(os.path.join(pkg_path, 'src'))
 
-from object_scout.scout_coordinator import ScoutCoordinatorLocbot # type: ignore
+from object_scout.scout_coordinator_locobot import ScoutCoordinatorLocobot 
 
 def prompt_user():
     """Prompt the user to start the mission"""
@@ -29,7 +29,7 @@ def prompt_user():
 
 def main():
     # Create the coordinator without starting the mission yet
-    coordinator = ScoutCoordinatorLocbot(init_node=True)
+    coordinator = ScoutCoordinatorLocobot(init_node=True)
     
     # Log startup
     rospy.loginfo("=== Object Scout Coordinator Node Started ===")
