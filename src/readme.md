@@ -54,7 +54,7 @@ lips_ws/
     │   │   └── test_nav_and_scanner.launch
     │   ├── scripts/
     │   │   ├── scout_coordinator_locobot_node.py
-      │   │   ├── scout_coordinator_remote_node.py
+    │   │   ├── scout_coordinator_remote_node.py
     │   │   └── test_navigation_node.py
     │   ├── setup.py
     │   └── src/
