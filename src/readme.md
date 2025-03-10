@@ -49,10 +49,12 @@ lips_ws/
     │   ├── config/
     │   │   └── poses.yaml
     │   ├── launch/
-    │   │   ├── scout_system.launch
+    │   │   ├── scout_system_locobot.launch
+    │   │   ├── scout_system_remote.launch
     │   │   └── test_nav_and_scanner.launch
     │   ├── scripts/
-    │   │   ├── scout_coordinator_node.py
+    │   │   ├── scout_coordinator_locobot_node.py
+      │   │   ├── scout_coordinator_remote_node.py
     │   │   └── test_navigation_node.py
     │   ├── setup.py
     │   └── src/
@@ -60,10 +62,12 @@ lips_ws/
     │       └── object_scout/
     │           ├── __init__.py
     │           ├── navigation_controller.py
+    │           ├── fine_approcher.py
     │           ├── object_approacher.py
     │           ├── object_scanner.py
     │           ├── pose_manager.py
-    │           ├── scout_coordinator.py
+    │           ├── scout_coordinator_locobot.py
+    │           ├── scout_coordinator_remote.py
     │           └── utils.py
     │
     ├── video_recorder/
