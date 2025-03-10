@@ -77,27 +77,26 @@ lips_ws/
     │   └── videos/
     │       └── video_20250126_163047.mp4
     │
-    ├── yolo_vision/
-    │   ├── include/
-    │   │   ├── distance_node.hpp
-    │   │   └── yolo_node.hpp
-    │   ├── launch/
-    │   │   ├── object_mapper.launch
-    │   │   ├── yolo_distance.launch
-    │   │   └── yolo_vision.launch
-    │   ├── models/
-    │   │   ├── best.pt
-    │   │   └── yolo11n.pt
-    │   ├── rviz/
-    │   │   └── xslocobot_description_yolo.rviz
-    │   ├── scripts/
-    │   │   ├── distance_node.py
-    │   │   ├── object_mapper_node.py
-    │   │   ├── search_and_approach_node.py
-    │   │   └── yolo_node.py
-    │   └── src/
-    │       ├── distance_node.cpp
-    │       └── yolo_node.cpp
-    │
-    └── readme.md
+    └── yolo_vision/
+        ├── include/
+        │   ├── distance_node.hpp
+        │   └── yolo_node.hpp
+        ├── launch/
+        │   ├── object_mapper.launch
+        │   ├── yolo_distance.launch
+        │   └── yolo_vision.launch
+        ├── models/
+        │   ├── best.pt
+        │   └── yolo11n.pt
+        ├── rviz/
+        │   └── xslocobot_description_yolo.rviz
+        ├── scripts/
+        │   ├── distance_node.py
+        │   ├── object_mapper_node.py
+        │   ├── search_and_approach_node.py
+        │   └── yolo_node.py
+        └── src/
+            ├── distance_node.cpp
+            └── yolo_node.cpp
+   
 ```
