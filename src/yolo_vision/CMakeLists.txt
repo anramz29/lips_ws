@@ -9,6 +9,7 @@ project(yolo_vision)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   rospy
@@ -19,8 +20,9 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   geometry_msgs
   roscpp
+  tf2
+  tf2_ros
 )
-
 
 find_package(OpenCV REQUIRED)
 
@@ -111,11 +113,11 @@ find_package(OpenCV REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
- INCLUDE_DIRS include
- LIBRARIES yolo_vision
- CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs roscpp image_transport
- DEPENDS system_lib
+  CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs roscpp image_transport
+  # Removed INCLUDE_DIRS and LIBRARIES that don't exist
+  # Removed DEPENDS system_lib that doesn't exist
 )
+
 
 ###########
 ## Build ##
@@ -144,7 +146,13 @@ include_directories(
 
 add_executable(object_mapper_node src/object_mapper_node.cpp)
 add_executable(distance_node src/distance_node.cpp)
-add_executable(yolo_node src/yolo_node.cpp)
+# add_executable(yolo_node src/yolo_node.cpp)
+
+## Add dependencies to executables
+add_dependencies(object_mapper_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(distance_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# add_dependencies(yolo_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 
 
 ## Rename C++ executable without prefix
@@ -158,14 +166,25 @@ add_executable(yolo_node src/yolo_node.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
 
 #############
 ## Install ##
 #############
+## Specify libraries to link a library or executable target against
+target_link_libraries(object_mapper_node
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+
+target_link_libraries(distance_node
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+
+# target_link_libraries(yolo_node
+#   ${catkin_LIBRARIES}
+#   ${OpenCV_LIBRARIES}
+# )
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
