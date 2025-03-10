@@ -8,7 +8,7 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Latest Work
 
-Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordinator.py) and [scouting launch file launch file](/src/object_scout/launch/scout_system.launch) for my latest work in autonomus navigation.
+Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordinator_locobot.py) and [scouting launch file launch file](/src/object_scout/launch/scout_system_locobot.launch) for my latest work in autonomus navigation.
 
 <div align="center">
   <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
@@ -49,7 +49,7 @@ Contains resources and documentation for ROS2 integration with Locobot. This int
 ### [src](src)
 
 Contains packages:
-- [object_scout](/src/object_scout/): Builds off yolo vision for computer vision based autonomus navigation
+- [object_scout](/src/object_scout/readme.md): Builds off yolo vision for computer vision based autonomus navigation
 - [yolo_vision](/src/yolo_vision/): A package that uses computer vision to find an object, find it's distance from the robot, and map the object within the robot map.
 - [move_to_pose](/src/move_to_pose/): The package that controls pose recording
 - [video_recorder](/src/video_recorder/): Another helper package that takes in the feed of the robot camera, and records a video (used to create single frames to train the computer vision model)
