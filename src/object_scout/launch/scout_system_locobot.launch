@@ -16,6 +16,12 @@
     <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
     <arg name="use_rviz" default="false" doc="Set to false to disable RViz visualization" />
 
+    <!-- C++ Yolo Argument -->
+    <arg name="use_cpp_yolo" default="false" doc="Set to true to use C++ implementations instead of Python"/>
+    <arg name="use_cpp_distance" default="false" doc="Set to true to use C++ implementations instead of Python"/>
+    <arg name="use_cpp_object_mapper" default="false" doc="Set to true to use C++ implementations instead of Python"/>
+    <arg name="use_cpp_all" default="false" doc="Set to true to use C++ implementations for all nodes"/>
+
 
     
     <!-- Include the YOLO vision system -->
@@ -26,6 +32,10 @@
         <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
         <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
         <arg name="use_rviz" value="false"/>
+        <arg name="use_cpp_yolo" value="$(arg use_cpp_yolo)"/>
+        <arg name="use_cpp_distance" value="$(arg use_cpp_distance)"/>
+        <arg name="use_cpp_object_mapper" value="$(arg use_cpp_object_mapper)"/>
+        <arg name="use_cpp_all" value="$(arg use_cpp_all)"/>
     </include>
     
     <!-- Launch the coordinator node with all components packaged inside -->
