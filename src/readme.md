@@ -97,6 +97,7 @@ lips_ws/
         │   └── yolo_node.py
         └── src/
             ├── distance_node.cpp
+            ├── object_mapper_node.cpp
             └── yolo_node.cpp
    
 ```
