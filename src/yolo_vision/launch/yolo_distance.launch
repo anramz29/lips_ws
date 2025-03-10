@@ -11,6 +11,7 @@ robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
    <arg name="robot_name" default="locobot"/>
    <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
+   <arg name="use_cpp" default="false" doc="Set to true to use C++ implementations instead of Python"/>
 
    <!-- Camera Topics -->
    <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
@@ -29,22 +30,24 @@ robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
        <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
    </node>
 
-   <!-- Distance Detection Node -->
-   <node name="distance_node" pkg="yolo_vision" type="distance_node.py" output="screen" ns="$(arg robot_name)">
-       <!-- Topic configurations -->
-       <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
-       <param name="depth_image_topic" value="$(arg depth_topic)"/>
-       <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
-       <param name="visualization_topic" value="$(arg visualization_topic)"/>
-       
-       <!-- Node configurations -->
-       <param name="queue_size" value="10"/>
-       <param name="sync_slop" value="0.1"/>
-       
-       <!-- Color detection parameters -->
-       <rosparam param="green_lower">[0, 255, 0]</rosparam>
-       <rosparam param="green_upper">[0, 255, 0]</rosparam>
-   </node>
+    <!-- Distance Detection Node -->
+    <node name="distance_node" pkg="yolo_vision" 
+          type="$(eval 'distance_node' if arg('use_cpp') else 'distance_node.py')" 
+          output="screen" ns="$(arg robot_name)">
+        <!-- Topic configurations -->
+        <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+        <param name="depth_image_topic" value="$(arg depth_topic)"/>
+        <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
+        <param name="visualization_topic" value="$(arg visualization_topic)"/>
+        
+        <!-- Node configurations -->
+        <param name="queue_size" value="10"/>
+        <param name="sync_slop" value="0.1"/>
+        
+        <!-- Color detection parameters -->
+        <rosparam param="green_lower">[0, 255, 0]</rosparam>
+        <rosparam param="green_upper">[0, 255, 0]</rosparam>
+    </node>
 
    <!-- RViz -->
    <node name="rviz" pkg="rviz" type="rviz" 

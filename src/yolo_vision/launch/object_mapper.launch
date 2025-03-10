@@ -12,6 +12,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <arg name="rviz_frame" default="map"/>
     <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz"/>
     <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization"/>
+    <arg name="use_cpp" default="false" doc="Set to true to use C++ implementations instead of Python"/>
     
     <!-- Camera Topics -->
     <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
@@ -39,7 +40,9 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     </node>
     
     <!-- Distance Detection Node -->
-    <node name="distance_node" pkg="yolo_vision" type="distance_node.py" output="screen" ns="$(arg robot_name)">
+    <node name="distance_node" pkg="yolo_vision" 
+          type="$(eval 'distance_node' if arg('use_cpp') else 'distance_node.py')" 
+          output="screen" ns="$(arg robot_name)">
         <!-- Topic configurations -->
         <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
         <param name="depth_image_topic" value="$(arg depth_topic)"/>
@@ -56,7 +59,9 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     </node>
     
     <!-- Object Mapper Node -->
-    <node name="object_mapper" pkg="yolo_vision" type="object_mapper_node.py" output="screen" ns="$(arg robot_name)">
+    <node name="object_mapper" pkg="yolo_vision" 
+          type="$(eval 'object_mapper_node' if arg('use_cpp') else 'object_mapper_node.py')" 
+          output="screen" ns="$(arg robot_name)">
         <param name="camera_frame" value="$(arg robot_name)/camera_color_optical_frame"/>
         <param name="map_frame" value="map"/>
         <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>

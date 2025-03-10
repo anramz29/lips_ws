@@ -22,6 +22,9 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 
+find_package(OpenCV REQUIRED)
+
+
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -108,10 +111,10 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES yolo_vision
-#  CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs
-#  DEPENDS system_lib
+ INCLUDE_DIRS include
+ LIBRARIES yolo_vision
+ CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs roscpp image_transport
+ DEPENDS system_lib
 )
 
 ###########
@@ -121,10 +124,8 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${PROJECT_SOURCE_DIR}/include/yolo_vision
 )
 
 ## Declare a C++ library
@@ -141,6 +142,9 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 
+add_executable(object_mapper_node src/object_mapper_node.cpp)
+add_executable(distance_node src/distance_node.cpp)
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -152,10 +156,10 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}
-#   ${catkin_LIBRARIES}
-#   ${OpenCV_LIBRARIES}
-# )
+target_link_libraries(${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
 
 #############
 ## Install ##
