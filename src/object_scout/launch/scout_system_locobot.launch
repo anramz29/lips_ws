@@ -1,3 +1,11 @@
+<!-- 
+This launch file initializes the scan_and_approach_node which combines
+the functionality of move_to_pose_scan and approach_object nodes.
+
+Command to use with interbotix nav stack:
+roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_wx250s use_lidar:=true localization:=true
+-->
+
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
     <!-- Robot name parameter -->
