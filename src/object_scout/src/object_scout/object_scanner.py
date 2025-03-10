@@ -14,6 +14,7 @@ import actionlib
 # Import utilities
 from object_scout.utils import get_robot_pose
 
+# ---------- ENUMERATIONS ----------
 
 class ScanResult(Enum):
     """Enumeration for scan operation results"""
@@ -21,128 +22,205 @@ class ScanResult(Enum):
     OBJECT_DETECTED = 1
     ERROR = 2
 
+# ---------- CLASS DEFINITION ----------
 
 class ObjectScanner:
     """
     Handles object detection through scanning rotations
+    
+    This class provides functionality to:
+    1. Rotate the robot through a sequence of angles
+    2. Detect objects at each rotation angle
+    3. Verify detections with sustained observation
+    4. Track scanning progress and remaining angles
     """
     def __init__(self, robot_name, nav_controller, init_node=False):
         """
         Initialize the scanner with robot name and navigation controller
         
         Args:
-            robot_name: Name of the robot for topic namespacing
+            robot_name (str): Name of the robot for topic namespacing
             nav_controller: Instance of NavigationController for rotation commands
-            init_node: Whether to initialize a ROS node (standalone mode)
+            init_node (bool): Whether to initialize a ROS node (standalone mode)
         """
+        # Initialize node if requested
         if init_node:
             rospy.init_node('object_scanner', anonymous=False)
+        
+        # ---------- CONFIGURATION ----------
             
+        # Core components
         self.robot_name = robot_name
         self.nav_controller = nav_controller
+        
+        # Scanner parameters
+        self.scan_stabilization_time = 1.0  # seconds
+        self.required_detection_duration = rospy.Duration(2.0)  # seconds
+        self.scan_timeout = rospy.Duration(3.0)  # seconds
+        self.rotation_timeout = rospy.Duration(45.0)  # seconds
+        self.max_detection_depth = 5.0  # meters
+        
+        # Default rotation angles in degrees
+        self.rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        
+        # ---------- STATE VARIABLES ----------
         
         # Scanner state
         self.scanning_in_progress = False
         self.object_marker = None
         self.object_detected = False
         self.current_depth = None
+        self.remaining_angles = []
         
-        # Scanner parameters
-        self.scan_stabilization_time = 1.0  # seconds
-        self.required_detection_duration = rospy.Duration(2.0)  # seconds
-        self.scan_timeout = rospy.Duration(3.0)  # seconds
+        # ---------- ROS INTERFACE SETUP ----------
         
-        # Setup marker subscription
-        self.object_marker_topic = rospy.get_param('~object_marker_topic', 
-                                                  f'/{robot_name}/detected_object/marker')
+        # Set up marker subscription
+        self._setup_marker_subscription()
+        
+        # Set up depth subscription
+        self._setup_depth_subscription()
+    
+    # ---------- ROS COMMUNICATION SETUP ----------
+    
+    def _setup_marker_subscription(self):
+        """Set up ROS subscription for object marker information"""
+        self.object_marker_topic = rospy.get_param(
+            '~object_marker_topic', 
+            f'/{self.robot_name}/detected_object/marker'
+        )
+        
         self.object_marker_sub = rospy.Subscriber(
             self.object_marker_topic,
             Marker,
             self.object_marker_callback
         )
-
-                # Set up depth subscription
-        self.bbox_depth_topic = rospy.get_param('~bbox_depth_topic', 
-                                               f'/{robot_name}/camera/yolo/bbox_depth')
+    
+    def _setup_depth_subscription(self):
+        """Set up ROS subscription for depth information"""
+        self.bbox_depth_topic = rospy.get_param(
+            '~bbox_depth_topic', 
+            f'/{self.robot_name}/camera/yolo/bbox_depth'
+        )
+        
         self.depth_sub = rospy.Subscriber(
             self.bbox_depth_topic,
             Float32MultiArray,
             self.depth_callback
         )
-
-        self.rotation_angles =  [0, 45, 90, 135, 180, 225, 270, 315]
-
-        self.remaining_angles = []
-        
-    def perform_scan_rotation(self, rotation_angles):
+    
+    # ---------- CALLBACK METHODS ----------
+    
+    def object_marker_callback(self, msg):
         """
-        Perform a sequence of rotations to scan for objects
+        Process object marker messages
         
-        The robot will rotate to several orientations, pausing at each to allow
-        for stabilized object detection with a sustained detection requirement.
+        Args:
+            msg (Marker): Marker message from object detection
+        """
+        if self.scanning_in_progress:
+            if msg.header.frame_id != "map":
+                rospy.logwarn(f"Marker not in map frame: {msg.header.frame_id}")
+                return
+        
+            # Store the validated marker
+            self.object_marker = msg
+    
+    def depth_callback(self, msg):
+        """
+        Process depth information of detected objects
+        
+        Args:
+            msg (Float32MultiArray): Message containing depth data
+                Format: [x, y, w, h, depth]
+        """
+        if msg.data and len(msg.data) >= 5:
+            self.current_depth = msg.data[4]
+        else:
+            rospy.logwarn("Invalid depth data received")
+    
+    # ---------- STATE MANAGEMENT METHODS ----------
+    
+    def reset_detection_state(self):
+        """Reset object detection state"""
+        self.object_detected = False
+        self.object_marker = None
+    
+    def get_remaining_angles(self):
+        """
+        Get the list of remaining scan angles
         
         Returns:
-            ScanResult: The result of the scanning operation
+            list: Remaining angles to scan in degrees
         """
-        rospy.loginfo("Starting scan rotation sequence")
-        
-        # Set scanning flag to true
-        self.scanning_in_progress = True
-        self.object_detected = False    
-        self.remaining_angles = rotation_angles
-        
-        # Get current position
-        current_pose = get_robot_pose()
-        if current_pose is None:
-            rospy.logerr("Failed to get current robot pose")
-            self.scanning_in_progress = False
-            return ScanResult.ERROR
+        return self.remaining_angles
     
+    # ---------- DETECTION METHODS ----------
+    
+    def _scan_with_sustained_detection(self, angle):
+        """
+        Scan for objects at current position with sustained detection requirement
         
-        # Perform the rotations one by one
-        for i in range(len(rotation_angles)):
-            # Get the current angle to process (always the first in remaining list)
-            if not self.remaining_angles:
-                rospy.logwarn("No remaining angles to scan")
-                break
-                
-            current_angle = self.remaining_angles[0]
-            rospy.loginfo(f"Processing angle {i+1}/{len(rotation_angles)}: {current_angle} degrees")
-            
-            # Perform the scan at this angle
-            result = self._perform_single_rotation_scan(current_pose, current_angle, i, len(rotation_angles))
-            
-            # Remove this angle from remaining angles AFTER processing it
-            self.remaining_angles.pop(0)
-            rospy.loginfo(f"Remaining angles after processing {current_angle} degrees: {self.remaining_angles}")
-            
-            # If object detected, return early with remaining angles
-            if result == ScanResult.OBJECT_DETECTED:
-                self.scanning_in_progress = False
-                rospy.loginfo(f"Object detected during scan rotation at angle {current_angle}")
-                return ScanResult.OBJECT_DETECTED, self.remaining_angles
-
-            # Brief pause between rotations
-            if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
-                rospy.sleep(0.5)
+        Requires that an object is continuously detected for a minimum duration
+        to filter out false positives and ensure stable detection.
         
-        # End of rotation sequence - no detection
-        self.scanning_in_progress = False
-        rospy.loginfo("Completed scan rotation sequence, no objects detected")
-        return ScanResult.NO_DETECTION, self.remaining_angles
+        Args:
+            angle (float): Current rotation angle for logging
+            
+        Returns:
+            bool: True if object detected with sustained requirement, False otherwise
+        """
+        rospy.loginfo(f"Starting object detection at {angle} degrees...")
         
+        # Variables for sustained detection
+        detection_start = None
+        scan_start = rospy.Time.now()
+        
+        # Continue scanning until timeout
+        while (rospy.Time.now() - scan_start) < self.scan_timeout and not rospy.is_shutdown():
+            # Check if we have a marker
+            if self.object_marker is not None:
+                # Start or continue timing the sustained detection
+                if detection_start is None:
+                    detection_start = rospy.Time.now()
+                    rospy.loginfo("Potential object detected, timing sustained detection...")
+                else:
+                    # Check if we've maintained detection long enough
+                    elapsed = rospy.Time.now() - detection_start
+                    if elapsed >= self.required_detection_duration:
+                        # Validate detection with depth check
+                        if self.current_depth is not None and self.current_depth < self.max_detection_depth:
+                            self.object_detected = True
+                            rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth:.2f}m")
+                            return True
+            else:
+                # Lost detection, reset the timer
+                if detection_start is not None:
+                    rospy.logwarn("Lost detection during sustainment period, resetting timer")
+                    detection_start = None
+            
+            rospy.sleep(0.1)  # Check at 10Hz
+        
+        rospy.loginfo(f"No sustained detection at {angle} degrees within timeout")
+        return False
+    
+    # ---------- ROTATION METHODS ----------
+    
     def _perform_single_rotation_scan(self, current_pose, angle, rotation_index, total_rotations):
         """
         Perform a single rotation and scan for objects
         
+        1. Rotates to the specified angle
+        2. Waits for camera stabilization
+        3. Scans for objects with sustained detection requirement
+        
         Args:
             current_pose: Current robot pose
-            angle: Rotation angle in degrees
-            rotation_index: Index of the current rotation
-            total_rotations: Total number of rotations
+            angle (float): Rotation angle in degrees
+            rotation_index (int): Index of the current rotation
+            total_rotations (int): Total number of rotations
             
         Returns:
-            bool: True if object detected, False otherwise
+            ScanResult: Result of the scan operation
         """
         # Reset object detection status for this rotation
         self.object_marker = None
@@ -164,17 +242,16 @@ class ObjectScanner:
         self.nav_controller.client.send_goal(current_goal)
         
         # Wait for rotation to complete with timeout
-        timeout = rospy.Duration(45.0)
-        if not self.nav_controller.client.wait_for_result(timeout):
-            rospy.logwarn("Rotation timeout reached")
-            return False
+        if not self.nav_controller.client.wait_for_result(self.rotation_timeout):
+            rospy.logwarn(f"Rotation timeout reached for angle {angle}")
+            return ScanResult.ERROR
         
         if self.nav_controller.client.get_state() != actionlib.GoalStatus.SUCCEEDED:
-            rospy.logwarn("Rotation goal failed")
-            return False
+            rospy.logwarn(f"Rotation goal failed for angle {angle}")
+            return ScanResult.ERROR
         
         # Rotation complete, wait for camera to stabilize
-        rospy.loginfo(f"Rotation to {angle} degrees complete, waiting for camera stabilization...")
+        rospy.loginfo(f"Rotation to {angle} degrees complete, waiting {self.scan_stabilization_time}s for stabilization...")
         rospy.sleep(self.scan_stabilization_time)
         
         # Clear any previous detection that might be from motion blur
@@ -182,97 +259,88 @@ class ObjectScanner:
         
         # Scan for objects with sustained detection requirement
         detected = self._scan_with_sustained_detection(angle)
-
         
         # Convert boolean result to ScanResult enum
         return ScanResult.OBJECT_DETECTED if detected else ScanResult.NO_DETECTION
-
-        
-    def _scan_with_sustained_detection(self, angle):
+    
+    # ---------- MAIN SCANNING METHOD ----------
+    
+    def perform_scan_rotation(self, rotation_angles=None):
         """
-        Scan for objects at current position with sustained detection requirement
+        Perform a sequence of rotations to scan for objects
+        
+        The robot will rotate to several orientations, pausing at each to allow
+        for stabilized object detection with a sustained detection requirement.
         
         Args:
-            angle: Current rotation angle for logging
-            
+            rotation_angles (list, optional): List of angles in degrees to scan.
+                                             If None, uses default angles.
+        
         Returns:
-            bool: True if object detected with sustained requirement, False otherwise
+            tuple: (ScanResult, remaining_angles) where:
+                  - ScanResult is the result of the scanning operation
+                  - remaining_angles is a list of angles not yet scanned
         """
-        rospy.loginfo(f"Starting object detection at {angle} degrees...")
+        if rotation_angles is None:
+            rotation_angles = self.rotation_angles.copy()
         
-        # Variables for sustained detection
-        detection_start = None
-        scan_start = rospy.Time.now()
+        rospy.loginfo(f"Starting scan rotation sequence with {len(rotation_angles)} angles: {rotation_angles}")
         
-        while (rospy.Time.now() - scan_start) < self.scan_timeout and not rospy.is_shutdown():
-            # Check if we have a marker
-            if self.object_marker is not None:
-                # Start or continue timing the sustained detection
-                if detection_start is None:
-                    detection_start = rospy.Time.now()
-                    rospy.loginfo("Potential object detected, timing sustained detection...")
-                else:
-                    # Check if we've maintained detection long enough
-                    elapsed = rospy.Time.now() - detection_start
-                    if elapsed >= self.required_detection_duration:
-                        if self.current_depth is not None and self.current_depth < 5.0:
-                            
-                            self.object_detected = True
-                            
-                            rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth}")
-                            
-                            return True
-            else:
-                # Lost detection, reset the timer
-                if detection_start is not None:
-                    rospy.logwarn("Lost detection during sustainment period, resetting timer")
-                    detection_start = None
+        # Set scanning flag to true and initialize state
+        self.scanning_in_progress = True
+        self.object_detected = False    
+        self.remaining_angles = rotation_angles.copy()
+        
+        # Get current position
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            self.scanning_in_progress = False
+            return ScanResult.ERROR, self.remaining_angles
+        
+        # Perform the rotations one by one
+        for i in range(len(rotation_angles)):
+            # Get the current angle to process (always the first in remaining list)
+            if not self.remaining_angles:
+                rospy.logwarn("No remaining angles to scan")
+                break
+                
+            current_angle = self.remaining_angles[0]
+            rospy.loginfo(f"Processing angle {i+1}/{len(rotation_angles)}: {current_angle} degrees")
             
-            rospy.sleep(0.1)  # Check at 10Hz
-        
-        return False  # No sustained detection within timeout
-
-        
-    def object_marker_callback(self, msg):
-        """
-        Process object marker messages
-        
-        Args:
-            msg: Marker message from object detection
-        """
-        if self.scanning_in_progress:
-            if msg.header.frame_id != "map":
-                rospy.logwarn(f"Marker not in map frame: {msg.header.frame_id}")
-                return
-        
-            # Store the validated marker
-            self.object_marker = msg
+            # Perform the scan at this angle
+            result = self._perform_single_rotation_scan(
+                current_pose, current_angle, i, len(rotation_angles)
+            )
             
-    def reset_detection_state(self):
-        """Reset object detection state"""
-        self.object_detected = False
-        self.object_marker = None
-
-    def get_remaining_angles(self):
-        return self.rotation_angles
-
-
-    def depth_callback(self, msg):
-        """
-        Process depth information of detected objects
+            # Remove this angle from remaining angles AFTER processing it
+            self.remaining_angles.pop(0)
+            rospy.loginfo(f"Remaining angles after processing {current_angle} degrees: {self.remaining_angles}")
+            
+            # If object detected, return early with remaining angles
+            if result == ScanResult.OBJECT_DETECTED:
+                self.scanning_in_progress = False
+                rospy.loginfo(f"Object detected during scan rotation at angle {current_angle}")
+                return ScanResult.OBJECT_DETECTED, self.remaining_angles
+            
+            # If error occurred, log and continue to next angle
+            if result == ScanResult.ERROR:
+                rospy.logwarn(f"Error during scan at angle {current_angle}, continuing to next angle")
+            
+            # Brief pause between rotations
+            if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
+                rospy.sleep(0.5)
         
-        Args:
-            msg: Float32MultiArray containing depth data
-        """
-        if msg.data and len(msg.data) >= 5:
-            self.current_depth = msg.data[4]
-        else:
-            rospy.logwarn("Invalid depth data received")
+        # End of rotation sequence - no detection
+        self.scanning_in_progress = False
+        rospy.loginfo("Completed scan rotation sequence, no objects detected")
+        return ScanResult.NO_DETECTION, self.remaining_angles
+
+# ---------- DIRECT EXECUTION BLOCK ----------
 
 if __name__ == "__main__":
     try:
         # This class requires a NavigationController, so we can't run it directly
-        # You would need to create a node that instantiates both
         rospy.loginfo("ObjectScanner cannot be run directly as it requires a NavigationController")
     except rospy.ROSInterruptException:
         rospy.loginfo("Object scanner interrupted")

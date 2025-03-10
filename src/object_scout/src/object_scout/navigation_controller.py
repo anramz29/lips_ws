@@ -15,24 +15,40 @@ from object_scout.utils import get_robot_pose, is_position_safe
 
 class NavigationController:
     """
-    Handles basic robot navigation operations and interfaces with move_base
+    Handles robot navigation operations and interfaces with move_base
+    
+    This class provides functionality to:
+    1. Create and send navigation goals
+    2. Monitor navigation progress
+    3. Ensure safe navigation using costmaps
+    4. Navigate to named poses and specific coordinates
+    5. Handle orientation calculations and normalization
     """
-    def __init__(self, robot_name, init_node=False):
+    def __init__(self, robot_name, pose_manager=None, init_node=False):
         """
         Initialize the navigation controller
         
         Args:
-            robot_name: Name of the robot for topic namespacing
-            init_node: Whether to initialize a ROS node (standalone mode)
+            robot_name (str): Name of the robot for topic namespacing
+            pose_manager: Optional PoseManager instance for named poses
+            init_node (bool): Whether to initialize a ROS node (standalone mode)
         """
         if init_node:
             rospy.init_node('navigation_controller', anonymous=False)
         
+        # ---------- CONFIGURATION ----------
+        
         self.robot_name = robot_name
+        self.pose_manager = pose_manager
         
         # Get topic parameters with default values that use robot_name
         self.move_base_topic = rospy.get_param('~move_base_topic', f'/{self.robot_name}/move_base')
         self.costmap_topic = rospy.get_param('~costmap_topic', f'/{self.robot_name}/move_base/global_costmap/costmap')
+        
+        # Default timeout values
+        self.default_navigation_timeout = 90.0  # seconds
+        
+        # ---------- ROS INTERFACE SETUP ----------
         
         # Create action client
         self.client = actionlib.SimpleActionClient(self.move_base_topic, MoveBaseAction)
@@ -61,85 +77,26 @@ class NavigationController:
             rospy.sleep(0.1)
         rospy.loginfo("Received costmap")
         
+    # ---------- CALLBACK METHODS ----------
+    
     def costmap_callback(self, msg):
-        """Callback for costmap updates"""
+        """
+        Callback for costmap updates
+        
+        Args:
+            msg (OccupancyGrid): The costmap message
+        """
         self.costmap = msg
-        
-    def move_to_position(self, x, y, orientation=None, timeout=90.0):
-        """
-        Move to a specific position with optional orientation
-        
-        Args:
-            x: X coordinate in the map frame
-            y: Y coordinate in the map frame
-            orientation: Optional Quaternion orientation
-            timeout: Navigation timeout in seconds
-            
-        Returns:
-            bool: Success flag
-        """
-        # Safety check
-        current_pose = get_robot_pose()
-        if current_pose is None:
-            rospy.logerr("Failed to get current robot pose")
-            return False
-            
-        if not is_position_safe(self.costmap, x, y):
-            rospy.logerr(f"Position ({x}, {y}) is in unsafe area!")
-            return False
-
-        # Create navigation goal
-        goal = self.create_navigation_goal(x, y, orientation, current_pose)
-        
-        # Send the goal
-        rospy.loginfo(f"Moving to position: x={x:.2f}, y={y:.2f}")
-        self.client.send_goal(goal)
-        
-        # Wait for result with timeout
-        return self.wait_for_navigation(timeout)
-        
-    def wait_for_navigation(self, timeout):
-        """
-        Wait for navigation to complete with timeout
-        
-        Args:
-            timeout: Timeout in seconds
-            
-        Returns:
-            bool: Success flag
-        """
-        wait = self.client.wait_for_result(rospy.Duration(timeout))
-        
-        if not wait:
-            rospy.logerr(f"Navigation timed out after {timeout} seconds")
-            self.client.cancel_goal()
-            return False
-            
-        success = self.client.get_state() == actionlib.GoalStatus.SUCCEEDED
-        
-        if not success:
-            state = self.client.get_state()
-            state_txt = actionlib.GoalStatus.to_string(state) if state <= 9 else "UNKNOWN"
-            rospy.logerr(f"Navigation failed with state: {state_txt} ({state})")
-            
-        return success
-        
-    def cancel_navigation(self):
-        """Cancel current navigation goal using both action client and topic"""
-        # Cancel via action client
-        self.client.cancel_all_goals()
-        # Cancel via topic for redundancy
-        cancel_msg = actionlib_msgs.msg.GoalID()
-        self.cancel_pub.publish(cancel_msg)
-        rospy.loginfo("Sent navigation cancellation commands")
-        
+    
+    # ---------- GOAL CREATION METHODS ----------
+    
     def create_navigation_goal(self, x, y, orientation=None, current_pose=None):
         """
         Create a MoveBaseGoal message for the specified position and orientation
         
         Args:
-            x: X coordinate in the map frame
-            y: Y coordinate in the map frame
+            x (float): X coordinate in the map frame
+            y (float): Y coordinate in the map frame
             orientation: Optional Quaternion orientation
             current_pose: Current robot pose for calculating direction
             
@@ -204,6 +161,194 @@ class NavigationController:
             goal.target_pose.pose.orientation = Quaternion(*quat)
             
         return goal
+    
+    # ---------- NAVIGATION EXECUTION METHODS ----------
+    
+    def move_to_position(self, x, y, orientation=None, timeout=None):
+        """
+        Move to a specific position with optional orientation
+        
+        Args:
+            x (float): X coordinate in the map frame
+            y (float): Y coordinate in the map frame
+            orientation: Optional Quaternion orientation
+            timeout (float): Navigation timeout in seconds (default: self.default_navigation_timeout)
+            
+        Returns:
+            bool: Success flag
+        """
+        # Use default timeout if not specified
+        if timeout is None:
+            timeout = self.default_navigation_timeout
+        
+        # Safety check
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            return False
+            
+        if not is_position_safe(self.costmap, x, y):
+            rospy.logerr(f"Position ({x:.2f}, {y:.2f}) is in unsafe area!")
+            return False
+
+        # Create navigation goal
+        goal = self.create_navigation_goal(x, y, orientation, current_pose)
+        
+        # Send the goal
+        rospy.loginfo(f"Moving to position: x={x:.2f}, y={y:.2f}")
+        self.client.send_goal(goal)
+        
+        # Wait for result with timeout
+        return self.wait_for_navigation(timeout)
+        
+    def wait_for_navigation(self, timeout):
+        """
+        Wait for navigation to complete with timeout
+        
+        Args:
+            timeout (float): Timeout in seconds
+            
+        Returns:
+            bool: Success flag
+        """
+        wait = self.client.wait_for_result(rospy.Duration(timeout))
+        
+        if not wait:
+            rospy.logerr(f"Navigation timed out after {timeout} seconds")
+            self.client.cancel_goal()
+            return False
+            
+        success = self.client.get_state() == actionlib.GoalStatus.SUCCEEDED
+        
+        if not success:
+            state = self.client.get_state()
+            state_txt = actionlib.GoalStatus.to_string(state) if state <= 9 else "UNKNOWN"
+            rospy.logerr(f"Navigation failed with state: {state_txt} ({state})")
+            
+        return success
+        
+    def cancel_navigation(self):
+        """
+        Cancel current navigation goal using both action client and topic
+        
+        Uses redundant cancellation methods to ensure the goal is properly canceled.
+        """
+        # Cancel via action client
+        self.client.cancel_all_goals()
+        # Cancel via topic for redundancy
+        cancel_msg = actionlib_msgs.msg.GoalID()
+        self.cancel_pub.publish(cancel_msg)
+        rospy.loginfo("Sent navigation cancellation commands")
+    
+    # ---------- NAMED POSE NAVIGATION METHODS ----------
+    
+    def navigate_to_named_pose(self, pose_name, timeout=None):
+        """
+        Navigate the robot to a named pose from the pose manager
+        
+        Args:
+            pose_name (str): Name of the pose to navigate to
+            timeout (float): Navigation timeout in seconds (default: self.default_navigation_timeout)
+            
+        Returns:
+            bool: True if navigation succeeded, False otherwise
+            
+        Raises:
+            ValueError: If pose_manager is not set or pose_name not found
+        """
+        if self.pose_manager is None:
+            raise ValueError("PoseManager not set in NavigationController")
+        
+        rospy.loginfo(f"Navigating to named pose: {pose_name}")
+        
+        try:
+            # Get pose from the pose manager
+            pose_position = self.pose_manager.get_pose(pose_name)
+            
+            if pose_position is None:
+                rospy.logwarn(f"Pose '{pose_name}' not found in pose manager")
+                return False
+                
+            # Extract position
+            x = pose_position.position.x
+            y = pose_position.position.y
+            
+            # Extract orientation if available
+            orientation = None
+            if hasattr(pose_position, 'orientation'):
+                orientation = pose_position.orientation
+            
+            # Execute navigation
+            success = self.move_to_position(x, y, orientation, timeout)
+            
+            if not success:
+                rospy.logwarn(f"Failed to navigate to pose '{pose_name}'")
+                
+            return success
+            
+        except Exception as e:
+            rospy.logerr(f"Error navigating to pose '{pose_name}': {e}")
+            return False
+    
+    def return_to_position(self, x, y, orientation=None, timeout=None):
+        """
+        Return the robot to a specified position and orientation
+        
+        This method is semantically different from move_to_position as it indicates
+        an intent to return to a previously visited position.
+        
+        Args:
+            x (float): X coordinate to return to
+            y (float): Y coordinate to return to
+            orientation: Orientation to set at the position
+            timeout (float): Navigation timeout in seconds (default: self.default_navigation_timeout)
+            
+        Returns:
+            bool: True if navigation succeeded, False otherwise
+        """
+        rospy.loginfo(f"Returning to position: ({x:.2f}, {y:.2f})")
+        return self.move_to_position(x, y, orientation, timeout)
+    
+    def rotate_in_place(self, angle_degrees, timeout=None):
+        """
+        Rotate the robot in place by the specified angle
+        
+        Args:
+            angle_degrees (float): Angle to rotate in degrees
+            timeout (float): Rotation timeout in seconds (default: 10.0)
+            
+        Returns:
+            bool: True if rotation succeeded, False otherwise
+        """
+        if timeout is None:
+            timeout = 10.0  # Default timeout for rotation (shorter than navigation)
+        
+        # Get current pose
+        current_pose = get_robot_pose()
+        if current_pose is None:
+            rospy.logerr("Failed to get current robot pose")
+            return False
+        
+        # Convert angle to radians
+        angle_radians = math.radians(angle_degrees)
+        
+        # Create quaternion for the target orientation
+        quat = quaternion_from_euler(0, 0, angle_radians)
+        orientation = Quaternion(*quat)
+        
+        # Create goal at current position with new orientation
+        rospy.loginfo(f"Rotating {angle_degrees} degrees in place")
+        goal = self.create_navigation_goal(
+            current_pose.position.x,
+            current_pose.position.y,
+            orientation
+        )
+        
+        # Send the goal
+        self.client.send_goal(goal)
+        
+        # Wait for result with timeout
+        return self.wait_for_navigation(timeout)
 
 
 if __name__ == "__main__":
