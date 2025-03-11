@@ -190,7 +190,7 @@ class FineApproacher():
     
     def adjust_gain_by_depth(self, gain):
         """
-        Adjust gain based on depth information if available
+        Adjust gain based on depth information 
         
         Args:
             gain (float): Original gain value
@@ -235,49 +235,6 @@ class FineApproacher():
     
     # ---------- Camera Tilt Functions ----------
     
-    def get_camera_tilt_angle(self, parent_frame='locobot/base_link', tilt_link='locobot/tilt_link'):
-        """
-        Get the camera tilt angle using TF2 transform
-        
-        Args:
-            parent_frame (str): Parent reference frame
-            tilt_link (str): Frame of the tilt link
-        
-        Returns:
-            float: Tilt angle (pitch) in radians, or None if transform not available
-        """
-        try:
-            # Create a TF2 buffer and listener
-            tf_buffer = tf2_ros.Buffer()
-            tf_listener = tf2_ros.TransformListener(tf_buffer)
-            
-            # Wait for the transform to be available
-            transform = tf_buffer.lookup_transform(
-                parent_frame,
-                tilt_link,
-                rospy.Time(0),
-                rospy.Duration(4.0)
-            )
-            
-            # Extract orientation quaternion and convert to euler angles
-            orientation_quaternion = transform.transform.rotation
-            quaternion = (
-                orientation_quaternion.x,
-                orientation_quaternion.y,
-                orientation_quaternion.z,
-                orientation_quaternion.w
-            )
-            
-            euler_angles = tf.transformations.euler_from_quaternion(quaternion)
-            tilt_angle = euler_angles[1]
-            
-            rospy.loginfo(f"Camera Tilt Angle: {tilt_angle} radians")
-            return tilt_angle
-        
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
-                tf2_ros.ExtrapolationException) as e:
-            rospy.logerr(f"Could not get tilt link transform: {e}")
-            return None
     
     def tilt_camera(self, angle):
         """
