@@ -7,6 +7,7 @@ from object_scout.object_scanner import ObjectScanner, ScanResult
 from object_scout.object_approacher import ObjectApproacher
 from object_scout.pose_manager import PoseManager
 from object_scout.fine_approacher import FineApproacher
+from object_scout.pick_up_object import PickUpObject
 from object_scout.utils import get_robot_pose
 
 # ---------- CLASS DEFINITION ----------
@@ -81,6 +82,9 @@ class ScoutCoordinatorLocobot:
         # Create fine approacher for precise positioning
         self.fine_approacher = FineApproacher(self.robot_name, self.nav_controller)
 
+        # Create object picker for picking up objects
+        self.object_picker = PickUpObject(self.robot_name)
+
     # ---------- OBJECT DETECTION METHODS ----------
 
     def scan_for_objects(self, angles=None):
@@ -153,6 +157,12 @@ class ScoutCoordinatorLocobot:
                 rospy.loginfo(f"Successfully completed approach to object at pose {pose_name}")
                 rospy.sleep(1.0)  # Pause for a moment
                 self.found_objects.append(pose_name)
+
+                # pick up object 
+                if self.object_picker.run():
+                    rospy.loginfo("Object picked up")
+                else:
+                    rospy.logwarn("Object not picked up")
 
                 # Reset camera tilt angle
                 self.fine_approacher.reset_camera_tilt()
