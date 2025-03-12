@@ -43,8 +43,7 @@ def main():
         time.sleep(1)
         
         # Run the main mission
-        coordinator.start_mission()
-
+        coordinator.execute_scouting_mission()
     else:
         rospy.loginfo("Mission start cancelled by user")
     

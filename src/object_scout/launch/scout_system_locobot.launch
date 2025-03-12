@@ -11,6 +11,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
 <launch>
     <!-- Robot name parameter -->
     <arg name="robot_name" default="locobot" />
+    <arg name="robot_model" default="locobot_wx250s" />
     
     <!-- Configuration file path -->
     <arg name="poses_config" default="$(find object_scout)/config/poses.yaml" />
@@ -34,7 +35,8 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
 
     
     <!-- Include the YOLO vision system -->
-    <include file="$(find yolo_vision)/launch/object_mapper.launch">
+    <!-- <group if="$(arg use_cpp_all)">
+        <include file="$(find yolo_vision)/launch/object_mapper.launch">
         <arg name="robot_name" value="$(arg robot_name)"/>
         <arg name="rviz_frame" value="$(arg rviz_frame)"/>
         <arg name="rvizconfig" value="$(arg rvizconfig)"/>
@@ -45,7 +47,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
         <arg name="use_cpp_distance" value="$(arg use_cpp_distance)"/>
         <arg name="use_cpp_object_mapper" value="$(arg use_cpp_object_mapper)"/>
         <arg name="use_cpp_all" value="$(arg use_cpp_all)"/>
-    </include>
+    </include> -->
     
     <!-- Launch the coordinator node with all components packaged inside -->
     <node name="scout_coordinator" pkg="object_scout" type="scout_coordinator_locobot_node.py" output="screen">
@@ -55,6 +57,27 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
         <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)" />
         <param name="max_objects" value="$(arg max_objects)" />
     </node>
+
+
+    <!-- pointcloud filtering arguments -->
+    <arg name="use_perception"                    default="true"/>
+    <arg name="use_armtag"                        default="true"/>
+    <arg name="filter_params"                     default="$(find interbotix_xslocobot_perception)/config/filter_params.yaml"/>
+    <arg name="use_pointcloud_tuner_gui"          default="false"/>
+    <arg name="enable_pipeline"                   default="$(arg use_pointcloud_tuner_gui)"/>
+    <arg name="use_static_transform_pub"          default="true"/>
+
+    <include if="$(arg use_perception)" file="$(find interbotix_xslocobot_perception)/launch/xslocobot_perception.launch">
+        <arg name="robot_model"                       value="$(arg robot_model)"/>
+        <arg name="robot_name"                        value="$(arg robot_name)"/>
+        <arg name="launch_driver"                     value="false"/>
+        <arg name="filter_params"                     value="$(arg filter_params)"/>
+        <arg name="enable_pipeline"                   value="false"/>
+        <arg name="use_pointcloud_tuner_gui"          value="$(arg use_pointcloud_tuner_gui)"/>
+        <arg name="use_static_transform_pub"          value="$(arg use_static_transform_pub)"/>
+        <arg name="use_armtag"                        value="$(arg use_armtag)"/>
+    </include>
+
     
     <!-- RViz (conditionally launched) -->
     <group if="$(arg use_rviz)">

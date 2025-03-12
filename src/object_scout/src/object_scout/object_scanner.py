@@ -58,7 +58,7 @@ class ObjectScanner:
         self.required_detection_duration = rospy.Duration(2.0)  # seconds
         self.scan_timeout = rospy.Duration(3.0)  # seconds
         self.rotation_timeout = rospy.Duration(45.0)  # seconds
-        self.max_detection_depth = 5.0  # meters
+        self.max_detection_depth = 10.0  # meters
         
         # Default rotation angles in degrees
         self.rotation_angles = [0, 45, 90, 135, 180, 225, 270, 315]
@@ -86,7 +86,7 @@ class ObjectScanner:
         """Set up ROS subscription for object marker information"""
         self.object_marker_topic = rospy.get_param(
             '~object_marker_topic', 
-            f'/{self.robot_name}/detected_object/marker'
+            f'/{self.robot_name}/object_markers'
         )
         
         self.object_marker_sub = rospy.Subscriber(

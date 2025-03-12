@@ -67,11 +67,13 @@ class ScoutCoordinatorLocobot:
 
     def _initialize_components(self):
         """Initialize all required components for the scouting mission"""
-        # Create navigation controller
-        self.nav_controller = NavigationController(self.robot_name)
+
         
         # Create pose manager for handling predefined positions
         self.pose_manager = PoseManager(self.poses_config)
+
+               # Create navigation controller
+        self.nav_controller = NavigationController(self.robot_name, self.pose_manager)
         
         # Create scanner for detecting objects
         self.scanner = ObjectScanner(self.robot_name, self.nav_controller)
@@ -226,7 +228,7 @@ class ScoutCoordinatorLocobot:
             # Process any detected objects
             while scan_result == ScanResult.OBJECT_DETECTED:
                 # Get position where object was detected
-                x_detected, y_detected, orientation_detected = get_robot_pose()
+                x_detected, y_detected, orientation_detected = self.nav_controller.get_robot_pose()
                 
                 # Process the detected object
                 scan_result, remaining_angles = self.process_detected_object(

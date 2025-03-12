@@ -8,6 +8,9 @@ from nav_msgs.msg import OccupancyGrid
 from tf.transformations import quaternion_from_euler
 from actionlib_msgs.msg import GoalID
 import actionlib_msgs.msg
+from object_scout.pose_manager import PoseManager
+import tf2_ros
+from geometry_msgs.msg import PoseStamped
 
 # Import utilities
 from object_scout.utils import get_robot_pose, is_position_safe
@@ -24,7 +27,7 @@ class NavigationController:
     4. Navigate to named poses and specific coordinates
     5. Handle orientation calculations and normalization
     """
-    def __init__(self, robot_name, pose_manager=None, init_node=False):
+    def __init__(self, robot_name, pose_manager, init_node=False):
         """
         Initialize the navigation controller
         
@@ -47,6 +50,7 @@ class NavigationController:
         
         # Default timeout values
         self.default_navigation_timeout = 90.0  # seconds
+
         
         # ---------- ROS INTERFACE SETUP ----------
         
@@ -76,6 +80,8 @@ class NavigationController:
         while self.costmap is None and not rospy.is_shutdown():
             rospy.sleep(0.1)
         rospy.loginfo("Received costmap")
+
+
         
     # ---------- CALLBACK METHODS ----------
     
@@ -239,6 +245,27 @@ class NavigationController:
         cancel_msg = actionlib_msgs.msg.GoalID()
         self.cancel_pub.publish(cancel_msg)
         rospy.loginfo("Sent navigation cancellation commands")
+
+    def get_robot_pose(self):
+        """Get current robot pose in map frame"""
+        try:
+            # Create tf buffer and listener when needed
+            tf_buffer = tf2_ros.Buffer()
+            tf_listener = tf2_ros.TransformListener(tf_buffer)
+            
+            # Give time for the listener to receive transforms
+            rospy.sleep(0.5)
+            
+            trans = tf_buffer.lookup_transform('map', 'locobot/base_link', rospy.Time(0))
+            current_pose = PoseStamped()
+            current_pose.pose.position.x = trans.transform.translation.x
+            current_pose.pose.position.y = trans.transform.translation.y
+            current_pose.pose.position.z = trans.transform.translation.z
+            current_pose.pose.orientation = trans.transform.rotation
+            return current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.orientation
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Failed to get robot pose: {e}")
+            return None
     
     # ---------- NAMED POSE NAVIGATION METHODS ----------
     
