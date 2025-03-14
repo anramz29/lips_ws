@@ -406,7 +406,8 @@ class FineApproacher():
         
     def fine_approach(self, max_attempts=5, tilt_angle=0.75):
         """
-        Perform fine approach to center object in camera view
+        Perform fine approach to center object in camera view,
+        prioritizing the correction of the larger error first
         
         Args:
             max_attempts (int): Maximum number of centering attempts
@@ -422,19 +423,47 @@ class FineApproacher():
         for attempt in range(max_attempts):
             rospy.loginfo(f"Fine approach attempt {attempt+1}/{max_attempts}")
             
-            # Adjust horizontal orientation first
-            self.adjust_base_orientation()
-            
-            # Check if object is centered after horizontal adjustment
+            # Calculate current errors
             horizontal_error, vertical_error = self.calculate_error()
-            if self.check_if_centered(horizontal_error, vertical_error):
-                rospy.loginfo("Fine approach completed successfully")
-                return True
-                
-            # Adjust vertical position
-            self.adjust_base_position()
             
-            # Check if object is centered after full adjustment cycle
+            # Check if already centered
+            if self.check_if_centered(horizontal_error, vertical_error):
+                rospy.loginfo("Object is already centered")
+                return True
+            
+            # Decide which error to fix first based on relative magnitude
+            # Compare errors relative to their thresholds to decide which is "worse"
+            rel_horizontal_error = abs(horizontal_error) / self.horizontal_threshold
+            rel_vertical_error = abs(vertical_error) / self.vertical_threshold
+            
+            if rel_horizontal_error > rel_vertical_error:
+                # Fix horizontal error first (rotation)
+                rospy.loginfo("Horizontal error is larger, adjusting orientation first")
+                self.adjust_base_orientation()
+                
+                # Check if centered after horizontal adjustment
+                horizontal_error, vertical_error = self.calculate_error()
+                if self.check_if_centered(horizontal_error, vertical_error):
+                    rospy.loginfo("Fine approach completed after orientation adjustment")
+                    return True
+                    
+                # Now fix vertical error
+                self.adjust_base_position()
+            else:
+                # Fix vertical error first (forward/backward movement)
+                rospy.loginfo("Vertical error is larger, adjusting position first")
+                self.adjust_base_position()
+                
+                # Check if centered after vertical adjustment
+                horizontal_error, vertical_error = self.calculate_error()
+                if self.check_if_centered(horizontal_error, vertical_error):
+                    rospy.loginfo("Fine approach completed after position adjustment")
+                    return True
+                    
+                # Now fix horizontal error
+                self.adjust_base_orientation()
+            
+            # Final check if centered after both adjustments
             horizontal_error, vertical_error = self.calculate_error()
             if self.check_if_centered(horizontal_error, vertical_error):
                 rospy.loginfo("Fine approach completed successfully")
