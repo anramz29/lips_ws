@@ -52,16 +52,18 @@ def input_thread_function():
     """Handle user input in a separate thread"""
     global running
     
-    print("Press Enter to capture an image, or type 'q' and press Enter to quit.")
+    print("Press 'q' and Enter to capture an image, or type 'exit' and press Enter to quit.")
     while running:
-        user_input = input("")
-        if user_input.lower() == 'q':
+        user_input = input("")  # Empty prompt, waiting for any key
+        if user_input.lower() == 'exit':
             print("Exiting...")
             running = False
             rospy.signal_shutdown("User requested exit")
             break
-        else:
+        elif user_input.lower() == 'q':  # Check for 'q' input
+            print("Taking photo...")
             save_image()
+        # Ignore other inputs
 
 # Initialize ROS node
 rospy.init_node('camera_capture')
