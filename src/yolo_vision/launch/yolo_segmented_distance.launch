@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<!-- 
+Complete launch file for YOLO segmentation with distance measurement
+Usage: roslaunch yolo_vision yolo_segmentation_with_distance.launch
+Dependencies: interbotix_xslocobot_control stack
+Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch robot_model:=locobot_wx250s use_camera:=true use_base:=true
+-->
+
+<launch>
+    <!-- Global Arguments -->
+    <arg name="robot_name" default="locobot"/>
+    <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_segmentation.rviz"/>
+    <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization"/>
+
+    <!-- Camera Topics -->
+    <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
+    <arg name="depth_topic" default="/$(arg robot_name)/camera/aligned_depth_to_color/image_raw"/>
+
+    <!-- YOLO Segmentation Topics and Parameters -->
+    <arg name="model_path" default="$(find yolo_vision)/models/yolov8s-seg.pt"/>
+
+    <!-- Visualization Topics -->
+    <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
+    <arg name="masks_topic" default="camera/yolo/segmentation_masks"/>
+    <arg name="boxes_topic" default="camera/yolo/bounding_boxes"/>
+    <arg name="depth_viz_topic" default="camera/yolo/depth_visualization"/>
+
+    <!-- Structured Data Topics -->
+    <arg name="bbox_data_topic" default="camera/yolo/detection_boxes"/>
+    <arg name="mask_data_topic" default="camera/yolo/detection_masks"/>
+    <arg name="class_info_topic" default="camera/yolo/class_information"/>
+    <arg name="distance_topic" default="camera/yolo/segmentation_distances"/>
+
+    <!-- Visualization Options -->
+    <arg name="publish_visualizations" default="true" doc="Set to false to disable visualization topics"/>
+  
+    <!-- PART 1: Launch YOLO Segmentation node -->
+    <node name="yolo_segmentation_node" pkg="yolo_vision" type="yolo_segmentation_node.py" output="screen" ns="$(arg robot_name)">
+        <!-- Main parameters -->
+        <param name="model_path" value="$(arg model_path)"/>
+        <param name="image_topic" value="$(arg rgb_topic)"/>
+        
+        <!-- Visualization topics (optional) -->
+        <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+        <param name="masks_topic" value="$(arg masks_topic)"/>
+        <param name="boxes_topic" value="$(arg boxes_topic)"/>
+        
+        <!-- Structured data topics -->
+        <param name="bbox_data_topic"   value="$(arg bbox_data_topic)"/>
+        <param name="mask_data_topic"   value="$(arg mask_data_topic)"/>
+        <param name="class_info_topic"  value="$(arg class_info_topic)"/>
+
+        <!-- Rviz -->
+        <param name="use_rviz"          value="false"/>
+        
+        <!-- Optional: Disable visualization if not needed -->
+        <param name="publish_visualizations" value="$(arg publish_visualizations)"/>
+    </node>
+
+    <!-- PART 2: Launch Segmentation Distance node -->
+    <node name="segmentation_distance_node" pkg="yolo_vision" type="segmentation_distance_node.py" output="screen" ns="$(arg robot_name)">
+        <!-- Image sources -->
+        <param name="depth_image_topic" value="$(arg depth_topic)"/>
+        <param name="mask_data_topic" value="$(arg mask_data_topic)"/>
+        
+        <!-- Output topics -->
+        <param name="visualization_topic" value="$(arg depth_viz_topic)"/>
+        <param name="distance_topic" value="$(arg distance_topic)"/>
+    </node>
+
+    <!-- RViz (conditionally launched) -->
+    <group if="$(arg use_rviz)">
+        <node name="rviz" pkg="rviz" type="rviz" 
+            args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+            ns="$(arg robot_name)">
+            <remap from="/clicked_point" to="clicked_point"/>
+            <remap from="/initialpose" to="initialpose"/>
+            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+        </node>
+    </group>
+</launch>

@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<!-- 
+Launch file for YOLO segmentation node
+Usage: roslaunch yolo_vision yolo_segmentation.launch
+Dependencies: interbotix_xslocobot_control stack
+Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch robot_model:=locobot_wx250s use_camera:=true use_base:=true
+-->
+
+<launch>
+    <!-- Global Arguments -->
+    <arg name="robot_name" default="locobot"/>
+    <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_segmentation.rviz"/>
+
+
+    <!-- Camera Topics -->
+    <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
+
+    <!-- YOLO Segmentation Topics and Parameters -->
+    <arg name="model_path" default="$(find yolo_vision)/models/box_and_grasshopper_segmentation.pt"/>
+
+    <!-- Visualization Topics -->
+    <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
+    <arg name="masks_topic" default="camera/yolo/segmentation_masks"/>
+    <arg name="boxes_topic" default="camera/yolo/bounding_boxes"/>
+
+    <!-- Structured Data Topics -->
+    <arg name="bbox_data_topic" default="camera/yolo/detection_boxes"/>
+    <arg name="mask_data_topic" default="camera/yolo/detection_masks"/>
+    <arg name="class_info_topic" default="camera/yolo/class_information"/>
+
+    <!-- Visualization Options -->
+    <arg name="publish_visualizations" default="true" doc="Set to false to disable visualization topics (annotated, masks, boxes)"/>
+
+    <!-- Launch YOLO Segmentation node -->
+    <node name="yolo_segmentation_node" pkg="yolo_vision" type="yolo_segmentation_node.py" output="screen" ns="$(arg robot_name)">
+        <!-- Main parameters -->
+        <param name="model_path" value="$(arg model_path)"/>
+        <param name="image_topic" value="$(arg rgb_topic)"/>
+        
+        <!-- Visualization topics (optional) -->
+        <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+        <param name="masks_topic" value="$(arg masks_topic)"/>
+        <param name="boxes_topic" value="$(arg boxes_topic)"/>
+        
+        <!-- Structured data topics -->
+        <param name="bbox_data_topic" value="$(arg bbox_data_topic)"/>
+        <param name="mask_data_topic" value="$(arg mask_data_topic)"/>
+        <param name="class_info_topic" value="$(arg class_info_topic)"/>
+        
+        <!-- Optional: Disable visualization if not needed -->
+        <param name="publish_visualizations" value="$(arg publish_visualizations)"/>
+    </node>
+
+    <!-- RViz (conditionally launched) -->
+    <group if="$(arg use_rviz)">
+        <node name="rviz" pkg="rviz" type="rviz" 
+            args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+            ns="$(arg robot_name)">
+            <remap from="/clicked_point" to="clicked_point"/>
+            <remap from="/initialpose" to="initialpose"/>
+            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+        </node>
+    </group>
+</launch>
