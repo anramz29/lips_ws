@@ -18,7 +18,7 @@ robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
   <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
 
   <!-- YOLO Topics and Parameters -->
-  <arg name="model_path" default="$(find yolo_vision)/models/best.pt"/>
+  <arg name="model_path" default="$(find yolo_vision)/models/simple_bbox_detection.pt"/>
   <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
   
     <!-- Launch YOLO node -->

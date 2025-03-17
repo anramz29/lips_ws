@@ -21,7 +21,7 @@
   <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
 
   <!-- YOLO Topics -->
-  <arg name="model_path" default="$(find yolo_vision)/models/best.pt"/>
+  <arg name="model_path" default="$(find yolo_vision)/models/simple_bbox_detection.pt"/>
   <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
   <arg name="bbox_depth_topic" default="camera/yolo/bbox_depth"/>
   <arg name="visualization_topic" default="camera/yolo/distance_image"/>

@@ -93,6 +93,24 @@ class YoloKeypointDetectionNode:
         if not self.should_process_image():
             return
             
+        # Ensure model is loaded
+        if self.model is None:
+            if self.load_model_when_needed:
+                rospy.loginfo("Lazy-loading YOLO keypoint model...")
+                try:
+                    self.model = YOLO(self.model_path)
+                    rospy.loginfo("Model loaded successfully")
+                    self.load_model_when_needed = False
+                except Exception as e:
+                    rospy.logerr(f"Failed to load model: {e}")
+                    self.enabled = False
+                    return
+            else:
+                # Model should be loaded, but isn't
+                rospy.logerr("Model not available, but should be loaded")
+                self.enabled = False
+                return
+            
         try:
             # Convert ROS image to OpenCV
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
