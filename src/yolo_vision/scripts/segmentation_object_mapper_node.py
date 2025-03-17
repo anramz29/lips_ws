@@ -25,7 +25,6 @@ class SegmentationMapperNode:
         self.map_frame = rospy.get_param('~map_frame')
         self.distance_topic = rospy.get_param('~distance_topic')
         self.camera_info_topic = rospy.get_param('~camera_info_topic')
-        self.object_marker_topic = rospy.get_param('~object_marker_topic')
         self.marker_array_topic = rospy.get_param('~marker_array_topic')
         self.debug_mode = rospy.get_param('~debug_mode', False)
         

@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<!-- 
+Launch file for YOLO keypoint detection node
+Usage: roslaunch yolo_vision yolo_keypoint_detection.launch
+Dependencies: interbotix_xslocobot_control stack
+Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch robot_model:=locobot_wx250s use_camera:=true use_base:=true
+-->
+<launch>
+    <!-- Global Arguments -->
+    <arg name="robot_name" default="locobot"/>
+    <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_seg.rviz"/>
+    <arg name="use_rviz" default="true"/>
+    <arg name="debug_mode" default="false"/>
+
+    <!-- Camera Topics -->
+    <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
+    
+    <!-- YOLO Keypoint Detection Parameters -->
+    <arg name="model_path" default="$(find yolo_vision)/models/grasshopper_and_boxes_keypoint.pt"/>
+    <arg name="confidence_threshold" default="0.5"/>
+    <arg name="input_size" default="640"/>
+    
+    <!-- Output Topics -->
+    <arg name="keypoints_topic" default="camera/yolo/keypoints"/>
+    <arg name="keypoints_viz_topic" default="camera/yolo/keypoints_visualization"/>
+    
+    <!-- Camera Frame -->
+    <arg name="camera_frame" default="$(arg robot_name)/camera_color_optical_frame"/>
+    
+    <!-- Launch Keypoint Detection node -->
+    <node name="keypoint_detection_node" pkg="yolo_vision" type="yolo_keypoint_detection_node.py" output="screen" ns="$(arg robot_name)">
+        <!-- Main parameters -->
+        <param name="model" value="$(arg model_path)"/>
+        <param name="image_topic" value="$(arg rgb_topic)"/>
+        <param name="confidence_threshold" value="$(arg confidence_threshold)"/>
+        <param name="input_size" value="$(arg input_size)"/>
+        <param name="debug_mode" value="$(arg debug_mode)"/>
+        
+        <!-- Output topics -->
+        <param name="keypoints_topic" value="$(arg keypoints_topic)"/>
+        <param name="keypoints_viz_topic" value="$(arg keypoints_viz_topic)"/>
+        
+        <!-- Camera frame -->
+        <param name="camera_frame" value="$(arg camera_frame)"/>
+    </node>
+    
+    <!-- RViz (conditionally launched) -->
+    <group if="$(arg use_rviz)">
+        <node name="rviz" pkg="rviz" type="rviz" 
+            args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+            ns="$(arg robot_name)">
+            <remap from="/clicked_point" to="clicked_point"/>
+            <remap from="/initialpose" to="initialpose"/>
+            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+        </node>
+    </group>
+</launch>
