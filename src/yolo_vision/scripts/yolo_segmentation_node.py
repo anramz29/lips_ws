@@ -64,14 +64,10 @@ class Yolo_Segmentation_Node():
         if self.publish_visualizations:
 
             # Mask image publisher
-            self.masks_pub = rospy.Publisher(
-                self.masks_topic, Image, queue_size=1
-            )
+            self.masks_pub = rospy.Publisher(self.masks_topic, Image, queue_size=1)
             
             # Bounding box image publisher
-            self.boxes_pub = rospy.Publisher(
-                self.boxes_topic, Image, queue_size=1
-            )
+            self.boxes_pub = rospy.Publisher(self.boxes_topic, Image, queue_size=1)
             
             rospy.loginfo("Visualization publishers enabled")
         else:
@@ -79,19 +75,13 @@ class Yolo_Segmentation_Node():
         
         # Publishers for structured data (always created)
         # Bounding box data publisher - publishes array of bounding boxes
-        self.bbox_data_pub = rospy.Publisher(
-            self.bbox_data_topic, Detection2DArray, queue_size=1
-        )
+        self.bbox_data_pub = rospy.Publisher(self.bbox_data_topic, Detection2DArray, queue_size=1)
         
         # Mask data publisher - publishes binary masks
-        self.mask_data_pub = rospy.Publisher(
-            self.mask_data_topic, Float32MultiArray, queue_size=1
-        )
+        self.mask_data_pub = rospy.Publisher(self.mask_data_topic, Float32MultiArray, queue_size=1)
         
         # Class information publisher - provides mapping between class IDs and names
-        self.class_info_pub = rospy.Publisher(
-            self.class_info_topic, VisionInfo, queue_size=1, latch=True
-        )
+        self.class_info_pub = rospy.Publisher(self.class_info_topic, VisionInfo, queue_size=1, latch=True)
         
         # Publish class information once at startup
         self.publish_class_information()

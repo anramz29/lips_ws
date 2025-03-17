@@ -24,7 +24,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: segmentation_masks
+    SyncSource: seg_depth
   - Class: rviz/Views
     Expanded:
       - /Current View1
@@ -974,7 +974,7 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 960
-  X: 0
+  X: 960
   Y: 32
   bounding_boxes:
     collapsed: false

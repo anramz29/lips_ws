@@ -25,6 +25,9 @@ class SegmentationDistanceNode:
         self.depth_image_topic = rospy.get_param('~depth_image_topic')
         self.mask_data_topic = rospy.get_param('~mask_data_topic')
         self.mask_viz_topic = rospy.get_param('~masks_topic')
+
+        # Debug mode
+        self.debug = rospy.get_param('~debug_mode', False)
         
         # Message storage
         self.last_mask_msg = None
@@ -228,17 +231,37 @@ class SegmentationDistanceNode:
         
         return 0.0
 
-    def _publish_depth_results(self, average_depths):
+    def _publish_depth_results(self, average_depths, parsed_objects):
         """
         Publish depth results as a Float32MultiArray.
         
         Args:
             average_depths (list): List of dictionaries with object data
+            parsed_objects (list): List of parsed object dictionaries with contours
         """
         distance_array = Float32MultiArray()
         
-        for obj in average_depths:
-            distance_array.data.extend([float(obj['class_id']), obj['confidence'], obj['avg_depth']])
+        for i, (obj, depth_info) in enumerate(zip(parsed_objects, average_depths)):
+            # Calculate centroid of the contour
+            contour = np.array(obj['contour'], dtype=np.int32)
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                # Fallback if moments calculation fails
+                x, y, w, h = cv2.boundingRect(contour)
+                cx = x + w // 2
+                cy = y + h // 2
+            
+            # Add class_id, confidence, depth, center_x, center_y
+            distance_array.data.extend([
+                float(obj['class_id']), 
+                obj['confidence'], 
+                depth_info['avg_depth'],
+                float(cx),
+                float(cy)
+            ])
         
         self.distance_pub.publish(distance_array)
 
@@ -259,7 +282,8 @@ class SegmentationDistanceNode:
         
         # If no objects are detected, still publish the original visualization
         if not parsed_objects:
-            rospy.loginfo("No objects detected in the mask data. Publishing original visualization.")
+            if self.debug:
+                rospy.loginfo("No objects detected in the mask data. Publishing original visualization.")
             
             # Check if we have a visualization image to publish
             if self.last_mask_viz_msg is not None:
@@ -273,7 +297,7 @@ class SegmentationDistanceNode:
         average_depths = self._calculate_object_depths(parsed_objects, depth_image)
         
         # Prepare and publish results
-        self._publish_depth_results(average_depths)
+        self._publish_depth_results(average_depths, parsed_objects)
         
         # Create and publish visualization
         self._create_depth_visualization(parsed_objects, depth_image, average_depths)
