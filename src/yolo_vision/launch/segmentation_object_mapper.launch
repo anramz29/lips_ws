@@ -10,7 +10,7 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <!-- Global Arguments -->
     <arg name="robot_name" default="locobot"/>
     <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_segmentation.rviz"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_seg.rviz"/>
     <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization"/>
     
     <!-- Frame configuration -->
@@ -23,7 +23,7 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <arg name="camera_info_topic" default="/$(arg robot_name)/camera/color/camera_info"/>
 
     <!-- YOLO Segmentation Topics and Parameters -->
-    <arg name="model_path" default="$(find yolo_vision)/models/yolov8s-seg.pt"/>
+    <arg name="model_path" default="$(find yolo_vision)/models/box_and_grasshopper_segmentation.pt"/>
 
     <!-- Visualization Topics -->
     <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>

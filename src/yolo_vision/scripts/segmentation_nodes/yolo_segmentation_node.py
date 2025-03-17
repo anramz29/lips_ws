@@ -6,11 +6,12 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 # Import ROS message types for publishing structured data
-from vision_msgs.msg import Detection2DArray, Detection2D, BoundingBox2D, ObjectHypothesisWithPose
+from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
 from geometry_msgs.msg import Pose2D, PoseWithCovariance
-from std_msgs.msg import Header, Float32MultiArray, MultiArrayDimension, MultiArrayLayout, UInt8MultiArray, String
+from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import CompressedImage
 from vision_msgs.msg import VisionInfo
+from std_msgs.msg import MultiArrayDimension
 
 
 class Yolo_Segmentation_Node():
@@ -61,11 +62,7 @@ class Yolo_Segmentation_Node():
         
         # Publishers for visualization (optional)
         if self.publish_visualizations:
-            # Annotated image publisher
-            self.image_pub = rospy.Publisher(
-                self.annotation_topic, Image, queue_size=1
-            )
-            
+
             # Mask image publisher
             self.masks_pub = rospy.Publisher(
                 self.masks_topic, Image, queue_size=1
@@ -88,7 +85,7 @@ class Yolo_Segmentation_Node():
         
         # Mask data publisher - publishes binary masks
         self.mask_data_pub = rospy.Publisher(
-            self.mask_data_topic, UInt8MultiArray, queue_size=1
+            self.mask_data_topic, Float32MultiArray, queue_size=1
         )
         
         # Class information publisher - provides mapping between class IDs and names
@@ -178,20 +175,22 @@ class Yolo_Segmentation_Node():
     def annotate_detections(self, frame, results):
         """
         Annotate the detections on the image with masks, bounding boxes, and labels.
+        Now creates separate visualization outputs.
         
         Args:
             frame: OpenCV image (numpy array)
             results: Segmentation results from YOLO
         
         Returns:
-            numpy.ndarray: Annotated image
+            tuple: (annotated_frame, mask_only_frame, boxes_only_frame)
         """
         # Skip if visualizations disabled
         if not self.publish_visualizations:
-            return None
+            return None, None, None
             
-        # Create a copy of the frame to draw on
-        annotated_frame = frame.copy()
+        # Create copies of the frame for each visualization type
+        mask_only_frame = frame.copy()
+        boxes_only_frame = frame.copy()
         
         # Check if there are masks in the results
         if results.masks is not None:
@@ -217,118 +216,42 @@ class Yolo_Segmentation_Node():
                 # Convert mask to binary mask with proper dimensions
                 binary_mask = mask.astype(np.uint8)
                 
-                # Apply colored mask overlay
+                # ----- MASKS ONLY VISUALIZATION -----
+                # Apply colored mask overlay (just the masks with original image background)
                 colored_mask = np.zeros_like(frame, dtype=np.uint8)
                 colored_mask[binary_mask == 1] = color
                 
                 # Blend the mask with the original image (semi-transparent)
                 alpha = 0.5  # Transparency factor
                 mask_area = (binary_mask == 1)
-                annotated_frame[mask_area] = cv2.addWeighted(
+                mask_only_frame[mask_area] = cv2.addWeighted(
                     frame[mask_area], 1 - alpha, colored_mask[mask_area], alpha, 0
                 )
-                
-                # Draw bounding box
-                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-                
-                # Draw label with confidence
+
+                 # Draw label with confidence
                 label = f"{class_name} {conf:.2f}"
                 text_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                cv2.rectangle(annotated_frame, (x1, y1 - text_size[1] - 5), (x1 + text_size[0], y1), color, -1)
-                cv2.putText(annotated_frame, label, (x1, y1 - 5), 
+          
+                cv2.putText(mask_only_frame, label, (x1, y1 - 5), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                 
                 # Optional: Draw mask contours for better visibility
                 contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                cv2.drawContours(annotated_frame, contours, -1, color, 2)
-        
-        return annotated_frame
-
-    def create_masks_image(self, frame, results):
-        """
-        Create an image showing only the segmentation masks.
-        
-        Args:
-            frame: Original frame (for size reference)
-            results: YOLO results
-            
-        Returns:
-            numpy.ndarray: Image with only masks
-        """
-        # Skip if visualizations disabled
-        if not self.publish_visualizations:
-            return None
-            
-        # Create a blank image (black background)
-        mask_image = np.zeros_like(frame)
-        
-        # Check if there are masks in the results
-        if results.masks is not None:
-            # Get segmentation masks
-            masks = results.masks.data.cpu().numpy()
-            boxes = results.boxes.data.cpu().numpy()
-            
-            # Process each detected object
-            for i, (mask, box) in enumerate(zip(masks, boxes)):
-                # Extract class
-                class_id = int(box[5])
+                cv2.drawContours(mask_only_frame, contours, -1, color, 2)
                 
-                # Get color for this class
-                color = self.get_color_for_class(class_id)
-                
-                # Convert mask to binary
-                binary_mask = mask.astype(np.uint8)
-                
-                # Apply color to mask areas
-                mask_area = (binary_mask == 1)
-                mask_image[mask_area] = color
-        
-        return mask_image
-
-    def create_boxes_image(self, frame, results):
-        """
-        Create an image showing only the bounding boxes.
-        
-        Args:
-            frame: Original frame
-            results: YOLO results
-            
-        Returns:
-            numpy.ndarray: Image with only bounding boxes
-        """
-        # Skip if visualizations disabled
-        if not self.publish_visualizations:
-            return None
-            
-        # Create a copy of the frame (transparent background)
-        boxes_image = frame.copy()
-        boxes_image = boxes_image * 0  # Black background
-        
-        # Get bounding boxes
-        if results.boxes is not None:
-            boxes = results.boxes.data.cpu().numpy()
-            
-            # Process each detected object
-            for i, box in enumerate(boxes):
-                # Extract box coordinates and class
-                x1, y1, x2, y2, conf, class_id = box
-                x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
-                class_id = int(class_id)
-                
-                # Get color for this class
-                color = self.get_color_for_class(class_id)
-                
+                # ----- BOXES ONLY VISUALIZATION -----
                 # Draw bounding box
-                cv2.rectangle(boxes_image, (x1, y1), (x2, y2), color, 2)
+                cv2.rectangle(boxes_only_frame, (x1, y1), (x2, y2), color, 2)
                 
                 # Draw label with confidence
-                label = f"{results.names[class_id]} {conf:.2f}"
+                label = f"{class_name} {conf:.2f}"
                 text_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                cv2.rectangle(boxes_image, (x1, y1 - text_size[1] - 5), (x1 + text_size[0], y1), color, -1)
-                cv2.putText(boxes_image, label, (x1, y1 - 5), 
+                cv2.rectangle(boxes_only_frame, (x1, y1 - text_size[1] - 5), (x1 + text_size[0], y1), color, -1)
+                cv2.putText(boxes_only_frame, label, (x1, y1 - 5), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-        
-        return boxes_image
+                
+        return  mask_only_frame, boxes_only_frame
+
 
     def create_bbox_array(self, results, header):
         """
@@ -383,88 +306,109 @@ class Yolo_Segmentation_Node():
                 detection_array.detections.append(detection)
         
         return detection_array
-
-    def create_mask_array(self, frame, results):
+   
+    def create_polygon_mask_array(self, frame, results):
         """
-        Create a UInt8MultiArray message containing mask information.
+        Create a message containing polygon representations of segmentation masks
+        with clear separation between objects.
+        
+        Data format:
+        [num_objects,
+        obj1_class_id, obj1_confidence, obj1_num_points, obj1_point1_x, obj1_point1_y, obj1_point2_x, obj1_point2_y, ..., 
+        -1, -1,  # Separator between objects
+        obj2_class_id, obj2_confidence, obj2_num_points, obj2_point1_x, obj2_point1_y, ...,
+        -1, -1,  # Separator between objects
+        ...
+        ]
         
         Args:
-            frame: Original frame (for size reference)
+            frame: OpenCV image
             results: YOLO results
             
         Returns:
-            UInt8MultiArray: ROS message with mask data and metadata
+            Float32MultiArray: ROS message with clearly separated polygon contour data
         """
-        # Create a multi-array message
-        mask_array = UInt8MultiArray()
+        
+        contour_array = Float32MultiArray()
+        contour_data = []
+        
+        # First element will be the number of objects
+        num_objects = 0
         
         # Check if there are masks in the results
-        if results.masks is not None and results.boxes is not None:
-            # Get image dimensions
-            height, width = frame.shape[:2]
-            
-            # Get masks and boxes
+        if results.masks is not None:
             masks = results.masks.data.cpu().numpy()
             boxes = results.boxes.data.cpu().numpy()
             
-            # Set up the layout for the multi-array
-            # First dimension: number of objects
-            # Second dimension: height of the image
-            # Third dimension: width of the image
-            mask_array.layout.dim.append(MultiArrayDimension(
-                label="objects",
-                size=len(masks),
-                stride=height * width
-            ))
-            mask_array.layout.dim.append(MultiArrayDimension(
-                label="height",
-                size=height,
-                stride=width
-            ))
-            mask_array.layout.dim.append(MultiArrayDimension(
-                label="width",
-                size=width,
-                stride=1
-            ))
+            # Count valid objects with contours
+            valid_objects = 0
+            all_contours = []
             
-            # Set up metadata as part of the layout
-            # Store class IDs and confidence scores in the data_offset field
-            # Format: class_id1,conf1,class_id2,conf2,...
-            metadata = []
-            for box in boxes:
-                class_id = int(box[5])
-                conf = float(box[4])
-                metadata.extend([class_id, conf])
+            # Process each mask to find contours
+            for i, (mask, box) in enumerate(zip(masks, boxes)):
+                # Get class ID and confidence
+                _, _, _, _, conf, class_id = box
+                class_id = int(class_id)
+                
+                # Convert mask to binary (0 or 1)
+                binary_mask = mask.astype(np.uint8)
+                
+                # Find contours in the mask
+                contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                # If we found contours, save them
+                if contours:
+                    # Simplify the largest contour to reduce data size
+                    largest_contour = max(contours, key=cv2.contourArea)
+                    
+                    # Approximate the contour to reduce points
+                    epsilon = 0.005 * cv2.arcLength(largest_contour, True)
+                    approx_contour = cv2.approxPolyDP(largest_contour, epsilon, True)
+                    
+                    # Only include if we have a reasonable contour
+                    if len(approx_contour) >= 3:
+                        all_contours.append((class_id, conf, approx_contour))
+                        valid_objects += 1
             
-            # Store metadata
-            mask_array.layout.data_offset = len(metadata)
+            # Update number of objects
+            num_objects = valid_objects
+            contour_data.append(float(num_objects))
             
-            # Combine all binary masks into a flattened array
-            all_masks = np.zeros((len(masks), height, width), dtype=np.uint8)
-            for i, mask in enumerate(masks):
-                # Resize mask to match frame dimensions if needed
-                if mask.shape[0] != height or mask.shape[1] != width:
-                    binary_mask = cv2.resize(mask.astype(np.uint8), (width, height))
-                else:
-                    binary_mask = mask.astype(np.uint8)
-                all_masks[i] = binary_mask * 255  # Scale to 0-255 range
-            
-            # Flatten the masks and add metadata
-            mask_array.data = np.concatenate([
-                np.array(metadata, dtype=np.uint8),
-                all_masks.flatten()
-            ])
+            # Add contour data for each object
+            for class_id, conf, contour in all_contours:
+                # Add class ID and confidence
+                contour_data.append(float(class_id))
+                contour_data.append(float(conf))
+                
+                # Add number of points in this contour
+                num_points = len(contour)
+                contour_data.append(float(num_points))
+                
+                # Add flattened contour points (x,y coordinates)
+                for point in contour:
+                    x, y = point[0]
+                    contour_data.append(float(x))
+                    contour_data.append(float(y))
+                    
+                # Add separator after each object 
+                contour_data.append(-1.0)
+                contour_data.append(-1.0)
         else:
-            # If no masks, create an empty array with proper layout
-            mask_array.layout.dim.append(MultiArrayDimension(
-                label="objects",
-                size=0,
-                stride=0
-            ))
-            mask_array.layout.data_offset = 0
-            mask_array.data = np.array([], dtype=np.uint8)
+            # No masks found, add 0 as number of objects
+            contour_data.append(0.0)
         
-        return mask_array
+        # Set up the layout
+        contour_array.layout.dim.append(MultiArrayDimension(
+            label="objects_and_contours",
+            size=len(contour_data),
+            stride=1
+        ))
+        
+        # Assign data
+        contour_array.data = contour_data
+        
+        return contour_array
+
 
     def get_color_for_class(self, class_id):
         """
@@ -515,23 +459,17 @@ class Yolo_Segmentation_Node():
             # Run YOLO inference
             results = self.run_yolo_inference(cv_image)
             
-            # Create and publish structured data (always required)
-            # Create and publish bounding box data in structured format
+            # Create and publish structured data
             bbox_array = self.create_bbox_array(results, ros_image.header)
             self.bbox_data_pub.publish(bbox_array)
             
-            # Create and publish mask data in structured format
-            mask_array = self.create_mask_array(cv_image, results)
+            mask_array = self.create_polygon_mask_array(cv_image, results)
             self.mask_data_pub.publish(mask_array)
             
             # Create and publish visualization topics (optional)
             if self.publish_visualizations:
-                # Annotate the image with detection results
-                annotated_image = self.annotate_detections(cv_image, results)
-                
-                # Create separate mask and bounding box visualizations
-                mask_image = self.create_masks_image(cv_image, results)
-                boxes_image = self.create_boxes_image(cv_image, results)
+                # Get all three visualization types
+                mask_image, boxes_image = self.annotate_detections(cv_image, results)
                 
                 # Publish mask image for visualization
                 mask_msg = self.bridge.cv2_to_imgmsg(mask_image, encoding='bgr8')
@@ -542,11 +480,6 @@ class Yolo_Segmentation_Node():
                 boxes_msg = self.bridge.cv2_to_imgmsg(boxes_image, encoding='bgr8')
                 boxes_msg.header = ros_image.header
                 self.boxes_pub.publish(boxes_msg)
-                
-                # Convert back to ROS Image and publish annotated image
-                annotated_msg = self.bridge.cv2_to_imgmsg(annotated_image, encoding='bgr8')
-                annotated_msg.header = ros_image.header  # Preserve header for synchronization
-                self.image_pub.publish(annotated_msg)
                 
         except Exception as e:
             rospy.logerr(f"Error processing image: {e}")

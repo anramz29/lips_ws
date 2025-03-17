@@ -4,12 +4,12 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from std_msgs.msg import Float32MultiArray, UInt8MultiArray
+from std_msgs.msg import Float32MultiArray  
 
 class SegmentationDistanceNode:
     """
     Node for calculating the depth of objects detected by YOLO segmentation.
-    Subscribes to segmentation masks and depth images, and calculates 
+    Subscribes to polygon-based segmentation masks and depth images, and calculates 
     average depth within each segmented region.
     """
     def __init__(self):
@@ -17,295 +17,319 @@ class SegmentationDistanceNode:
         self.bridge = CvBridge()
         
         # Load parameters from parameter server
+        # Published topics
+        self.mask_viz_depth_topic = rospy.get_param('~depth_visualization_topic')
+        self.distance_topic = rospy.get_param('~distance_topic', 'segmentation_distances')
+        
+        # Subscribed topics
         self.depth_image_topic = rospy.get_param('~depth_image_topic')
         self.mask_data_topic = rospy.get_param('~mask_data_topic')
-        self.visualization_topic = rospy.get_param('~visualization_topic')
-        self.distance_topic = rospy.get_param('~distance_topic', 'segmentation_distances')
+        self.mask_viz_topic = rospy.get_param('~masks_topic')
         
         # Message storage
         self.last_mask_msg = None
         self.last_depth_msg = None
+        self.last_mask_viz_msg = None
         
         # Metadata storage
         self.detection_metadata = []  # Store class_ids, scores, etc.
         
+        # Image dimensions - will be set when we receive the depth image
+        self.image_height = None
+        self.image_width = None
+        
         rospy.loginfo(f"Segmentation Distance Node initialized. Using mask topic: {self.mask_data_topic}")
 
         # Setup ROS communication
-        self._setup_ros_communcation()
+        self._setup_ros_communication()
         rospy.loginfo("ROS communication setup complete.")
 
     # ---------- ROS Communication Setup ----------
 
-    def _setup_ros_communcation(self):
-        # Publishers
-        self.viz_pub = rospy.Publisher(self.visualization_topic, Image, queue_size=10)
-        self.distance_pub = rospy.Publisher(self.distance_topic, Float32MultiArray, queue_size=10)
-        
+    def _setup_ros_communication(self):
+
         # Subscribers
         self.depth_sub = rospy.Subscriber(self.depth_image_topic, Image, self.depth_callback)
-        self.mask_sub = rospy.Subscriber(self.mask_data_topic, UInt8MultiArray, self.mask_callback)
+        self.mask_sub = rospy.Subscriber(self.mask_data_topic, Float32MultiArray, self.mask_callback)
+        self.mask_viz_sub = rospy.Subscriber(self.mask_viz_topic, Image, self.mask_viz_callback)
+
+        # Publishers
+        self.mask_viz_depth_pub = rospy.Publisher(self.mask_viz_depth_topic, Image, queue_size=10)
+        self.distance_pub = rospy.Publisher(self.distance_topic, Float32MultiArray, queue_size=10)
         
+        
+        rospy.loginfo(f"Subscribed to depth topic: {self.depth_image_topic}")
+        rospy.loginfo(f"Subscribed to mask topic: {self.mask_data_topic}")
 
-    # ---------- Callback Functions ----------
-
-    def mask_callback(self, msg):
-        """Callback for segmentation mask data."""
-        try:
-            self.last_mask_msg = msg
-            self.extract_metadata_from_mask(msg)
-            self.process_images()
-        except Exception as e:
-            rospy.logerr(f"Error in mask callback: {str(e)}")
+   
+    # ---------- Callbacks ----------
 
     def depth_callback(self, msg):
-        """Callback for depth images."""
-        try:
-            self.last_depth_msg = msg
-            self.process_images()
-        except Exception as e:
-            rospy.logerr(f"Error in depth callback: {str(e)}")
+        self.last_depth_msg = msg
+        self.image_height = msg.height
+        self.image_width = msg.width
 
-    def extract_metadata_from_mask(self, msg):
-        """Extract class IDs and confidence scores from mask message."""
-        # The mask message structure follows our defined format:
-        # - layout.data_offset contains the size of metadata
-        # - metadata format is [class_id1, conf1, class_id2, conf2, ...]
-        try:
-            metadata_size = msg.layout.data_offset
-            if metadata_size > 0:
-                # Extract metadata (first part of the data array)
-                metadata_array = np.array(msg.data[:metadata_size], dtype=np.uint8)
-                
-                # Reshape into pairs
-                self.detection_metadata = []
-                for i in range(0, len(metadata_array), 2):
-                    if i+1 < len(metadata_array):
-                        class_id = int(metadata_array[i])
-                        confidence = float(metadata_array[i+1]) / 255.0  # Normalize if needed
-                        self.detection_metadata.append((class_id, confidence))
-        except Exception as e:
-            rospy.logerr(f"Error extracting metadata from mask: {str(e)}")
-            self.detection_metadata = []
+    def mask_viz_callback(self, msg):
+        # obtain the image of the mask
+        self.last_mask_viz_msg = msg
 
-    # ---------- Main Processing Function ----------
-
-    def process_images(self):
-        """Process the latest mask and depth images to extract depth for segmented objects."""
-        # Skip if we don't have both messages
-        if self.last_mask_msg is None or self.last_depth_msg is None:
-            return
-
-        try:
-            # Convert depth image to OpenCV format
-            depth = self.convert_depth_image_to_cv2()
-            
-            # Create a visualization image from the depth image
-            viz_img = self.create_visualization_image(depth)
-            
-            # Process mask depth
-            self.process_mask_depth(depth, viz_img)
-            
-            # Publish visualization
-            self.publish_visualization(viz_img)
-            
-        except Exception as e:
-            rospy.logerr(f"Error in process_images: {str(e)}")
-
-    # ---------- Image Conversion Functions ----------
-
-    def convert_depth_image_to_cv2(self):
-        """Convert ROS depth image to meters in OpenCV format."""
-        if self.last_depth_msg.encoding == '32FC1':
-            depth = self.bridge.imgmsg_to_cv2(self.last_depth_msg, '32FC1')
-            # Convert from mm to m if needed
-            if np.max(depth) > 100:
-                depth = depth / 1000.0
-        else:
-            depth = self.bridge.imgmsg_to_cv2(self.last_depth_msg, '16UC1')
-            depth = depth.astype(float) / 1000.0
-        
-        return depth
-
-    def create_visualization_image(self, depth):
-        """Create a color visualization image from depth data."""
-        # Normalize depth for visualization (0-255)
-        norm_depth = depth.copy()
-        norm_depth[norm_depth == 0] = np.nan  # Set zeros to NaN
-        valid_mask = ~np.isnan(norm_depth)
-        
-        if np.any(valid_mask):
-            min_val = np.nanmin(norm_depth)
-            max_val = np.nanmax(norm_depth)
-            
-            # Scale to 0-255 range
-            norm_depth = 255 * (norm_depth - min_val) / (max_val - min_val)
-            norm_depth = np.nan_to_num(norm_depth, nan=0)
-            norm_depth = norm_depth.astype(np.uint8)
-        else:
-            # If no valid depths, just use zeros
-            norm_depth = np.zeros_like(depth, dtype=np.uint8)
-        
-        # Convert to color image (depth visualization)
-        depth_color = cv2.applyColorMap(norm_depth, cv2.COLORMAP_JET)
-        
-        return depth_color
-
-    # ---------- Processing Functions ----------
-
-    def process_mask_depth(self, depth, viz_img):
+    def mask_callback(self, msg):
         """
-        Calculate and annotate the average depth for each segmentation mask.
+        Process incoming mask data and trigger processing with depth data if available
+        """
+
+        self.last_mask_msg = msg
+        # Process masks and depth data
+        self.process_masks()
+
+    def parse_mask_array(self, mask_array):
+        """
+        Parse incoming mask data and convert to a simple dictionary format.
         
         Args:
-            depth: OpenCV depth image in meters
-            viz_img: Visualization image to annotate
-        """
-        msg = self.last_mask_msg
-        if msg.layout.dim and len(msg.layout.dim) >= 3:
-            try:
-                # Get dimensions from message
-                n_objects = msg.layout.dim[0].size
-                height = msg.layout.dim[1].size
-                width = msg.layout.dim[2].size
-                
-                # Skip if no objects
-                if n_objects == 0:
-                    return
-                
-                # Get the start of the mask data (after metadata)
-                metadata_size = msg.layout.data_offset
-                mask_data = np.array(msg.data[metadata_size:], dtype=np.uint8)
-                
-                # Check if we have enough data
-                expected_size = n_objects * height * width
-                if len(mask_data) < expected_size:
-                    rospy.logwarn(f"Mask data size mismatch: got {len(mask_data)}, expected {expected_size}")
-                    return
-                
-                # Reshape masks: [objects, height, width]
-                masks = np.reshape(mask_data, (n_objects, height, width))
-                
-                # Process each mask
-                distances = []
-                
-                for i in range(n_objects):
-                    # Convert mask to binary (255 -> 1)
-                    binary_mask = (masks[i] > 0).astype(np.uint8)
-                    
-                    # Skip empty masks
-                    if np.sum(binary_mask) == 0:
-                        continue
-                    
-                    # Find contours for visualization
-                    contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    
-                    # Calculate center of mass for the mask
-                    M = cv2.moments(binary_mask)
-                    if M["m00"] > 0:
-                        cx = int(M["m10"] / M["m00"])
-                        cy = int(M["m01"] / M["m00"])
-                    else:
-                        # Fallback to geometric center if no moments
-                        y, x = np.where(binary_mask > 0)
-                        if len(x) > 0 and len(y) > 0:
-                            cx, cy = int(np.mean(x)), int(np.mean(y))
-                        else:
-                            continue
-                    
-                    # Get class information if available
-                    class_id, confidence = self.detection_metadata[i] if i < len(self.detection_metadata) else (-1, 0)
-                    
-                    # Extract depth values within mask
-                    masked_depth = depth.copy()
-                    masked_depth[binary_mask == 0] = 0  # Zero out areas outside mask
-                    
-                    # Calculate average of non-zero depth values
-                    valid_depths = masked_depth[masked_depth > 0]
-                    if len(valid_depths) > 0:
-                        avg_depth = np.mean(valid_depths)
-                        median_depth = np.median(valid_depths)
-                        
-                        # Calculate min, max depths and percentage of valid pixels
-                        min_depth = np.min(valid_depths)
-                        max_depth = np.max(valid_depths)
-                        valid_percentage = len(valid_depths) / np.sum(binary_mask) * 100
-                        
-                        # For small objects, median may be more reliable than mean
-                        if np.sum(binary_mask) < 100:  # If object is small (fewer than 100 pixels)
-                            primary_depth = median_depth
-                        else:
-                            primary_depth = avg_depth
-                        
-                        # Store distance information 
-                        # [object_id, class_id, confidence, primary_depth, avg_depth, median_depth, min_depth, max_depth, valid_percentage]
-                        distances.append([
-                            i, class_id, confidence, 
-                            primary_depth, avg_depth, median_depth, 
-                            min_depth, max_depth, valid_percentage
-                        ])
-                        
-                        # Draw mask contour on visualization image
-                        cv2.drawContours(viz_img, contours, -1, (0, 255, 0), 2)
-                        
-                        # Add distance text near object center
-                        self.annotate_distance(viz_img, cx, cy, primary_depth, class_id)
-                
-                # Publish distance information
-                if distances:
-                    self.publish_distance_data(distances)
+            mask_array: Float32MultiArray message with mask data
             
-            except Exception as e:
-                rospy.logerr(f"Error processing mask depth: {str(e)}")
-
-    # ---------- Annotation and Publishing ----------
-
-    def annotate_distance(self, img, x, y, depth, class_id):
-        """Add depth text to the image at the specified position."""
-        # Format text with class and depth
-        if class_id >= 0:
-            text = f"ID:{class_id} {depth:.2f}m"
-        else:
-            text = f"{depth:.2f}m"
+        Returns:
+            list: List of dictionaries containing parsed mask data
+                Each dictionary has:
+                - class_id: The object class ID (int)
+                - confidence: Detection confidence (float)
+                - contour: List of (x,y) tuples representing the contour points
+        """
+        # Get the data array
+        data = mask_array.data
+        
+        # First element is the number of objects
+        num_objects = int(data[0])
+        
+        # Prepare the result list
+        parsed_objects = []
+        
+        # Return empty list if no objects
+        if num_objects <= 0:
+            return parsed_objects
+        
+        # Parse each object's data
+        index = 1  # Start after the num_objects element
+        
+        for _ in range(num_objects):
+            # Extract object metadata
+            class_id = int(data[index])
+            confidence = float(data[index + 1])
+            num_points = int(data[index + 2])
             
-        # Get text size
-        text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+            index += 3  # Move to first point
+            
+            # Extract points
+            points = []
+            for i in range(num_points):
+                if index + i*2 + 1 < len(data):  # Ensure we don't go out of bounds
+                    x = int(data[index + i*2])
+                    y = int(data[index + i*2 + 1])
+                    points.append((x, y))
+            
+            index += num_points * 2  # Move to separator or next object
+            
+            # Skip the separator (-1, -1) if present
+            if index + 1 < len(data) and data[index] == -1.0 and data[index + 1] == -1.0:
+                index += 2
+            
+            # Add to results
+            parsed_objects.append({
+                'class_id': class_id,
+                'confidence': confidence,
+                'contour': points
+            })
         
-        # Calculate text position
-        text_x = max(0, x - text_size[0]//2)
-        text_y = max(30, y)  # Ensure text is visible
-        
-        # Draw background rectangle
-        cv2.rectangle(img, 
-                     (text_x-5, text_y-text_size[1]-5), 
-                     (text_x+text_size[0]+5, text_y+5), 
-                     (0, 0, 0), -1)
-        
-        # Draw text
-        cv2.putText(img, text, (text_x, text_y), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        return parsed_objects
 
-    def publish_distance_data(self, distances):
+
+    def _check_data_available(self):
         """
-        Publish distance information for all detected objects.
+        Check if necessary data is available for processing.
         
-        Format: [object_id, class_id, confidence, primary_depth, avg_depth, median_depth, min_depth, max_depth, valid_percentage, ...]
+        Returns:
+            bool: True if both mask and depth data are available
         """
-        msg = Float32MultiArray()
-        # Flatten the distances list
-        msg.data = [float(val) for sublist in distances for val in sublist]
-        self.distance_pub.publish(msg)
+        if self.last_mask_msg is None or self.last_depth_msg is None:
+            rospy.logwarn("Missing mask or depth data. Skipping processing.")
+            return False
+        return True
 
-    def publish_visualization(self, img):
-        """Publish the annotated image for visualization."""
-        viz_msg = self.bridge.cv2_to_imgmsg(img, 'bgr8')
-        viz_msg.header = self.last_depth_msg.header
-        self.viz_pub.publish(viz_msg)
+    def _calculate_object_depths(self, parsed_objects, depth_image):
+        """
+        Calculate average depth for each object using its contour mask.
+        
+        Args:
+            parsed_objects (list): List of parsed object dictionaries
+            depth_image (np.ndarray): Depth image as numpy array
+            
+        Returns:
+            list: List of dictionaries with object data including average depth
+        """
+        average_depths = []
+        
+        for obj in parsed_objects:
+            # Create mask from contour
+            mask = self._create_mask_from_contour(obj['contour'])
+            
+            # Calculate average depth within mask
+            avg_depth = self._calculate_average_depth(depth_image, mask)
+            
+            # Add to results
+            average_depths.append({
+                'class_id': obj['class_id'],
+                'confidence': obj['confidence'],
+                'avg_depth': avg_depth
+            })
+        
+        return average_depths
 
+    def _create_mask_from_contour(self, contour):
+        """
+        Create a binary mask from contour points.
+        
+        Args:
+            contour (list): List of (x,y) tuples representing contour points
+            
+        Returns:
+            np.ndarray: Binary mask
+        """
+        mask = np.zeros((self.image_height, self.image_width), dtype=np.uint8)
+        contour_array = np.array(contour, dtype=np.int32)
+        cv2.fillPoly(mask, [contour_array], 255)
+        return mask
 
-if __name__ == '__main__':
+    def _calculate_average_depth(self, depth_image, mask):
+        """
+        Calculate average depth within masked region.
+        Convert from millimeters to meters.
+        
+        Args:
+            depth_image (np.ndarray): Depth image
+            mask (np.ndarray): Binary mask
+            
+        Returns:
+            float: Average depth value in meters
+        """
+        # Apply mask to depth image
+        masked_depth = cv2.bitwise_and(depth_image, depth_image, mask=mask)
+        
+        # Get non-zero pixels (where mask is applied)
+        non_zero_pixels = masked_depth[mask > 0]
+        
+        # Calculate average depth if we have valid depth values
+        if len(non_zero_pixels) > 0:
+            # Filter out zeros and possibly invalid depth values
+            valid_depths = non_zero_pixels[non_zero_pixels > 0]
+            if len(valid_depths) > 0:
+                # Convert from mm to meters (depth data is typically in mm)
+                return np.mean(valid_depths) / 1000.0
+        
+        return 0.0
+
+    def _publish_depth_results(self, average_depths):
+        """
+        Publish depth results as a Float32MultiArray.
+        
+        Args:
+            average_depths (list): List of dictionaries with object data
+        """
+        distance_array = Float32MultiArray()
+        
+        for obj in average_depths:
+            distance_array.data.extend([float(obj['class_id']), obj['confidence'], obj['avg_depth']])
+        
+        self.distance_pub.publish(distance_array)
+
+    def process_masks(self):
+        """
+        Process the last received mask data and depth data.
+        """
+        # Check if we have both mask and depth data
+        if not self._check_data_available():
+            return []
+
+        # Parse the mask data
+        parsed_objects = self.parse_mask_array(self.last_mask_msg)
+        
+        # Convert depth image to numpy array
+        depth_image = self.bridge.imgmsg_to_cv2(self.last_depth_msg, '16UC1')
+        depth_image = depth_image.astype(float)
+        
+        # If no objects are detected, still publish the original visualization
+        if not parsed_objects:
+            rospy.loginfo("No objects detected in the mask data. Publishing original visualization.")
+            
+            # Check if we have a visualization image to publish
+            if self.last_mask_viz_msg is not None:
+                # Just republish the original mask visualization
+                viz_image = self.bridge.imgmsg_to_cv2(self.last_mask_viz_msg, desired_encoding="bgr8")
+                self.mask_viz_depth_pub.publish(self.last_mask_viz_msg)
+            
+            return []
+        
+        # Process depth for each object
+        average_depths = self._calculate_object_depths(parsed_objects, depth_image)
+        
+        # Prepare and publish results
+        self._publish_depth_results(average_depths)
+        
+        # Create and publish visualization
+        self._create_depth_visualization(parsed_objects, depth_image, average_depths)
+        
+        return average_depths
+
+    def _create_depth_visualization(self, parsed_objects, depth_image, average_depths):
+        """
+        Create and publish visualization of depth values overlaid on masks.
+        """
+        
+        if self.last_mask_viz_msg is None:
+            rospy.logwarn("Missing mask visualization. Cannot create depth visualization.")
+            return
+        
+        # Convert mask visualization to OpenCV format
+        viz_image = self.bridge.imgmsg_to_cv2(self.last_mask_viz_msg, desired_encoding="bgr8")
+
+        # Create depth visualization
+        depth_viz = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+        
+        # Use this instead if you just want to annotate the original visualization
+        combined_viz = viz_image.copy()
+
+        # Add depth values to visualization
+        for i, (obj, depth_info) in enumerate(zip(parsed_objects, average_depths)):
+            contour = np.array(obj['contour'], dtype=np.int32)
+            
+            # Get bounding box of contour
+            x, y, w, h = cv2.boundingRect(contour)
+            
+            # Place depth text at the bottom of the bounding box
+            text = f"{depth_info['avg_depth']:.2f}m"
+            text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+            
+            # Position text at the bottom of the object
+            text_x = x + (w - text_size[0]) // 2
+            text_y = y + h + text_size[1] + 5
+            
+ 
+            
+            # Draw depth value on the combined visualization
+            cv2.putText(combined_viz, text, (text_x, text_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        
+
+        self.mask_viz_depth_pub.publish(self.bridge.cv2_to_imgmsg(combined_viz, encoding="bgr8"))
+
+   
+    
+def main():
     try:
-        node = SegmentationDistanceNode()
+        SegmentationDistanceNode()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
+
+if __name__ == '__main__':
+    main()

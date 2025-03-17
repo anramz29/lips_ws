@@ -10,7 +10,8 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <!-- Global Arguments -->
     <arg name="robot_name" default="locobot"/>
     <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_segmentation.rviz"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_seg.rviz"/>
+    <arg name="use_rviz" default="true"/>
 
 
     <!-- Camera Topics -->

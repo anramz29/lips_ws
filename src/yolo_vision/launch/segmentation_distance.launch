@@ -10,21 +10,20 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <!-- Global Arguments -->
     <arg name="robot_name" default="locobot"/>
     <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_segmentation.rviz"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_seg.rviz"/>
     <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization"/>
 
     <!-- Camera Topics -->
     <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
-    <arg name="depth_topic" default="/$(arg robot_name)/camera/aligned_depth_to_color/image_raw"/>
+    <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
 
     <!-- YOLO Segmentation Topics and Parameters -->
-    <arg name="model_path" default="$(find yolo_vision)/models/yolov8s-seg.pt"/>
+    <arg name="model_path" default="$(find yolo_vision)/models/box_and_grasshopper_segmentation.pt"/>
 
     <!-- Visualization Topics -->
-    <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
     <arg name="masks_topic" default="camera/yolo/segmentation_masks"/>
     <arg name="boxes_topic" default="camera/yolo/bounding_boxes"/>
-    <arg name="depth_viz_topic" default="camera/yolo/depth_visualization"/>
+    <arg name="depth_visualization_topic" default="camera/yolo/depth_visualization"/>
 
     <!-- Structured Data Topics -->
     <arg name="bbox_data_topic" default="camera/yolo/detection_boxes"/>
@@ -42,7 +41,6 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
         <param name="image_topic" value="$(arg rgb_topic)"/>
         
         <!-- Visualization topics (optional) -->
-        <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
         <param name="masks_topic" value="$(arg masks_topic)"/>
         <param name="boxes_topic" value="$(arg boxes_topic)"/>
         
@@ -63,9 +61,10 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
         <!-- Image sources -->
         <param name="depth_image_topic" value="$(arg depth_topic)"/>
         <param name="mask_data_topic" value="$(arg mask_data_topic)"/>
+        <param name="masks_topic" value="$(arg masks_topic)"/>
         
         <!-- Output topics -->
-        <param name="visualization_topic" value="$(arg depth_viz_topic)"/>
+        <param name="depth_visualization_topic" value="$(arg depth_visualization_topic)"/>
         <param name="distance_topic" value="$(arg distance_topic)"/>
     </node>
 
