@@ -12,6 +12,7 @@ from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import CompressedImage
 from vision_msgs.msg import VisionInfo
 from std_msgs.msg import MultiArrayDimension
+from vision_msgs.msg import VisionInfo
 
 
 class Yolo_Segmentation_Node():
@@ -56,6 +57,11 @@ class Yolo_Segmentation_Node():
     def _setup_ros_communication(self):
         """Set up ROS publishers and subscribers"""
         # RGB image subscriber
+        self.image_sub = rospy.Subscriber(
+            self.image_topic, Image, self.image_callback, queue_size=1, buff_size=2**24
+        )
+        
+        # Regular image subscriber
         self.image_sub = rospy.Subscriber(
             self.image_topic, Image, self.image_callback, queue_size=1, buff_size=2**24
         )
