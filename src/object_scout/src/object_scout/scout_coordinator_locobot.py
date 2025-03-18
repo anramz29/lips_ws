@@ -161,7 +161,7 @@ class ScoutCoordinatorLocobot:
                 self.found_objects.append(pose_name)
 
                 # pick up object 
-                if self.object_picker.run():
+                if self.object_picker.pick_object():
                     rospy.loginfo("Object picked up")
                 else:
                     rospy.logwarn("Object not picked up")

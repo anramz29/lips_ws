@@ -6,6 +6,7 @@ from ultralytics import YOLO
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension, Bool
+import math
 
 class YoloKeypointDetectionNode:
     def __init__(self):
@@ -152,16 +153,53 @@ class YoloKeypointDetectionNode:
             
             # Process each detection's keypoints
             for i, keypoints in enumerate(keypoints_data):
-                # For each keypoint in this detection that has confidence > threshold
+                valid_keypoints = []
+                
+                # First collect valid keypoints
                 for kp in keypoints:
                     x, y, conf = kp
                     if conf > self.confidence_threshold:
-                        # Add keypoint coordinates to data
+                        valid_keypoints.append((float(x), float(y)))
+                
+                # Only proceed if we have at least 2 keypoints
+                if len(valid_keypoints) >= 2:
+                    # Calculate angle between first two keypoints
+                    x1, y1 = valid_keypoints[0]
+                    x2, y2 = valid_keypoints[1]
+                    
+                    # Calculate vector direction
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    
+                    # Calculate angle with respect to horizontal
+                    angle = math.atan2(dy, dx)
+                    
+                    # Add angle to data
+                    data.append(float(angle))
+                    
+                    # Add keypoint coordinates
+                    for x, y in valid_keypoints:
                         data.append(float(x))
                         data.append(float(y))
-                        
-                        # Draw keypoint on visualization image
+                    
+                    # Draw keypoints on visualization image
+                    for x, y in valid_keypoints:
                         cv2.circle(viz_image, (int(x), int(y)), 5, (0, 255, 0), -1)
+                    
+                    # Draw line between first two keypoints to show orientation
+                    cv2.line(viz_image, 
+                             (int(valid_keypoints[0][0]), int(valid_keypoints[0][1])),
+                             (int(valid_keypoints[1][0]), int(valid_keypoints[1][1])),
+                             (0, 0, 255), 2)
+                    
+                    # Show angle in degrees on the image
+                    midpoint_x = int((valid_keypoints[0][0] + valid_keypoints[1][0]) / 2)
+                    midpoint_y = int((valid_keypoints[0][1] + valid_keypoints[1][1]) / 2)
+                    angle_text = f"{math.degrees(angle):.1f}°"
+                    cv2.putText(viz_image, angle_text, (midpoint_x + 10, midpoint_y - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+                    
+                    rospy.loginfo(f"Keypoints detected. Angle: {angle:.4f} rad ({math.degrees(angle):.2f} degrees)")
             
             # Set data in message
             msg.data = data

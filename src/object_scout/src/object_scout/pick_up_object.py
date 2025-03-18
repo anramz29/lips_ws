@@ -310,13 +310,13 @@ class PickUpObject:
         # - Yaw is irrelevant for a vertical grasp
         
         # Adjust roll based on the 2D orientation
-        roll = orientation  # This depends on your robot's coordinate system
+        roll = 0.0  # This depends on your robot's coordinate system
         pitch = math.pi/2   # Vertical approach
-        yaw = 0.0           # Not used for vertical grasps
+        yaw = orientation        # Not used for vertical grasps
         
         return (x, y, z, roll, pitch, yaw)
 
-    def pick_object(self, hover_height=0.1, approach_height=0.05):
+    def pick_object(self, hover_height=0.1, approach_height=0.05, go_to_sleep_after=True):
         """
         Complete pick-up sequence for objects using keypoint orientation
         
@@ -395,6 +395,11 @@ class PickUpObject:
         if not lift_success:
             rospy.logerr("Failed to lift object")
             return False
+        
+        # 12. Go to sleep pose if requested
+        if go_to_sleep_after:
+            rospy.loginfo("Moving to sleep pose...")
+            self.arm.go_to_sleep_pose()
             
         rospy.loginfo("Successfully picked up the object!")
         return True
