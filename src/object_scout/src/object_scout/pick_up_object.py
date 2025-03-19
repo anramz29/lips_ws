@@ -300,6 +300,8 @@ class PickUpObject:
         orientation = self.calculate_orientation_from_keypoints(keypoints)
         if orientation is None:
             return None
+        
+        rospy.loginfo(f"Calculated orientation: {orientation} radians")
             
         # The cluster center gives us the x, y, z position
         x, y, z = cluster_center
@@ -316,7 +318,7 @@ class PickUpObject:
         
         return (x, y, z, roll, pitch, yaw)
 
-    def pick_object(self, hover_height=0.1, approach_height=0.05, go_to_sleep_after=True):
+    def pick_object(self, hover_height=0.1, approach_height=0.05):
         """
         Complete pick-up sequence for objects using keypoint orientation
         
@@ -397,19 +399,21 @@ class PickUpObject:
             return False
         
         # 12. Go to sleep pose if requested
-        if go_to_sleep_after:
-            rospy.loginfo("Moving to sleep pose...")
-            self.arm.go_to_sleep_pose()
+        self.arm.go_to_sleep_pose()
             
+        self.enable_keypoint_detection(True)
+
         rospy.loginfo("Successfully picked up the object!")
         return True
+    
 
     def shutdown_handler(self):
         """Handle shutdown cleanup"""
         rospy.loginfo("Shutting down PickUpObject")
-        # Open gripper on shutdown
+        # Open gripper and move arm to sleep pose
         try:
             self.gripper.open()
+            self.arm.go_to_sleep_pose()
         except:
             pass
 
