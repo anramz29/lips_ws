@@ -27,7 +27,7 @@ robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
     <!-- Launch YOLO node -->
   <node name="yolo_node" pkg="yolo_vision" type="yolo_node.py" output="screen" ns="$(arg robot_name)">
       <!-- input params -->
-      <param name="debug_mode" value="$(arg debug_mode)"/>
+      <!-- <param name="debug_mode" value="$(arg debug_mode)"/> -->
 
       <!-- Input Topics -->
       <param name="image_topic" value="$(arg rgb_topic)"/>
