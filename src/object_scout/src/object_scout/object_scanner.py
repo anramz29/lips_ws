@@ -131,12 +131,19 @@ class ObjectScanner:
         
         Args:
             msg (Float32MultiArray): Message containing depth data
-                Format: [x, y, w, h, depth]
+                Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
         """
-        if msg.data and len(msg.data) >= 5:
-            self.current_depth = msg.data[4]
-        else:
-            rospy.logwarn("Invalid depth data received")
+        data_length = len(msg.data)
+
+        # Check for minimum data length required by new format
+        if data_length >= 8:
+            n_boxes = int(msg.data[0])
+            if n_boxes < 1:
+                rospy.logdebug("No boxes detected in depth message")
+                return
+             # Extract depth from the new format - position 7
+            self.current_depth = float(msg.data[7])
+                
     
     # ---------- STATE MANAGEMENT METHODS ----------
     

@@ -124,16 +124,40 @@ class ObjectApproacher:
         
         Args:
             msg (Float32MultiArray): Message containing bounding box and depth data
-                Format: [x, y, w, h, depth]
+                Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
         """
-        if msg.data and len(msg.data) >= 5:
-            # Store bounding box coordinates [x, y, w, h]
-            self.bounding_box_coordinates = msg.data[:4]
 
-            # Store depth value
-            self.current_depth = msg.data[4]
+            
+        # Extract values from new format
+        n_boxes = int(msg.data[0])
+        if n_boxes < 1:
+            return
+            
+        cls_id = int(msg.data[1])
+        confidence = float(msg.data[2])
+        x1, y1 = float(msg.data[3]), float(msg.data[4])
+        x2, y2 = float(msg.data[5]), float(msg.data[6])
+        depth = float(msg.data[7])
+        
+        # Calculate width and height
+        width = x2 - x1
+        height = y2 - y1
+        
+        # Store bounding box coordinates [x, y, w, h]
+        self.bounding_box_coordinates = [x1, y1, width, height]
+        
+        # Store depth value
+        self.current_depth = depth
+        
+        # Print depth information periodically
+        if hasattr(self, '_last_depth_print') and \
+        rospy.Time.now() - self._last_depth_print < rospy.Duration(1.0):
+            # Skip printing too frequently
+            pass
         else:
-            rospy.logwarn("Invalid depth data received")
+            rospy.loginfo(f"Object depth: {self.current_depth:.2f}m, " + 
+                        f"confidence: {confidence:.2f}, class: {cls_id}")
+            self._last_depth_print = rospy.Time.now()
 
     # ---------- POSITION CALCULATION METHODS ----------
 

@@ -56,3 +56,11 @@ if __name__ == '__main__':
         main()
     except rospy.ROSInterruptException:
         rospy.loginfo("Scout coordinator node interrupted")
+    except Exception as e:
+        rospy.logerr(f"Scout coordinator node encountered an error: {e}")
+        # Try to safely stop the robot
+        try:
+            coordinator = ScoutCoordinatorLocobot(init_node=False)
+            coordinator.shutdown_handler()
+        except:
+            pass

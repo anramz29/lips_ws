@@ -60,6 +60,12 @@ class ScoutCoordinatorLocobot:
         # Track found objects
         self.found_objects = []
 
+        # Initialize the object picker
+        self.object_picker = PickUpObject(robot_name=self.robot_name, init_node=False)
+        
+        # Register shutdown handler
+        rospy.on_shutdown(self.shutdown_handler)
+
     def _initialize_tf_listener(self):
         """Initialize the TF listener for coordinate transformations"""
         self.tf_buffer = tf2_ros.Buffer()
@@ -247,6 +253,16 @@ class ScoutCoordinatorLocobot:
         # Mission complete
         rospy.loginfo(f"Mission complete. Found {len(self.found_objects)} objects: {self.found_objects}")
         return len(self.found_objects)
+
+    def shutdown_handler(self):
+        """Handle shutdown cleanup for the coordinator"""
+        rospy.loginfo("Scout coordinator shutting down...")
+        try:
+            # Make sure the object picker shuts down cleanly
+            if hasattr(self, 'object_picker'):
+                self.object_picker.shutdown_handler()
+        except Exception as e:
+            rospy.logerr(f"Error during coordinator shutdown: {e}")
 
 # ---------- DIRECT EXECUTION BLOCK ----------
 
