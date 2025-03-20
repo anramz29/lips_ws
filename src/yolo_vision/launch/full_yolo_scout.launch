@@ -18,10 +18,17 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
   <!-- Camera Topics -->
   <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
   <arg name="depth_image_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
+  <arg name="camera_frame" default="$(arg robot_name)/camera_color_optical_frame"/>
 
   <!-- YOLO Topics -->
   <arg name="model_path" default="$(find yolo_vision)/models/simple_bbox_detection.pt"/>
+  <arg name="keypoint_model_path" default="$(find yolo_vision)/models/grasshopper_and_boxes_keypoint.pt"/>
   <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
+  <arg name="confidence_threshold" default="0.5"/>
+  <arg name="input_size" default="640"/>
+  <arg name="keypoints_topic" default="camera/yolo/keypoints"/>
+  <arg name="keypoints_viz_topic" default="camera/yolo/keypoints_visualization"/>
+  
 
   <!-- Yolo Distance Topics -->
   <arg name="bbox_topic" default="camera/yolo/bboxes"/>
@@ -33,7 +40,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
 
 
   <!-- PART 1: Launch YOLO Distance Launch File -->
-  <include file="$(find yolo_vision)/launch/object_detection/yolo_distance.launch">
+  <include file="$(find yolo_vision)/launch/yolo_vision.launch">
 
     <!-- Params -->
     <arg name="use_rviz" value="false"/>
@@ -49,7 +56,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <!-- Output Topucs -->
     <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
     <arg name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
-    <arg name="use_cpp" value="$(arg use_cpp)"/>
+    <arg name="use_cpp_distance" value="$(arg use_cpp)"/>
   </include>
 
   <!-- PART 2: Object Mapper Node (conditional Python/C++) -->

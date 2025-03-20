@@ -59,6 +59,7 @@ class PickUpObject:
         # ---------- STATE VARIABLES ----------
         self.object_marker = None
         self.latest_keypoints = None
+        self.angle = None
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.bridge = CvBridge()
@@ -113,7 +114,7 @@ class PickUpObject:
         if num_instances > 0:
             # Store the angle and keypoints
             # The angle is the second value in the message
-            angle = msg.data[1]
+            self.angle = msg.data[1]
             
             # Extract keypoints starting from the third value
             keypoints = []
@@ -122,11 +123,12 @@ class PickUpObject:
                     keypoints.append([msg.data[i], msg.data[i+1]])
                     
             # Store the angle and keypoints
-            self.latest_angle = angle
+            self.latest_angle = self.angle      
             self.latest_keypoints = np.array(keypoints)
             
-            # Log the received data
-            rospy.loginfo(f"Received angle: {angle:.4f} rad ({math.degrees(angle):.2f}°) and {len(keypoints)} keypoints")
+            # Log the data once
+
+            
                 
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection"""
@@ -151,34 +153,6 @@ class PickUpObject:
         except rospy.ROSException as e:
             rospy.logerr(f"Service call failed: {e}")
             return False
-    
-    def get_camera_info(self):
-        """
-        Get camera information from the RealSense camera_info topic
-        
-        Returns:
-            tuple: (fx, fy) focal lengths or (None, None) if not available
-        """
-        try:
-            camera_info_topic = f'/{self.robot_name}/camera/color/camera_info'
-            camera_info = rospy.wait_for_message(
-                camera_info_topic,
-                sensor_msgs.msg.CameraInfo,
-                timeout=2.0
-            )
-            
-            # Extract focal lengths and principal point
-            self.fx = camera_info.K[0]
-            self.fy = camera_info.K[4]
-            self.cx = camera_info.K[2]
-            self.cy = camera_info.K[5]
-            
-            rospy.loginfo(f"Camera intrinsics: fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}")
-            return self.fx, self.fy
-            
-        except rospy.ROSException as e:
-            rospy.logerr(f"Failed to get camera info: {e}")
-            return None, None
 
     def object_marker_callback(self, msg):
         """Process object marker messages and update history"""
@@ -202,114 +176,20 @@ class PickUpObject:
             sort_axis="y", 
             reverse=True)
         
+        # log number of clusters found
+        if success:
+            rospy.loginfo(f"Found {len(clusters)} clusters")
+        
         return success, clusters
+        
 
-    def project_pixel_to_3d(self, pixel_x, pixel_y, depth):
+    def normalize_angle(self):
         """
-        Project a 2D pixel point to 3D using camera intrinsics and depth
-        
-        Args:
-            pixel_x: x-coordinate in the image
-            pixel_y: y-coordinate in the image
-            depth: depth value in meters
-            
-        Returns:
-            tuple: (x, y, z) 3D point in camera frame
+        Normalize an angle to the -π to π range
         """
-        # Make sure camera intrinsics are available
-        if None in (self.fx, self.fy, self.cx, self.cy):
-            success = self.get_camera_info()
-            if not success:
-                rospy.logerr("Failed to get camera intrinsics for projection")
-                return None
-                
-        # Project from image coordinates to 3D
-        x = (pixel_x - self.cx) * depth / self.fx
-        y = (pixel_y - self.cy) * depth / self.fy
-        z = depth
         
-        return (x, y, z)
-
-    def transform_point(self, point, from_frame, to_frame):
-        """
-        Transform a 3D point from one frame to another
-        
-        Args:
-            point: (x, y, z) tuple
-            from_frame: source frame ID
-            to_frame: target frame ID
-            
-        Returns:
-            tuple: transformed (x, y, z)
-        """
-        # Create a PointStamped message
-        point_stamped = PointStamped()
-        point_stamped.header.frame_id = from_frame
-        point_stamped.header.stamp = rospy.Time.now()
-        point_stamped.point.x = point[0]
-        point_stamped.point.y = point[1]
-        point_stamped.point.z = point[2]
-        
-        try:
-            # Transform the point
-            transformed = self.tf_buffer.transform(point_stamped, to_frame, rospy.Duration(1.0))
-            return (
-                transformed.point.x,
-                transformed.point.y,
-                transformed.point.z
-            )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            rospy.logerr(f"TF Error: {e}")
-            return None
-
-    def keypoints_to_3d_pose(self, keypoints, cluster_center):
-        """
-        Convert 2D keypoints and known cluster to a 3D pose for the gripper
-        
-        Args:
-            keypoints: Array of 2D keypoints [[x1,y1], [x2,y2]]
-            cluster_center: Cluster dictionary or position tuple
-            
-        Returns:
-            tuple: (x, y, z, roll, pitch, yaw) for gripper pose
-        """
-        if keypoints is None or len(keypoints) < 2 or cluster_center is None:
-            rospy.logwarn("Invalid keypoints or cluster data")
-            return None
-        
-        # Get the angle from keypoint message
-        orientation = self.latest_angle
-        rospy.loginfo(f"Original orientation: {orientation:.4f} rad ({math.degrees(orientation):.2f}°)")
-        
-        if orientation is None:
-            return None
-                
-        # Extract position from cluster - handle both dictionary and tuple formats
-        if isinstance(cluster_center, dict) and 'position' in cluster_center:
-            position = cluster_center['position']
-        else:
-            position = cluster_center
-                
-        # Make sure position is valid
-        if not isinstance(position, (list, tuple)) or len(position) < 3:
-            rospy.logerr(f"Invalid cluster position format: {position}")
-            return None
-                
-        # Extract the x, y, z position
-        x, y, z = position[0], position[1], position[2]
-        
-        rospy.loginfo(f"Using cluster position: x={x:.3f}, y={y:.3f}, z={z:.3f}")
-        
-        # Set up the standard approach orientation
-        roll = 0.0  
-        pitch = math.pi/2   # Vertical approach
-        
-        # Calculate the optimal yaw to minimize rotation
-        # For a gripper, rotating by π (180°) gives the same orientation
-        # We can use the equivalent angle with the smallest magnitude
-        
-        # Normalize angle to -π to π range
-        normalized_angle = ((orientation + math.pi) % (2 * math.pi)) - math.pi
+        # Normalize angle (in radians) to -π to π range
+        normalized_angle = math.atan2(math.sin(self.angle), math.cos(self.angle))
         
         # If the angle is greater than π/2 or less than -π/2, we can flip it by ±π
         # This gives us the equivalent angle with smallest magnitude
@@ -322,9 +202,9 @@ class PickUpObject:
             
         rospy.loginfo(f"Optimized yaw: {optimal_yaw:.4f} rad ({math.degrees(optimal_yaw):.2f}°) from original {normalized_angle:.4f} rad")
         
-        return (x, y, z, roll, pitch, optimal_yaw)
+        return optimal_yaw
 
-    def pick_object(self, hover_height=0.15, approach_height=0.05, go_to_sleep_after=True):
+    def pick_object(self, hover_height=0.15, approach_height=0.01, go_to_sleep_after=True):
         """
         Complete pick-up sequence for objects using keypoint orientation
         
@@ -345,6 +225,8 @@ class PickUpObject:
         if go_to_sleep_after:
             self.arm.go_to_sleep_pose()
 
+        self.gripper.open()
+
         rospy.sleep(1.0)  # Short pause for stability
         
         # 3. Get clusters to identify objects
@@ -352,46 +234,36 @@ class PickUpObject:
         if not success or len(clusters) == 0:
             rospy.logerr("No objects detected")
             return False
+        
+        self.arm.set_ee_pose_components(x=0.3, z=0.2, moving_time=1.5)
+        self.gripper.open()
             
         # 4. Get the first cluster (assume it's our target)
         target_cluster = clusters[0]
         rospy.loginfo(f"Target object at position: {target_cluster}")
-        
-        # 5. Make sure we have keypoints
-        timeout = rospy.Time.now() + rospy.Duration(3.0)
-        while (self.latest_keypoints is None or len(self.latest_keypoints) < 2) and rospy.Time.now() < timeout:
-            rospy.loginfo("Waiting for keypoints...")
-            rospy.sleep(0.5)
-            
-        if self.latest_keypoints is None or len(self.latest_keypoints) < 2:
-            rospy.logerr("Failed to get valid keypoints")
-            return False
-            
-        # 6. Calculate gripper pose from keypoints and cluster
-        gripper_pose = self.keypoints_to_3d_pose(self.latest_keypoints, target_cluster)
-        if gripper_pose is None:
-            rospy.logerr("Failed to calculate gripper pose")
-            return False
-            
-        x, y, z, roll, pitch, yaw = gripper_pose
-        
-        # 7. Open the gripper
-        self.gripper.open()
-        
-        # 8. Move to hover position above object
+        x, y, z = target_cluster["position"]
+
+  
+        # 5. Move to hover position above object
         rospy.loginfo("Moving to hover position...")
         hover_success = self.arm.set_ee_pose_components(
-            x=x, y=y, z=z+hover_height,
-            roll=roll, pitch=pitch, yaw=0
+            x=x, y=y, z=0.25, moving_time=1.5,
         )
+
+        rospy.sleep(0.5)  # Short pause for stability
+
+        
+        approach_success = self.arm.set_ee_cartesian_trajectory(pitch=math.pi/2)
         
         if not hover_success:
             rospy.logerr("Failed to reach hover position")
             self.arm.go_to_sleep_pose()
             return False
+        
+        # 6. Get optimal yaw angle for grasping
+        optimal_yaw = self.normalize_angle()
             
-        approach_success = self.arm.set_ee_cartesian_trajectory(yaw=yaw)
-
+        approach_success = self.arm.set_ee_cartesian_trajectory(yaw=optimal_yaw)
 
         if not approach_success:
             rospy.logerr("Failed to approach object")
@@ -400,7 +272,7 @@ class PickUpObject:
         
         # 9. Lower to approach height with Cartesian trajectory for straight-line motion
         rospy.loginfo("Approaching object...")
-        approach_success = self.arm.set_ee_cartesian_trajectory(z=-hover_height+approach_height)
+        approach_success = self.arm.set_ee_cartesian_trajectory(z=approach_height)
         
         if not approach_success:
             rospy.logerr("Failed to approach object")
@@ -442,6 +314,8 @@ class PickUpObject:
             rospy.loginfo("Arm successfully moved to sleep pose")
         except Exception as e:
             rospy.logerr(f"Error during shutdown cleanup: {e}")
+
+
 def main():
     # Initialize the ROS node
     rospy.init_node('pick_up_object', anonymous=False)

@@ -13,6 +13,7 @@ class YoloDetectionNode:
     Processes incoming images, runs inference with YOLO, and publishes only bounding boxes.
     No depth calculation or image annotation is performed by this node.
     """
+
     def __init__(self):
         rospy.init_node('yolo_detection_node', anonymous=True)
         self.bridge = CvBridge()
@@ -21,9 +22,22 @@ class YoloDetectionNode:
         self.model_path = rospy.get_param('~model_path')
         self.image_topic = rospy.get_param('~image_topic')
         self.bbox_topic = rospy.get_param('~bbox_topic')
+        self.device = rospy.get_param('~device', 'cuda:0')
+
+        # Check CUDA availability
+        import torch
+        if self.device.startswith('cuda') and not torch.cuda.is_available():
+            rospy.logwarn("CUDA requested but not available. Falling back to CPU.")
+            self.device = 'cpu'
+        else:
+            rospy.loginfo(f"Using device: {self.device}")
+            if self.device.startswith('cuda'):
+                rospy.loginfo(f"CUDA device: {torch.cuda.get_device_name(0)}")
         
         # Load YOLO model
         self.model = YOLO(self.model_path)
+        self.model.to(self.device)
+        
 
         # Optimization: Set model parameters
         self.model.conf = 0.5  # Confidence threshold
@@ -119,7 +133,8 @@ class YoloDetectionNode:
         results = self.model(frame, 
                            verbose=False,
                            stream=True,  # Enable streaming mode
-                           imgsz=640)    # Reduce image size
+                           imgsz=640,
+                           device=self.device)    # Reduce image size
         
         return next(results)  # Get first result from generator
 

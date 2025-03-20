@@ -19,6 +19,7 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
 
     <!-- YOLO Segmentation Topics and Parameters -->
     <arg name="model_path" default="$(find yolo_vision)/models/box_and_grasshopper_segmentation.pt"/>
+    <arg name="device" default="cuda:0"/>
 
     <!-- Visualization Topics -->
     <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>

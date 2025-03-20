@@ -1,0 +1,72 @@
+<!-- Also Note that these scripts are meant to be used with a 
+launch driver. In this case the interbotix control stack is
+at minimum is needed-->
+
+<!-- command is: roslaunch interbotix_xslocobot_control xslocobot_control.launch 
+robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
+
+<launch>
+    <!-- Global Arguments -->
+    <arg name="robot_name" default="locobot"/>
+    <arg name="rviz_frame" default="$(arg robot_name)/odom"/>
+    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_seg.rviz"/>
+    <arg name="use_rviz" default="true" doc="Set to false to disable RViz visualization"/>
+    <arg name="debug_mode" default="false" doc="Set to true to enable debug mode for visualization"/>
+    <arg name="use_cpp_distance" default="false" doc="Set to true to use the C++ distance node instead of Python"/>
+    <arg name="device" default="cuda:0"/>
+
+
+    <!-- Camera Topics -->
+    <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
+    <arg name="depth_image_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
+
+
+    <!-- YOLO Topics and Parameters -->
+    <arg name="model_path_object" default="$(find yolo_vision)/models/simple_bbox_detection.pt"/>
+    <arg name="model_path_segmentation" default="$(find yolo_vision)/models/box_and_grasshopper_segmentation.pt"/>
+    <arg name="model_path_keypoints" default="$(find yolo_vision)/models/grasshopper_and_boxes_keypoint.pt"/>
+    <arg name="bbox_topic" default="camera/yolo/bbox"/>
+    <arg name="bbox_depth_topic" default="camera/yolo/bbox_depth"/>
+    <arg name="annotated_image_topic" default="camera/yolo/annotated_image"/>
+
+
+    <!-- YOLO Node -->
+    <include file="$(find yolo_vision)/launch/yolo_vision.launch">
+        <arg name="model_path" value="$(arg model_path_object)"/>
+        <arg name="rgb_topic" value="$(arg rgb_topic)"/>
+        <arg name="bbox_topic" value="$(arg bbox_topic)"/>
+        <arg name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
+        <arg name="device" value="$(arg device)"/>
+        <arg name="use_cpp_distance" value="$(arg use_cpp_distance)"/>
+        <arg name="use_rviz" value="false"/>    
+    </include>
+
+    <!-- YOLO Segmentation Node -->
+    <include file="$(find yolo_vision)/launch/yolo_segmentation.launch">
+        <arg name="model_path" value="$(arg model_path_segmentation)"/>
+        <arg name="rgb_topic" value="$(arg rgb_topic)"/>
+        <arg name="publish_visualizations" value="true"/>
+        <arg name="annotated_image_topic" value="camera/yolo/segmeted_annotated_image"/>
+        <arg name="use_rviz" value="false"/>
+    </include>
+
+    <!-- YOLO Keypoint Detection Node -->
+    <include file="$(find yolo_vision)/launch/yolo_key_point.launch">
+        <arg name="model_path" value="$(arg model_path_keypoints)"/>
+        <arg name="rgb_topic" value="$(arg rgb_topic)"/>
+        <arg name="use_rviz" value="false"/>
+    </include>
+
+
+    <!-- RViz (conditionally launched) -->
+    <group if="$(arg use_rviz)">
+        <node name="rviz" pkg="rviz" type="rviz" 
+            args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
+            ns="$(arg robot_name)">
+            <remap from="/clicked_point" to="clicked_point"/>
+            <remap from="/initialpose" to="initialpose"/>
+            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
+        </node>
+    </group>
+</launch>
+

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
@@ -149,36 +149,25 @@ class DistanceNode:
             return float(np.mean(valid_depths))
         else:
             return 0.0
-
     def process_bboxes_with_depth(self, frame, depth_image, bbox_data):
-        """
-        Process bounding boxes, calculate depths, and annotate the image.
-        
-        Args:
-            frame: RGB frame for annotation
-            depth_image: Depth image for distance calculation
-            bbox_data: Bounding box data from Float32MultiArray
-            
-        Returns:
-            list: Updated bounding box data with depth information
-        """
         # Convert to list for easy manipulation
         bbox_data = list(bbox_data)
+        
+        # Validate input data
+        if not bbox_data:
+            return [0]
+            
         num_boxes = int(bbox_data[0])
         
-        if num_boxes == 0:
-            return bbox_data
-            
-        # Calculate bbox data length per detection
-        # [cls_id, conf, x1, y1, x2, y2]
-        bbox_stride = 6
+        if num_boxes == 0 or len(bbox_data) < 1 + num_boxes * 6:
+            return [0]  # Not enough data for the specified number of boxes
         
         # Create new bbox data with depth
-        bbox_depth_data = [num_boxes]  # Start with number of boxes
+        bbox_depth_data = [num_boxes]
         
+        # Process each valid box
         for i in range(num_boxes):
-            # Extract bbox data for this detection
-            start_idx = 1 + i * bbox_stride
+            start_idx = 1 + i * 6
             cls_id = int(bbox_data[start_idx])
             conf = bbox_data[start_idx + 1]
             x1 = int(bbox_data[start_idx + 2])
@@ -186,17 +175,13 @@ class DistanceNode:
             x2 = int(bbox_data[start_idx + 4])
             y2 = int(bbox_data[start_idx + 5])
             
-            # Calculate depth
             avg_depth = self.process_bbox_depth(depth_image, (x1, y1, x2, y2))
-            
-            # Add to new data with depth
-            # [cls_id, conf, x1, y1, x2, y2, depth]
             bbox_depth_data.extend([cls_id, conf, x1, y1, x2, y2, avg_depth])
-            
-            # Annotate the frame
             self.annotate_frame(frame, cls_id, conf, x1, y1, x2, y2, avg_depth)
-            
+        
         return bbox_depth_data
+    
+    
 
     def annotate_frame(self, frame, cls_id, conf, x1, y1, x2, y2, depth):
         """
@@ -224,13 +209,11 @@ class DistanceNode:
             depth_text = "Distance: Unknown"
         else:
             depth_text = f"Distance: {depth:.2f}m"
-            
-        depth_text_size = cv2.getTextSize(depth_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
         
-        # Position depth text below the class label
-        depth_y = text_y + depth_text_size[1] + 5
+        depth_y =  y2 + baseline + 5 
+
         cv2.putText(frame, depth_text, (x1, depth_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
     def get_class_name(self, cls_id):
         """
@@ -271,12 +254,12 @@ class DistanceNode:
         try:
             # Create message
             msg = Float32MultiArray()
-            
-            # Set dimensions
-            msg.layout.dim.append(Float32MultiArray().layout.dim[0])
-            msg.layout.dim[0].label = "bbox_depth"
-            msg.layout.dim[0].size = len(bbox_depth_data)
-            msg.layout.dim[0].stride = len(bbox_depth_data)
+
+            dim = MultiArrayDimension()
+            dim.label = "bbox_depth"
+            dim.size = len(bbox_depth_data)
+            dim.stride = len(bbox_depth_data)
+            msg.layout.dim.append(dim)
             
             # Set data
             msg.data = bbox_depth_data

@@ -23,6 +23,7 @@ class Yolo_Segmentation_Node():
         # Load parameters
         self.model_path = rospy.get_param("~model_path")
         self.image_topic = rospy.get_param("~image_topic")
+        self.device = rospy.get_param("~device", "cuda:0")
         
         # Flag to enable/disable visualization publishers
         self.publish_visualizations = rospy.get_param("~publish_visualizations", True)
@@ -41,8 +42,21 @@ class Yolo_Segmentation_Node():
         self.last_process_time = rospy.Time(0)
         self.min_process_interval = rospy.Duration(1.0 / 10)  # 10 Hz max processing rate
 
+
+        # Check CUDA availability
+        import torch
+        if self.device.startswith('cuda') and not torch.cuda.is_available():
+            rospy.logwarn("CUDA requested but not available. Falling back to CPU.")
+            self.device = 'cpu'
+        else:
+            rospy.loginfo(f"Using device: {self.device}")
+            if self.device.startswith('cuda'):
+                rospy.loginfo(f"CUDA device: {torch.cuda.get_device_name(0)}")
+
+                
         # Load YOLO model
         self.model = YOLO(self.model_path)
+        self.model.to(self.device)
 
         # Optimization: Set model parameters
         self.model.conf = 0.5  # Confidence threshold   
@@ -113,18 +127,6 @@ class Yolo_Segmentation_Node():
         # Publish class information
         self.class_info_pub.publish(class_info)
 
-    # ---------- GPU Acceleration ----------
-
-    def enable_gpu_acceleration(self):
-        """
-        Enable GPU acceleration for YOLO model if available.
-        """
-        if self.model.device.type == 'cuda':
-            self.model.to('cuda')
-            rospy.loginfo("GPU acceleration enabled")
-        else:
-            rospy.logwarn("GPU not available, using CPU")
-
     # ---------- Processing Functions ----------
 
     def should_process_image(self):
@@ -162,7 +164,8 @@ class Yolo_Segmentation_Node():
         results = self.model(frame, 
                            verbose=False,
                            stream=True,  # Enable streaming mode
-                           imgsz=640)    # Reduce image size
+                           imgsz=640,
+                           device=self.device)    # Reduce image size
         
         return next(results)  # Get first result from generator
     
@@ -482,8 +485,7 @@ class Yolo_Segmentation_Node():
 
 def main():
     try:
-        node = Yolo_Segmentation_Node()
-        node.enable_gpu_acceleration()
+        Yolo_Segmentation_Node()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
