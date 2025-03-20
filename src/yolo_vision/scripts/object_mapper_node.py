@@ -58,9 +58,15 @@ class ObjectMapperNode:
         Process bounding box and depth information.
         
         Args:
-            msg: Float32MultiArray containing [x, y, width, height, depth]
+            msg: Float32MultiArray containing 
+                 [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
         """
         try:
+            # # Check if data is available
+            # if not msg.data or len(msg.data) < 8:
+            #     rospy.logwarn(f"Invalid bbox data received: {len(msg.data)} elements")
+            #     return
+                
             # Extract data and create 3D point
             point_3d, depth = self.bbox_to_3d_point(msg.data)
             if point_3d is None:
@@ -85,20 +91,33 @@ class ObjectMapperNode:
         Convert bounding box data to a 3D point in camera coordinates.
         
         Args:
-            bbox_data: List of [x, y, width, height, depth]
+            bbox_data: Array from YOLO detection
+            Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
             
         Returns:
             tuple: (Point, depth) or (None, None) if conversion fails
         """
-        if len(bbox_data) < 5:
-            rospy.logwarn("Bbox data has insufficient elements")
+        # Log the actual data for debugging
+        rospy.logdebug(f"Received bbox_data: {bbox_data}")
+        
+        # Extract the fields from the new format
+        n_boxes = int(bbox_data[0])
+        if n_boxes < 1:
             return None, None
             
-        x, y, w, h, depth = bbox_data
+        cls_id = int(bbox_data[1])
+        confidence = float(bbox_data[2])
+        x1, y1 = float(bbox_data[3]), float(bbox_data[4])
+        x2, y2 = float(bbox_data[5]), float(bbox_data[6])
+        depth = float(bbox_data[7])
         
-        # Calculate center of bounding box
-        center_x = x + w/2
-        center_y = y + h/2
+        # Calculate center point from bbox corners
+        center_x = (x1 + x2) / 2.0
+        center_y = (y1 + y2) / 2.0
+        
+        # Log the extracted values for debugging
+        rospy.logdebug(f"Extracted values: boxes={n_boxes}, class={cls_id}, conf={confidence:.2f}, "
+                      f"depth={depth:.2f}, center=({center_x:.1f}, {center_y:.1f})")
         
         # Convert to 3D point in camera frame
         point_3d = self.pixel_to_3d(center_x, center_y, depth)

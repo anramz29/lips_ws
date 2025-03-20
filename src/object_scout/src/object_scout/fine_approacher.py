@@ -82,29 +82,37 @@ class FineApproacher():
             JointGroupCommand, 
             queue_size=1
         )
-
     def bbox_callback(self, msg):
         """
         Callback function for bounding box messages
         
         Args:
             msg (Float32MultiArray): Message containing bounding box coordinates and depth
+                Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
         """
-        if msg.data and len(msg.data) >= 5:
-            # Extract the bounding box coordinates (x, y, w, h)
-            x, y, w, h = msg.data[:4]
-
-            # Convert to format (x_min, y_min, x_max, y_max)
-            self.y_min = float(y)
-            self.x_min = float(x)
-            self.y_max = float(y + h)
-            self.x_max = float(x + w)
-
-            # Extract the depth if available
-            if len(msg.data) == 5:
-                self.bbox_depth = msg.data[4]
-        else:
-            rospy.logwarn("Received empty or invalid message")
+        # if not msg.data or len(msg.data) < 8:
+        #     rospy.logwarn("Received empty or invalid message")
+        #     return
+            
+        # Extract values from new format
+        n_boxes = int(msg.data[0])
+        if n_boxes < 1:
+            return
+            
+        # Get coordinates from the first detected box
+        x1 = float(msg.data[3])
+        y1 = float(msg.data[4])
+        x2 = float(msg.data[5])
+        y2 = float(msg.data[6])
+        
+        # Store the bounding box corners directly
+        self.x_min = x1
+        self.y_min = y1
+        self.x_max = x2
+        self.y_max = y2
+        
+        # Get depth information
+        self.bbox_depth = float(msg.data[7])
 
     def get_camera_info(self):
         """

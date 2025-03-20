@@ -71,7 +71,7 @@ class YoloNode:
         Args:
             ros_image: ROS Image message
         """
-        # Rate limiting
+        # Rate limitingf
         if not self.should_process_image():
             return
         

@@ -3,7 +3,11 @@ import time
 import rospy
 import numpy as np
 from visualization_msgs.msg import Marker
-from interbotix_xs_modules.locobot import InterbotixLocobotXS
+from interbotix_xs_modules.core import InterbotixRobotXSCore
+from interbotix_xs_modules.arm import InterbotixArmXSInterface
+from interbotix_xs_modules.gripper import InterbotixGripperXSInterface
+from interbotix_perception_modules.pointcloud import InterbotixPointCloudInterface
+from interbotix_perception_modules.armtag import InterbotixArmTagInterface
 from std_srvs.srv import Empty, SetBool
 from std_msgs.msg import Float32MultiArray
 import tf2_ros
@@ -15,24 +19,42 @@ from geometry_msgs.msg import PointStamped
 
 
 class PickUpObject:
-    def __init__(self, robot_model="locobot_wx250s", init_node=False):
+    def __init__(self, robot_name="locobot", init_node=False):
         # ---------- ROS NODE SETUP ----------
+        self.robot_name = robot_name
+
         if init_node:
             rospy.init_node('pick_up_object', anonymous=False)
 
         # ---------- ROBOT SETUP ----------
-        # Create the Interbotix LoCoBot instance
-        self.bot = InterbotixLocobotXS(
-            robot_model=robot_model, 
-            arm_model="mobile_wx250s"
+        # Create the core interface for basic servo control
+        self.core = InterbotixRobotXSCore(
+            robot_model=f"{self.robot_name}_wx250s",
+            robot_name=self.robot_name,
+            init_node=False
         )
         
-        # For convenience, create direct references to bot components
-        self.arm = self.bot.arm
-        self.gripper = self.bot.gripper
-        self.pcl = self.bot.pcl
-        self.armtag = self.bot.armtag
-        self.camera = self.bot.camera
+        # Create the arm interface
+        self.arm = InterbotixArmXSInterface(
+            core=self.core,
+            robot_model="mobile_wx250s",
+            group_name="arm"
+        )
+        
+        # Create the gripper interface
+        self.gripper = InterbotixGripperXSInterface(self.core, "gripper")
+        
+        # Create the perception interfaces
+        self.pcl = InterbotixPointCloudInterface(
+            filter_ns=f"{self.robot_name}/pc_filter",
+            init_node=False
+        )
+        
+        self.armtag = InterbotixArmTagInterface(
+            armtag_ns=f"{self.robot_name}/armtag",
+            apriltag_ns=f"{self.robot_name}/apriltag",
+            init_node=False
+        )
 
         # ---------- STATE VARIABLES ----------
         self.object_marker = None
@@ -40,7 +62,6 @@ class PickUpObject:
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.bridge = CvBridge()
-        self.robot_name = robot_model.split('_')[0]  # Extract base name (e.g., "locobot")
 
         # Camera intrinsics (initialized in get_camera_info)
         self.fx = None
@@ -79,7 +100,10 @@ class PickUpObject:
         )
 
     def keypoint_callback(self, msg):
-        """Process incoming keypoint data"""
+        """Process incoming keypoint data
+        
+        Message format: [num_instances, angle, x1, y1, x2, y2, ...]
+        """
         if not msg.data or len(msg.data) < 3:  # No valid data
             return
             
@@ -87,17 +111,23 @@ class PickUpObject:
         num_instances = int(msg.data[0])
         
         if num_instances > 0:
-            # Store keypoints as 2D array: [[x1, y1], [x2, y2], ...]
-            # Skip first value (number of instances) and reshape
+            # Store the angle and keypoints
+            # The angle is the second value in the message
+            angle = msg.data[1]
+            
+            # Extract keypoints starting from the third value
             keypoints = []
-            for i in range(1, len(msg.data), 2):
+            for i in range(2, len(msg.data), 2):
                 if i+1 < len(msg.data):
                     keypoints.append([msg.data[i], msg.data[i+1]])
                     
+            # Store the angle and keypoints
+            self.latest_angle = angle
             self.latest_keypoints = np.array(keypoints)
-            if self.latest_keypoints.size > 0:
-                rospy.loginfo(f"Received {len(self.latest_keypoints)} keypoints")
             
+            # Log the received data
+            rospy.loginfo(f"Received angle: {angle:.4f} rad ({math.degrees(angle):.2f}°) and {len(keypoints)} keypoints")
+                
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection"""
         service_name = f'/{self.robot_name}/keypoint_detector/set_enabled'
@@ -155,59 +185,24 @@ class PickUpObject:
         self.object_marker = msg
 
     def get_armtag(self):
-        # Position the camera to look at the arm
-        self.camera.pan_tilt_move(0, 0.75)
-        
-        # Position the arm such that the Apriltag is clearly visible to the camera
+        # position the arm such that the Apriltag is clearly visible to the camera
         self.arm.set_ee_pose_components(x=0.2, z=0.2, pitch=-math.pi/8.0)
         time.sleep(0.5)
-        
-        # Get the transform of the AR tag
+        # get the transform of the AR tag
         self.armtag.find_ref_to_arm_base_transform(position_only=True)
-        
-        # Move the arm out of the way of the camera
+        # move the arm out of the way of the camera
         self.arm.go_to_sleep_pose()
 
     def get_clusters(self):
-        """Get positions of detected object clusters"""
-        # Get the positions of any clusters present w.r.t. the arm base link
-        # Sort the clusters such that they appear from left-to-right w.r.t. the arm base link
+        # get the positions of any clusters present w.r.t. the 'locobot/arm_base_link'
+        # sort the clusters such that they appear from left-to-right w.r.t. the 'locobot/arm_base_link'
         time.sleep(0.5)
         success, clusters = self.pcl.get_cluster_positions(
             ref_frame=f"{self.robot_name}/arm_base_link", 
             sort_axis="y", 
-            reverse=True
-        )
+            reverse=True)
         
         return success, clusters
-
-    def calculate_orientation_from_keypoints(self, keypoints):
-        """
-        Calculate orientation angle (in radians) from two keypoints
-        
-        Args:
-            keypoints: Array of 2D keypoints [x, y]
-            
-        Returns:
-            float: Angle in radians, or None if not enough keypoints
-        """
-        if keypoints is None or len(keypoints) < 2:
-            rospy.logwarn("Not enough keypoints to calculate orientation")
-            return None
-            
-        # Extract the first two keypoints
-        p1 = keypoints[0]
-        p2 = keypoints[1]
-        
-        # Calculate vector direction
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
-        
-        # Calculate angle with respect to horizontal
-        angle = math.atan2(dy, dx)
-        
-        rospy.loginfo(f"Keypoint orientation: {angle} radians ({math.degrees(angle)} degrees)")
-        return angle
 
     def project_pixel_to_3d(self, pixel_x, pixel_y, depth):
         """
@@ -273,7 +268,7 @@ class PickUpObject:
         
         Args:
             keypoints: Array of 2D keypoints [[x1,y1], [x2,y2]]
-            cluster_center: (x, y, z) position of the object
+            cluster_center: Cluster dictionary or position tuple
             
         Returns:
             tuple: (x, y, z, roll, pitch, yaw) for gripper pose
@@ -282,29 +277,54 @@ class PickUpObject:
             rospy.logwarn("Invalid keypoints or cluster data")
             return None
         
-        # Calculate orientation from keypoints
-        orientation = self.calculate_orientation_from_keypoints(keypoints)
+        # Get the angle from keypoint message
+        orientation = self.latest_angle
+        rospy.loginfo(f"Original orientation: {orientation:.4f} rad ({math.degrees(orientation):.2f}°)")
+        
         if orientation is None:
             return None
+                
+        # Extract position from cluster - handle both dictionary and tuple formats
+        if isinstance(cluster_center, dict) and 'position' in cluster_center:
+            position = cluster_center['position']
+        else:
+            position = cluster_center
+                
+        # Make sure position is valid
+        if not isinstance(position, (list, tuple)) or len(position) < 3:
+            rospy.logerr(f"Invalid cluster position format: {position}")
+            return None
+                
+        # Extract the x, y, z position
+        x, y, z = position[0], position[1], position[2]
         
-        rospy.loginfo(f"Calculated orientation: {orientation} radians")
-            
-        # The cluster center gives us the x, y, z position
-        x, y, z = cluster_center
+        rospy.loginfo(f"Using cluster position: x={x:.3f}, y={y:.3f}, z={z:.3f}")
         
-        # For top-down grasping, we want:
-        # - Pitch set to pi/2 (vertical approach)
-        # - Roll adjusted based on the keypoint orientation
-        # - Yaw is irrelevant for a vertical grasp
-        
-        # Adjust roll based on the 2D orientation
-        roll = 0.0  # This depends on your robot's coordinate system
+        # Set up the standard approach orientation
+        roll = 0.0  
         pitch = math.pi/2   # Vertical approach
-        yaw = orientation   # Not used for vertical grasps
         
-        return (x, y, z, roll, pitch, yaw)
+        # Calculate the optimal yaw to minimize rotation
+        # For a gripper, rotating by π (180°) gives the same orientation
+        # We can use the equivalent angle with the smallest magnitude
+        
+        # Normalize angle to -π to π range
+        normalized_angle = ((orientation + math.pi) % (2 * math.pi)) - math.pi
+        
+        # If the angle is greater than π/2 or less than -π/2, we can flip it by ±π
+        # This gives us the equivalent angle with smallest magnitude
+        if normalized_angle > math.pi/2:
+            optimal_yaw = normalized_angle - math.pi
+        elif normalized_angle < -math.pi/2:
+            optimal_yaw = normalized_angle + math.pi
+        else:
+            optimal_yaw = normalized_angle
+            
+        rospy.loginfo(f"Optimized yaw: {optimal_yaw:.4f} rad ({math.degrees(optimal_yaw):.2f}°) from original {normalized_angle:.4f} rad")
+        
+        return (x, y, z, roll, pitch, optimal_yaw)
 
-    def pick_object(self, hover_height=0.1, approach_height=0.05):
+    def pick_object(self, hover_height=0.15, approach_height=0.05, go_to_sleep_after=True):
         """
         Complete pick-up sequence for objects using keypoint orientation
         
@@ -320,6 +340,12 @@ class PickUpObject:
         
         # 2. Calibrate the system using the armtag
         self.get_armtag()
+
+        # go to sleep pose if requested
+        if go_to_sleep_after:
+            self.arm.go_to_sleep_pose()
+
+        rospy.sleep(1.0)  # Short pause for stability
         
         # 3. Get clusters to identify objects
         success, clusters = self.get_clusters()
@@ -328,7 +354,7 @@ class PickUpObject:
             return False
             
         # 4. Get the first cluster (assume it's our target)
-        target_cluster = clusters[0]["position"]  # Access position from cluster dictionary
+        target_cluster = clusters[0]
         rospy.loginfo(f"Target object at position: {target_cluster}")
         
         # 5. Make sure we have keypoints
@@ -356,19 +382,29 @@ class PickUpObject:
         rospy.loginfo("Moving to hover position...")
         hover_success = self.arm.set_ee_pose_components(
             x=x, y=y, z=z+hover_height,
-            roll=roll, pitch=pitch, yaw=yaw
+            roll=roll, pitch=pitch, yaw=0
         )
         
         if not hover_success:
             rospy.logerr("Failed to reach hover position")
+            self.arm.go_to_sleep_pose()
             return False
             
+        approach_success = self.arm.set_ee_cartesian_trajectory(yaw=yaw)
+
+
+        if not approach_success:
+            rospy.logerr("Failed to approach object")
+            self.arm.go_to_sleep_pose()
+            return False
+        
         # 9. Lower to approach height with Cartesian trajectory for straight-line motion
         rospy.loginfo("Approaching object...")
         approach_success = self.arm.set_ee_cartesian_trajectory(z=-hover_height+approach_height)
         
         if not approach_success:
             rospy.logerr("Failed to approach object")
+            self.arm.go_to_sleep_pose()
             return False
             
         # 10. Close the gripper to grasp the object
@@ -382,33 +418,36 @@ class PickUpObject:
         
         if not lift_success:
             rospy.logerr("Failed to lift object")
+            self.arm.go_to_sleep_pose()
             return False
         
         # 12. Go to sleep pose if requested
-        self.arm.go_to_sleep_pose()
+        if go_to_sleep_after:
+            rospy.loginfo("Moving to sleep pose...")
+            self.arm.go_to_sleep_pose()
             
-        self.enable_keypoint_detection(False)
-
         rospy.loginfo("Successfully picked up the object!")
         return True
 
     def shutdown_handler(self):
         """Handle shutdown cleanup"""
-        rospy.loginfo("Shutting down PickUpObject")
-        # Open gripper and move arm to sleep pose
+        rospy.loginfo("PickUpObject shutting down, moving arm to safe position...")
         try:
+            # Open gripper first (safer in case it's holding something)
             self.gripper.open()
+            rospy.sleep(0.5)  # Short pause to ensure gripper opens
+            
+            # Move arm to sleep pose
             self.arm.go_to_sleep_pose()
-        except:
-            pass
-
-
+            rospy.loginfo("Arm successfully moved to sleep pose")
+        except Exception as e:
+            rospy.logerr(f"Error during shutdown cleanup: {e}")
 def main():
     # Initialize the ROS node
     rospy.init_node('pick_up_object', anonymous=False)
     
     # Create the PickUpObject instance
-    po = PickUpObject(robot_model="locobot_wx250s", init_node=False)
+    po = PickUpObject(init_node=False)
     
     # Run the pickup sequence
     success = po.pick_object()

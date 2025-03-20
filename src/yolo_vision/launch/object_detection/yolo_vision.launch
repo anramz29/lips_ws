@@ -32,7 +32,7 @@ robot_model:=locobot_wx250s use_camera:=true use_base:=true-->
       <!-- Input Topics -->
       <param name="image_topic" value="$(arg rgb_topic)"/>
       <param name="model_path" value="$(arg model_path)"/>
-      <param name="depth_image_topic" value="$(arg depth_topic)"/>
+      <param name="depth_image_topic" value="$(arg depth_image_topic)"/>
 
       <!-- Output Topics -->
       <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
