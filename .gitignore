@@ -1,2 +1,5 @@
 build/
 devel/
+
+src/video_recorder/
+src/move_to_pose/
