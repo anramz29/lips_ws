@@ -4,11 +4,12 @@ project(yolo_vision)
 
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+## Find catkin macros and libraries
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -22,6 +23,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  tf2_geometry_msgs
+  visualization_msgs
 )
 
 find_package(OpenCV REQUIRED)
@@ -113,9 +116,8 @@ find_package(OpenCV REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs roscpp image_transport
-  # Removed INCLUDE_DIRS and LIBRARIES that don't exist
-  # Removed DEPENDS system_lib that doesn't exist
+  INCLUDE_DIRS include
+  CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs roscpp image_transport tf2 tf2_ros tf2_geometry_msgs visualization_msgs
 )
 
 
@@ -126,6 +128,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
 )
@@ -192,46 +195,68 @@ target_link_libraries(distance_node
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
+  scripts/yolo_node.py
+  scripts/distance_node.py 
+  scripts/yolo_keypoint_detection_node.py  
+  scripts/yolo_keypoint_activation.py
+  scripts/object_mapper_node.py
+  scripts/yolo_segmentation_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-## Mark executables for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
+## Mark executables for installation## Mark executables for installation
+## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html/api/catkin/html/howto/format1/building_executables.html
 # install(TARGETS ${PROJECT_NAME}_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}PACKAGE_BIN_DESTINATION}
 # )
 
 ## Mark libraries for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.htmlSee http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
+# install(TARGETS ${PROJECT_NAME}# install(TARGETS ${PROJECT_NAME}
+#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}LIB_DESTINATION}
+#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}ON}
 # )
 
-## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
+## Mark cpp header files for installationMark cpp header files for installation
+# install(DIRECTORY include/${PROJECT_NAME}/# install(DIRECTORY include/${PROJECT_NAME}/
 #   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
+#   FILES_MATCHING PATTERN "*.h"ING PATTERN "*.h"
+#   PATTERN ".svn" EXCLUDE.svn" EXCLUDE
 # )
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
-# install(FILES
-#   # myfile1
-#   # myfile2
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-# )
+## Mark other files for installation
+install(DIRECTORY
+  launch/
+  config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+## Mark executables for installation
+install(TARGETS object_mapper_node distance_node
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+## Mark other files for installation (e.g. launch and bag files, etc.)Mark other files for installation (e.g. launch and bag files, etc.)
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+)
 
 #############
 ## Testing ##
 #############
 
-## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_yolo_vision.cpp)
-# if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-# endif()
+## Add gtest based cpp test target and link libraries## Add gtest based cpp test target and link libraries
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_yolo_vision.cpp)/test_yolo_vision.cpp)
+# if(TARGET ${PROJECT_NAME}-test)test)
+#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+
+
+
+
+
+# catkin_add_nosetests(test)## Add folders to be run by python nosetests# endif()# endif()
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)

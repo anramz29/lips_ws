@@ -1,31 +1,29 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(object_scout)
 
+
+
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   actionlib
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS
-    roscpp
-    rospy
-    tf2_ros
-    tf2_geometry_msgs
-    actionlib
-    move_base_msgs
-    geometry_msgs
-    nav_msgs
-    actionlib_msgs
+  roscpp
+  rospy
+  tf2_ros
+  tf2_geometry_msgs
+  actionlib
+  move_base_msgs
+  geometry_msgs
+  nav_msgs
+  actionlib_msgs
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -80,7 +78,11 @@ catkin_python_setup()
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   geometry_msgs#   move_base_msgs#   nav_msgs#   std_msgs#   visualization_msgs
+#   geometry_msgs
+#   move_base_msgs
+#   nav_msgs
+#   std_msgs
+#   visualization_msgs
 # )
 
 ################################################
@@ -115,7 +117,7 @@ catkin_python_setup()
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES object_scout
-#  CATKIN_DEPENDS actionlib geometry_msgs move_base_msgs nav_msgs rospy std_msgs tf2_ros visualization_msgs
+  CATKIN_DEPENDS actionlib geometry_msgs move_base_msgs nav_msgs rospy std_msgs tf2_ros visualization_msgs
 #  DEPENDS system_lib
 )
 
@@ -131,9 +133,10 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(${PROJECT_NAME}
-  src/${PROJECT_NAME}/navigation_controller.cpp
-)
+# add_library(${PROJECT_NAME}
+#   src/navigation_controller.cpp
+#   src/pose_manager.cpp
+# )
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -144,7 +147,12 @@ add_library(${PROJECT_NAME}
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 ## Declare the executable
-add_executable(navigation_controller_node src/navigation_controller_node.cpp)
+# add_executable(navigation_controller_node src/navigation_controller.cpp)
+
+## Declare additional C++ executables
+# add_executable(pose_manager_node src/pose_manager.cpp)
+
+
 
 
 ## Rename C++ executable without prefix
@@ -155,17 +163,33 @@ add_executable(navigation_controller_node src/navigation_controller_node.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(${PROJECT_NAME}_node 
-  ${${PROJECT_NAME}_EXPORTED_TARGETS} 
-  ${catkin_EXPORTED_TARGETS}
-)
+## Add cmake target dependencies of the executable
+# add_dependencies(navigation_controller_node   # Match the name from add_executable
+#   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+#   ${catkin_EXPORTED_TARGETS}
+# )
+
+## Add dependencies
+# add_dependencies(pose_manager_node  # Match the name from add_executable
+#   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+#   ${catkin_EXPORTED_TARGETS}
+# )
+
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(
-  navigation_controller_node
-  ${PROJECT_NAME}_node
-  ${catkin_LIBRARIES}
-)
+## Specify libraries to link a library or executable target against
+# target_link_libraries(
+#   navigation_controller_node  # Match the name from add_executable
+#   ${PROJECT_NAME}  # Link against the library
+#   ${catkin_LIBRARIES}
+# )
+
+## Specify libraries to link
+# target_link_libraries(pose_manager_node  # Match the name from add_executable
+#   ${PROJECT_NAME}
+#   ${catkin_LIBRARIES}
+# )
+
 
 #############
 ## Install ##
@@ -182,7 +206,6 @@ catkin_install_python(PROGRAMS
   scripts/test_navigation_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
-
 
 install(DIRECTORY
   launch
