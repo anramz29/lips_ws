@@ -8,7 +8,7 @@ This repository contains resources, documentation, and scripts for working with 
 
 ## Latest Work
 
-Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordinator_locobot.py) and [scouting launch file launch file](/src/object_scout/launch/scout_system_locobot.launch) for my latest work in autonomus navigation.
+Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordinator_locobot.py) and [pick up object script](/src/object_scout/src/object_scout/pick_up_object.py) for my latest work in autonomus navigation & 6 dof arm manipulation using computer vision.
 
 <div align="center">
   <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>

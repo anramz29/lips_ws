@@ -9,14 +9,6 @@ For example, on the locobot:
 roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_wx250s use_lidar:=true localization:=true
 ```
 
-### **Important**
-If you're not using a locobot, check the topics in the launch scripts and adjust the launch files to your specific hardware configuration.
-
-<div align="center">
-  <img src="../images/object_approach.png" alt="Object Mapper Demo" width="800"/>
-  <p><em>Object Approach (Demo)</em></p>
-</div>
-
 ## Prerequisites
 
 - ROS (tested on ROS Noetic)
@@ -28,77 +20,6 @@ If you're not using a locobot, check the topics in the launch scripts and adjust
 - Geometry Messages
 - **Interbotix ROS packages**
 
-## Repository Structure
-```
-lips_ws/
-├── src/
-    ├── move_to_pose/
-    │   ├── config/
-    │   │   └── poses.yaml
-    │   ├── launch/
-    │   │   └── move_to_pose_scan.launch
-    │   ├── scripts/
-    │   │   ├── goal_recorder.py
-    │   │   └── move_to_pose_node.py
-    │   ├── setup.py
-    │   └── src/
-    │       ├── __init__.py
-    │       └── move_to_pose_utils.py
-    │
-    ├── object_scout/
-    │   ├── config/
-    │   │   └── poses.yaml
-    │   ├── launch/
-    │   │   ├── scout_system_locobot.launch
-    │   │   ├── scout_system_remote.launch
-    │   │   └── test_nav_and_scanner.launch
-    │   ├── scripts/
-    │   │   ├── scout_coordinator_locobot_node.py
-    │   │   ├── scout_coordinator_remote_node.py
-    │   │   └── test_navigation_node.py
-    │   ├── setup.py
-    │   └── src/
-    │       ├── __init__.py
-    │       └── object_scout/
-    │           ├── __init__.py
-    │           ├── navigation_controller.py
-    │           ├── fine_approcher.py
-    │           ├── object_approacher.py
-    │           ├── object_scanner.py
-    │           ├── pose_manager.py
-    │           ├── scout_coordinator_locobot.py
-    │           ├── scout_coordinator_remote.py
-    │           └── utils.py
-    │
-    ├── video_recorder/
-    │   ├── launch/
-    │   │   └── video_recorder.launch
-    │   ├── photos/
-    │   │   └── back_table.jpg
-    │   ├── scripts/
-    │   │   ├── picture_snapper.py
-    │   │   └── video_recorder.py
-    │   └── videos/
-    │       └── video_20250126_163047.mp4
-    │
-    └── yolo_vision/
-        ├── launch/
-        │   ├── object_mapper.launch
-        │   ├── yolo_distance.launch
-        │   └── yolo_vision.launch
-        ├── models/
-        │   ├── best.pt
-        │   └── yolo11n.pt
-        ├── rviz/
-        │   └── xslocobot_description_yolo.rviz
-        ├── scripts/
-        │   ├── distance_node.py
-        │   ├── object_mapper_node.py
-        │   ├── search_and_approach_node.py
-        │   └── yolo_node.py
-        └── src/
-            ├── distance_node.cpp
-            ├── object_mapper_node.cpp
-            └── yolo_node.cpp
-   
-```
+# License
+
+This repository is open-source and available under the MIT License.

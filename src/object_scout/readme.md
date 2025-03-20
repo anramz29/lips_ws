@@ -69,6 +69,7 @@ object_scout/
         ├── object_scanner.py
         ├── pose_manager.py
         ├── scout_coordinator.py
+        ├── pick_up_object.py
         └── utils.py
 ```
 
@@ -82,13 +83,13 @@ For Locobot, first start the robot's navigation stack:
 roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_wx250s use_lidar:=true localization:=true
 ```
 
-Then launch the scout system:
+Then launch the scout system (preferably in your remote pc):
 
 ```bash
 roslaunch object_scout scout_system_locobot.launch
 ```
 
-#### Note: This is specifically for the locobot due to the fact that on the remote computer we cannot obtain `JointGroupCommand` to tilt the camera servo.
+#### Note: This is specifically for the locobot due to the fact that on the remote computer we cannot obtain `JointGroupCommand` to tilt the camera servo or manupilate the robot arm.
 
 ### Testing Navigation
 
@@ -123,10 +124,11 @@ You can customize robot behaviors by modifying parameters in the `config/poses.y
 - Object approach and interaction
 - Pose recording and management
 - Integration with navigation systems
+- Picking object using it keypoints to change yaw angle of the 6 dof arm
 
 ## License
 
-See the project's license file for details.
+This repository is open-source and available under the MIT License.
 
 ## Maintainer
 
