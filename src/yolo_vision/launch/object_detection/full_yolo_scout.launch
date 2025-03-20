@@ -16,7 +16,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
 
   <!-- Camera Topics -->
   <arg name="rgb_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
-  <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
+  <arg name="depth_image_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
 
 
   <!-- YOLO Topics -->
@@ -38,24 +38,23 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
   <arg name="move_base_topic" default="/$(arg robot_name)/move_base"/>
   <arg name="costmap_topic" default="/$(arg robot_name)/move_base/global_costmap/costmap"/>
 
-  <!-- Launch YOLO node -->
-  <node name="yolo_node" pkg="yolo_vision" type="yolo_node.py" output="screen" ns="$(arg robot_name)">
+    <!-- Launch YOLO Distance Launch File -->
+  <include file="$(find yolo_vision)/launch/object_detection/yolo_vision.launch">
 
-      <!-- input params -->
-      <param name="debug_mode" value="$(arg debug_mode)"/>
+    <!-- Additional parameters -->
+    <arg name="robot_name" value="$(arg robot_name)"/>
+    <arg name="use_rviz" value="false"/>
 
-      <!-- Input Topics -->
-      <param name="image_topic" value="$(arg rgb_topic)"/>
-      <param name="model_path" value="$(arg model_path)"/>
-      <param name="depth_image_topic" value="$(arg depth_topic)"/>
+    <!-- Input -->
+    <arg name="model_path" value="$(arg model_path)"/>
+    <arg name="rgb_topic" value="$(arg rgb_topic)"/>
+    <arg name="depth_image_topic" value="$(arg depth_image_topic)"/>
 
-      <!-- Output Topics -->
-      <param name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
-      <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
+    <!-- Output -->
+    <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
+    <arg name="annotated_image_topic" value="$(arg annotated_image_topic)"/>
 
-      <!-- Rviz -->
-      <param name="use_rviz" value="flase"/>
-  </node>
+  </include>
 
   <!-- Object Mapper Node -->
   <node name="object_mapper" pkg="yolo_vision" type="object_mapper_node.py" output="screen" ns="$(arg robot_name)">

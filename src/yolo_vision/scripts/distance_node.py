@@ -1,183 +1,298 @@
 #!/usr/bin/env python3
 import rospy
 from sensor_msgs.msg import Image
+from std_msgs.msg import Float32MultiArray
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from std_msgs.msg import Float32MultiArray
 
 class DistanceNode:
     """
-    Node for calculating the depth of objects detected by YOLO.
-    Processes annotated YOLO images and corresponding depth images,
-    extracts bounding boxes, and calculates average depth within each box.
+    Node for calculating distances from depth images using bounding boxes from YOLO.
+    Subscribes to YOLO bounding boxes and depth images.
+    Publishes annotated RGB images and bounding boxes with depth information.
     """
     def __init__(self):
         rospy.init_node('distance_node', anonymous=True)
         self.bridge = CvBridge()
-        
-        # Load parameters from parameter server
-        self.yolo_image_topic = rospy.get_param('~annotated_image_topic')
+
+        # Get parameters
+        self.image_topic = rospy.get_param('~image_topic')
         self.depth_image_topic = rospy.get_param('~depth_image_topic')
+        self.bbox_topic = rospy.get_param('~bbox_topic')  
+        self.annotation_topic = rospy.get_param('~annotated_image_topic')
         self.bbox_depth_topic = rospy.get_param('~bbox_depth_topic')
-        self.visualization_topic = rospy.get_param('~visualization_topic')
+        
+        # Store the latest messages
+        self.latest_image = None
+        self.latest_depth = None
+        self.latest_bbox = None
+        self.latest_image_header = None
+        
+        # Setup ROS communication
+        self._setup_ros_communication()
+
+    def _setup_ros_communication(self):
+        # Subscribe to RGB images
+        self.image_sub = rospy.Subscriber(
+            self.image_topic, 
+            Image, 
+            self.image_callback, 
+            queue_size=1
+        )
+        
+        # Subscribe to depth images
+        self.depth_sub = rospy.Subscriber(
+            self.depth_image_topic, 
+            Image, 
+            self.depth_callback,
+            queue_size=1
+        )
+        
+        # Subscribe to bounding boxes from YOLO
+        self.bbox_sub = rospy.Subscriber(
+            self.bbox_topic,
+            Float32MultiArray,
+            self.bbox_callback,
+            queue_size=1
+        )
         
         # Publishers
-        self.viz_pub = rospy.Publisher(self.visualization_topic, Image, queue_size=10)
-        self.bbox_depth_pub = rospy.Publisher(self.bbox_depth_topic, Float32MultiArray, queue_size=10)
+        self.image_pub = rospy.Publisher(self.annotation_topic, Image, queue_size=1)
+        self.bbox_depth_pub = rospy.Publisher(self.bbox_depth_topic, Float32MultiArray, queue_size=1)
         
-        # Subscribers
-        self.yolo_sub = rospy.Subscriber(self.yolo_image_topic, Image, self.yolo_callback)
-        self.depth_sub = rospy.Subscriber(self.depth_image_topic, Image, self.depth_callback)
-        
-        # Message storage
-        self.last_yolo_msg = None
-        self.last_depth_msg = None
+        # Timer for processing at a fixed rate
+        self.process_timer = rospy.Timer(rospy.Duration(0.1), self.process_data)  # 10 Hz
 
-    # ---------- Callback Functions ----------
-
-    def yolo_callback(self, msg):
-        """Callback for YOLO annotated images."""
-        try:
-            self.last_yolo_msg = msg
-            self.process_images()
-        except Exception as e:
-            rospy.logerr(f"Error in YOLO callback: {str(e)}")
+    def image_callback(self, msg):
+        """Store the latest RGB image."""
+        self.latest_image = msg
+        self.latest_image_header = msg.header
 
     def depth_callback(self, msg):
-        """Callback for depth images."""
-        try:
-            self.last_depth_msg = msg
-            self.process_images()
-        except Exception as e:
-            rospy.logerr(f"Error in depth callback: {str(e)}")
+        """Store the latest depth image."""
+        self.latest_depth = msg
 
-    # ---------- Main Processing Function ----------
+    def bbox_callback(self, msg):
+        """Store the latest bounding box data."""
+        self.latest_bbox = msg
 
-    def process_images(self):
-        """Process the latest YOLO and depth images to extract depth for detected objects."""
-        # Skip if we don't have both images
-        if self.last_yolo_msg is None or self.last_depth_msg is None:
-            return
-
-        try:
-            # Convert images to OpenCV format
-            img = self.convert_yolo_image_to_cv2()
-            depth = self.convert_depth_image_to_cv2()
-            
-            # Extract bounding box from annotated image
-            bbox = self.get_bbox_from_mask(img)
-            
-            # Process depth for bounding box if found
-            if bbox is not None:
-                self.process_bbox_depth(img, depth, bbox)
-            
-            # Publish visualization
-            self.publish_visualization(img)
-            
-        except Exception as e:
-            rospy.logerr(f"Error in process_images: {str(e)}")
-
-    # ---------- Image Conversion Functions ----------
-
-    def convert_yolo_image_to_cv2(self):
-        """Convert ROS YOLO annotated image to OpenCV format."""
-        return self.bridge.imgmsg_to_cv2(self.last_yolo_msg, 'bgr8')
-
-    def convert_depth_image_to_cv2(self):
-        """Convert ROS depth image to meters in OpenCV format."""
-        if self.last_depth_msg.encoding == '32FC1':
-            depth = self.bridge.imgmsg_to_cv2(self.last_depth_msg, '32FC1')
-            # Convert from mm to m if needed
-            if np.max(depth) > 100:
-                depth = depth / 1000.0
-        else:
-            depth = self.bridge.imgmsg_to_cv2(self.last_depth_msg, '16UC1')
-            depth = depth.astype(float) / 1000.0
-        
-        return depth
-
-    # ---------- Bounding Box Functions ----------
-
-    def get_bbox_from_mask(self, img):
+    def process_data(self, event):
         """
-        Get single bounding box from the green pixels in the image.
+        Process all available data to calculate distances and annotate images.
+        Called periodically by the timer.
+        """
+        # Check if we have all required data
+        if None in (self.latest_image, self.latest_depth, self.latest_bbox):
+            return
+        
+        try:
+            # Convert ROS Image messages to OpenCV format
+            rgb_frame = self.bridge.imgmsg_to_cv2(self.latest_image, desired_encoding='bgr8')
+            depth_image = self.convert_depth_image_to_cv2(self.latest_depth)
+            
+            # Process bounding boxes and calculate distances
+            bbox_depth_data = self.process_bboxes_with_depth(rgb_frame, depth_image, self.latest_bbox.data)
+            
+            # Publish the annotated image
+            self.publish_annotated_image(rgb_frame)
+            
+            # Publish bounding boxes with depth
+            self.publish_bbox_depth(bbox_depth_data)
+            
+        except Exception as e:
+            rospy.logerr(f"Error in processing data: {str(e)}")
+
+    def convert_depth_image_to_cv2(self, ros_image):
+        """Convert ROS depth image to meters in OpenCV format."""
+        try:
+            depth = self.bridge.imgmsg_to_cv2(ros_image, '16UC1')
+            depth = depth.astype(float) / 1000.0  # Convert from mm to meters
+            return depth
+        except Exception as e:
+            rospy.logerr(f"Error converting depth image: {str(e)}")
+            return np.zeros((480, 640), dtype=np.float32)
+    
+    def process_bbox_depth(self, depth, bbox):
+        """
+        Calculate the average depth for a bounding box.
         
         Args:
-            img: OpenCV image containing green bounding box
+            depth: OpenCV depth image in meters
+            bbox: Tuple of (x1, y1, x2, y2)
             
         Returns:
-            tuple: (x, y, width, height) of the bounding box or None if not found
+            float: Average depth in meters or 0 if no valid depth
         """
-        # Create binary mask of green pixels
-        mask = cv2.inRange(img, (0, 255, 0), (0, 255, 0))
+        x1, y1, x2, y2 = bbox
         
-        # Find contours in the mask
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Return None if no contours found
-        if not contours:
-            return None
+        # Safety checks
+        if depth is None or depth.size == 0:
+            return 0.0
             
-        # Find the largest contour (main bounding box)
-        largest_contour = max(contours, key=cv2.contourArea)
-        return cv2.boundingRect(largest_contour)
-
-    def process_bbox_depth(self, img, depth, bbox):
-        """
-        Calculate and annotate the average depth for a bounding box.
+        # Ensure coordinates are within image bounds
+        h_max, w_max = depth.shape[:2]
+        x1 = max(0, min(x1, w_max-1))
+        y1 = max(0, min(y1, h_max-1))
+        x2 = min(x2, w_max-1)
+        y2 = min(y2, h_max-1)
         
-        Args:
-            img: OpenCV RGB image to annotate
-            depth: OpenCV depth image in meters
-            bbox: Tuple of (x, y, width, height)
-        """
-        x, y, w, h = bbox
-        
+        if x2 <= x1 or y2 <= y1:
+            return 0.0
+            
         # Extract depth values within bounding box
-        roi_depth = depth[y:y+h, x:x+w]
+        roi_depth = depth[y1:y2, x1:x2]
         
         # Calculate average of non-zero depth values
-        valid_depths = roi_depth[roi_depth != 0]
+        valid_depths = roi_depth[roi_depth > 0.1]  # Filter out very small values too
         if len(valid_depths) > 0:
-            avg_depth = np.mean(valid_depths)
-            
-            # Publish depth information with bbox coordinates
-            self.publish_depth_data(x, y, w, h, avg_depth)
-            
-            # Add depth text to the image
-            self.annotate_depth(img, x, y, w, h, avg_depth)
+            return float(np.mean(valid_depths))
+        else:
+            return 0.0
 
-    # ---------- Publishing Functions ----------
-
-    def publish_depth_data(self, x, y, w, h, depth):
-        """Publish bounding box coordinates and depth."""
-        msg = Float32MultiArray()
-        msg.data = [float(x), float(y), float(w), float(h), depth]
-        self.bbox_depth_pub.publish(msg)
-
-    def annotate_depth(self, img, x, y, w, h, depth):
-        """Add depth text to the image at the bounding box."""
-        depth_text = f"{depth:.2f}m"
-        text_size = cv2.getTextSize(depth_text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
+    def process_bboxes_with_depth(self, frame, depth_image, bbox_data):
+        """
+        Process bounding boxes, calculate depths, and annotate the image.
         
-        # Calculate text position
-        text_x = x + (w - text_size[0]) // 2
-        text_y = y - 10 if y > 30 else y + 30
+        Args:
+            frame: RGB frame for annotation
+            depth_image: Depth image for distance calculation
+            bbox_data: Bounding box data from Float32MultiArray
+            
+        Returns:
+            list: Updated bounding box data with depth information
+        """
+        # Convert to list for easy manipulation
+        bbox_data = list(bbox_data)
+        num_boxes = int(bbox_data[0])
         
-        # Draw text on image
-        cv2.putText(img, depth_text, (text_x, text_y), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        if num_boxes == 0:
+            return bbox_data
+            
+        # Calculate bbox data length per detection
+        # [cls_id, conf, x1, y1, x2, y2]
+        bbox_stride = 6
+        
+        # Create new bbox data with depth
+        bbox_depth_data = [num_boxes]  # Start with number of boxes
+        
+        for i in range(num_boxes):
+            # Extract bbox data for this detection
+            start_idx = 1 + i * bbox_stride
+            cls_id = int(bbox_data[start_idx])
+            conf = bbox_data[start_idx + 1]
+            x1 = int(bbox_data[start_idx + 2])
+            y1 = int(bbox_data[start_idx + 3])
+            x2 = int(bbox_data[start_idx + 4])
+            y2 = int(bbox_data[start_idx + 5])
+            
+            # Calculate depth
+            avg_depth = self.process_bbox_depth(depth_image, (x1, y1, x2, y2))
+            
+            # Add to new data with depth
+            # [cls_id, conf, x1, y1, x2, y2, depth]
+            bbox_depth_data.extend([cls_id, conf, x1, y1, x2, y2, avg_depth])
+            
+            # Annotate the frame
+            self.annotate_frame(frame, cls_id, conf, x1, y1, x2, y2, avg_depth)
+            
+        return bbox_depth_data
 
-    def publish_visualization(self, img):
-        """Publish the annotated image for visualization."""
-        viz_msg = self.bridge.cv2_to_imgmsg(img, 'bgr8')
-        self.viz_pub.publish(viz_msg)
+    def annotate_frame(self, frame, cls_id, conf, x1, y1, x2, y2, depth):
+        """
+        Annotate a frame with bounding box, class, confidence, and depth.
+        
+        Args:
+            frame: RGB frame to annotate
+            cls_id, conf, x1, y1, x2, y2, depth: Detection data
+        """
+        # Draw rectangle
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        
+        # Add class name and confidence
+        cls_name = self.get_class_name(cls_id)
+        label = f"{cls_name} {conf:.2f}"
+        
+        # Draw class and confidence
+        label_size, baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+        text_y = max(y1, label_size[1] + 5)
+        cv2.putText(frame, label, (x1, text_y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        # Draw depth information
+        if depth <= 0:
+            depth_text = "Distance: Unknown"
+        else:
+            depth_text = f"Distance: {depth:.2f}m"
+            
+        depth_text_size = cv2.getTextSize(depth_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+        
+        # Position depth text below the class label
+        depth_y = text_y + depth_text_size[1] + 5
+        cv2.putText(frame, depth_text, (x1, depth_y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+    def get_class_name(self, cls_id):
+        """
+        Get class name for a class ID.
+        This is a placeholder - in a real implementation, you would 
+        have a proper mapping from class ID to name.
+        
+        Args:
+            cls_id: Class ID
+            
+        Returns:
+            str: Class name
+        """
+        # Placeholder - you should use a proper mapping
+        class_names = {
+            0: "grasshopper",
+            1: "box"
+        }
+        return class_names.get(cls_id, f"class_{cls_id}")
+
+    def publish_annotated_image(self, frame):
+        """Publish the annotated RGB image."""
+        if self.latest_image_header is None:
+            return
+            
+        try:
+            annotated_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+            annotated_msg.header = self.latest_image_header
+            self.image_pub.publish(annotated_msg)
+        except Exception as e:
+            rospy.logerr(f"Error publishing annotated image: {str(e)}")
+
+    def publish_bbox_depth(self, bbox_depth_data):
+        """Publish bounding boxes with depth information."""
+        if self.latest_image_header is None:
+            return
+            
+        try:
+            # Create message
+            msg = Float32MultiArray()
+            
+            # Set dimensions
+            msg.layout.dim.append(Float32MultiArray().layout.dim[0])
+            msg.layout.dim[0].label = "bbox_depth"
+            msg.layout.dim[0].size = len(bbox_depth_data)
+            msg.layout.dim[0].stride = len(bbox_depth_data)
+            
+            # Set data
+            msg.data = bbox_depth_data
+            
+            # Publish
+            self.bbox_depth_pub.publish(msg)
+        except Exception as e:
+            rospy.logerr(f"Error publishing bbox depth data: {str(e)}")
+
+    def spin(self):
+        """Run the node."""
+        rospy.spin()
 
 if __name__ == '__main__':
     try:
         node = DistanceNode()
-        rospy.spin()
+        node.spin()
     except rospy.ROSInterruptException:
         pass
