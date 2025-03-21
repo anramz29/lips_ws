@@ -155,7 +155,7 @@ class FineApproacher():
     
     def calculate_center_of_image(self):
         """
-        Calculate the center (bottom third) of the image
+        Calculate the center (bottom fourth) of the image
         
         Returns:
             tuple: (x_center, y_center) coordinates

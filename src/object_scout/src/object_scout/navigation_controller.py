@@ -376,6 +376,40 @@ class NavigationController:
         
         # Wait for result with timeout
         return self.wait_for_navigation(timeout)
+    
+    # def clear_costmaps(self):
+    #     """
+    #     Clear both local and global costmaps
+        
+    #     This is useful when:
+    #     - The robot gets stuck due to phantom obstacles
+    #     - After an environment change that should clear previously detected obstacles
+    #     - Before starting a new navigation task
+        
+    #     Returns:
+    #         bool: Success flag
+    #     """
+    #     try:
+    #         # Service name for clearing costmaps
+    #         clear_costmaps_service = f'{self.move_base_topic}/clear_costmaps'
+            
+    #         # Wait for service to be available
+    #         rospy.loginfo(f"Waiting for {clear_costmaps_service} service...")
+    #         rospy.wait_for_service(clear_costmaps_service, timeout=5.0)
+            
+    #         # Call the service
+    #         clear_costmaps = rospy.ServiceProxy(clear_costmaps_service, std_srvs.srv.Empty)
+    #         clear_costmaps()
+            
+    #         rospy.loginfo("Successfully cleared costmaps")
+    #         return True
+            
+    #     except rospy.ROSException as e:
+    #         rospy.logerr(f"Service call failed: {e}")
+    #         return False
+    #     except rospy.ServiceException as e:
+    #         rospy.logerr(f"Failed to clear costmaps: {e}")
+    #         return False
 
 
 if __name__ == "__main__":

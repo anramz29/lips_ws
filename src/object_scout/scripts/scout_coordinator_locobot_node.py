@@ -34,7 +34,7 @@ def main():
     # Log startup
     rospy.loginfo("=== Object Scout Coordinator Node Started ===")
 
-    rospy.sleep(5)  # Wait for other nodes to start
+    rospy.sleep(3)  # Wait for other nodes to start
     
     # Prompt user to start the mission
     if prompt_user():

@@ -27,7 +27,7 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     
     <!-- Camera Frame -->
     <arg name="camera_frame" default="$(arg robot_name)/camera_color_optical_frame"/>
-    
+
     <!-- Launch Keypoint Detection node -->
     <node name="keypoint_detection_node" pkg="yolo_vision" type="yolo_keypoint_detection_node.py" output="screen" ns="$(arg robot_name)">
         <!-- Main parameters -->

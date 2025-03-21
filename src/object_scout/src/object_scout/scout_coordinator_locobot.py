@@ -213,6 +213,9 @@ class ScoutCoordinatorLocobot:
         """
         # Reset camera tilt angle to start
         self.fine_approacher.reset_camera_tilt()
+        
+        # clear costmap
+        # self.nav_controller.clear_costmaps()
 
         # Get all poses to visit
         rospy.loginfo("Starting object scouting mission")

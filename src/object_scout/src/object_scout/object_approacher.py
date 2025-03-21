@@ -149,15 +149,15 @@ class ObjectApproacher:
         # Store depth value
         self.current_depth = depth
         
-        # Print depth information periodically
-        if hasattr(self, '_last_depth_print') and \
-        rospy.Time.now() - self._last_depth_print < rospy.Duration(1.0):
-            # Skip printing too frequently
-            pass
-        else:
-            rospy.loginfo(f"Object depth: {self.current_depth:.2f}m, " + 
-                        f"confidence: {confidence:.2f}, class: {cls_id}")
-            self._last_depth_print = rospy.Time.now()
+        # # Print depth information periodically
+        # if hasattr(self, '_last_depth_print') and \
+        # rospy.Time.now() - self._last_depth_print < rospy.Duration(1.0):
+        #     # Skip printing too frequently
+        #     pass
+        # else:
+        #     rospy.loginfo(f"Object depth: {self.current_depth:.2f}m, " + 
+        #                 f"confidence: {confidence:.2f}, class: {cls_id}")
+        #     self._last_depth_print = rospy.Time.now()
 
     # ---------- POSITION CALCULATION METHODS ----------
 

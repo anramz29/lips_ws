@@ -16,6 +16,7 @@ import geometry_msgs.msg
 import sensor_msgs.msg
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped
+import collections
 
 
 class PickUpObject:
@@ -60,9 +61,12 @@ class PickUpObject:
         self.object_marker = None
         self.latest_keypoints = None
         self.angle = None
+        self.latest_angle = None
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.bridge = CvBridge()
+        self.angle_history = collections.deque(maxlen=10)
+        self.last_valid_angle = None
 
         # Camera intrinsics (initialized in get_camera_info)
         self.fx = None
@@ -105,31 +109,31 @@ class PickUpObject:
         
         Message format: [num_instances, angle, x1, y1, x2, y2, ...]
         """
-        if not msg.data or len(msg.data) < 3:  # No valid data
-            return
-            
-        # First value is the number of instances
-        num_instances = int(msg.data[0])
-        
-        if num_instances > 0:
-            # Store the angle and keypoints
-            # The angle is the second value in the message
-            self.angle = msg.data[1]
-            
-            # Extract keypoints starting from the third value
-            keypoints = []
-            for i in range(2, len(msg.data), 2):
-                if i+1 < len(msg.data):
-                    keypoints.append([msg.data[i], msg.data[i+1]])
-                    
-            # Store the angle and keypoints
-            self.latest_angle = self.angle      
-            self.latest_keypoints = np.array(keypoints)
-            
-            # Log the data once
-
-            
+        try:
+            if not msg.data or len(msg.data) < 3:  # No valid data
+                return
                 
+            # First value is the number of instances
+            num_instances = int(msg.data[0])
+            
+            if num_instances > 0:
+                # Store the angle and keypoints
+                # The angle is the second value in the message
+                self.angle = float(msg.data[1])  # Ensure it's a float
+                
+                # Extract keypoints starting from the third value
+                keypoints = []
+                for i in range(2, len(msg.data), 2):
+                    if i+1 < len(msg.data):
+                        keypoints.append([msg.data[i], msg.data[i+1]])
+                        
+                # Store the first set of angle
+                self.latest_angle = self.angle
+
+                
+        except Exception as e:
+            rospy.logerr(f"Error processing keypoint data: {e}")
+
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection"""
         service_name = f'/{self.robot_name}/keypoint_detector/set_enabled'
@@ -157,15 +161,7 @@ class PickUpObject:
     def object_marker_callback(self, msg):
         """Process object marker messages and update history"""
         self.object_marker = msg
-
-    def get_armtag(self):
-        # position the arm such that the Apriltag is clearly visible to the camera
-        self.arm.set_ee_pose_components(x=0.2, z=0.2, pitch=-math.pi/8.0)
-        time.sleep(0.5)
-        # get the transform of the AR tag
-        self.armtag.find_ref_to_arm_base_transform(position_only=True)
-        # move the arm out of the way of the camera
-        self.arm.go_to_sleep_pose()
+    
 
     def get_clusters(self):
         # get the positions of any clusters present w.r.t. the 'locobot/arm_base_link'
@@ -181,135 +177,15 @@ class PickUpObject:
             rospy.loginfo(f"Found {len(clusters)} clusters")
         
         return success, clusters
-        
 
-    def normalize_angle(self):
-        """
-        Normalize an angle to the -π to π range
-        """
-        
-        # Normalize angle (in radians) to -π to π range
-        normalized_angle = math.atan2(math.sin(self.angle), math.cos(self.angle))
-        
-        # If the angle is greater than π/2 or less than -π/2, we can flip it by ±π
-        # This gives us the equivalent angle with smallest magnitude
-        if normalized_angle > math.pi/2:
-            optimal_yaw = normalized_angle - math.pi
-        elif normalized_angle < -math.pi/2:
-            optimal_yaw = normalized_angle + math.pi
-        else:
-            optimal_yaw = normalized_angle
-            
-        rospy.loginfo(f"Optimized yaw: {optimal_yaw:.4f} rad ({math.degrees(optimal_yaw):.2f}°) from original {normalized_angle:.4f} rad")
-        
-        return optimal_yaw
 
-    def pick_object(self, hover_height=0.25, approach_height=0.05, go_to_sleep_after=True):
-        """
-        Complete pick-up sequence for objects using keypoint orientation
-        
-        Args:
-            hover_height: Height above object for pre-grasp position
-            approach_height: Final height for grasping
-            
-        Returns:
-            bool: Success flag
-        """
-        # 1. Enable keypoint detection if not already enabled
-        self.enable_keypoint_detection(True)
-        
-        # 2. Calibrate the system using the armtag
-        self.get_armtag()
-
-        # 3. Go to home position first (as per recommended control sequence)
-        self.arm.go_to_home_pose()
-        self.gripper.open()
+    def shutdown_handler(self):
+        """Shutdown handler to ensure a clean exit"""
+        rospy.loginfo("Shutting down...")
+        self.enable_keypoint_detection(False)
+        self.arm.go_to_sleep_pose()
         rospy.sleep(1.0)  # Short pause for stability
-        
-        # 4. Get clusters to identify objects
-        success, clusters = self.get_clusters()
-        if not success or len(clusters) == 0:
-            rospy.logerr("No objects detected")
-            return False
-        
-        # 5. Get the first cluster (assume it's our target)
-        target_cluster = clusters[0]
-        rospy.loginfo(f"Target object at position: {target_cluster}")
-        x, y, z = target_cluster["position"]
-        
-        # 6. First move waist joint (align end-effector direction)
-        # If normalize_angle returns the optimal yaw for grasping
-        optimal_yaw = self.normalize_angle()
-        
-        # 7. Set the waist joint to the optimal yaw position
-        waist_success = self.arm.set_single_joint_position(
-            joint_name="waist",  #
-            position=optimal_yaw,
-            moving_time=1.0,
-            blocking=True
-        )
-        
-        if not waist_success:
-            rospy.logerr("Failed to adjust waist position")
-            return False
-        
-        # 8. Move to hover position above object
-        rospy.loginfo("Moving to hover position...")
-        hover_success = self.arm.set_ee_pose_components(
-            x=x, y=y, z=hover_height, pitch=math.pi/2, moving_time=1.5
-        )
-        
-        if not hover_success:
-            rospy.logerr("Failed to reach hover position")
-            self.arm.go_to_home_pose()
-            return False
-        
-        rospy.sleep(0.5)  # Short pause for stability
-        
-        # 9. Lower to approach height with Cartesian trajectory (relative move)
-        rospy.loginfo("Approaching object...")
-        approach_success = self.arm.set_ee_cartesian_trajectory(
-            z=-(hover_height-approach_height),  # Negative value to move down
-            wp_moving_time=1.0,
-            wp_accel_time=0.5,
-            wp_period=0.05
-        )
-        
-        if not approach_success:
-            rospy.logerr("Failed to approach object")
-            self.arm.go_to_home_pose()
-            return False
-        
-        # 10. Close the gripper to grasp the object
-        rospy.loginfo("Grasping object...")
-        self.gripper.close()
-        rospy.sleep(0.5)  # Wait for the gripper to close
-        
-        # 11. Lift the object using Cartesian trajectory (relative move)
-        rospy.loginfo("Lifting object...")
-        lift_success = self.arm.set_ee_cartesian_trajectory(
-            z=hover_height-approach_height,  # Positive value to move up
-            wp_moving_time=1.0,
-            wp_accel_time=0.5,
-            wp_period=0.05
-        )
-        
-        if not lift_success:
-            rospy.logerr("Failed to lift object")
-            self.gripper.open()  # Release the object in case of failure
-            self.arm.go_to_sleep_pose()
-            return False
-        
-        # 12. Return to home or sleep pose if requested
-        if go_to_sleep_after:
-            rospy.loginfo("Moving to home pose...")
-            self.arm.go_to_home_pose()
-            rospy.loginfo("Moving to sleep pose...")
-            self.arm.go_to_sleep_pose()
-        
-        rospy.loginfo("Successfully picked up the object!")
-        return True
-
+        rospy.loginfo("Shutdown complete")
 
 def main():
     # Initialize the ROS node

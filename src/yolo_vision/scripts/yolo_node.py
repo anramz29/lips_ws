@@ -46,7 +46,9 @@ class YoloDetectionNode:
 
         # Processing rate control
         self.last_process_time = rospy.Time.now()
-        self.min_process_interval = rospy.Duration(0.1)  # 10 Hz maximum
+
+        # use 40 hz as default
+        self.min_process_interval = rospy.Duration(0.025)
 
         # Setup ROS communication
         self._setup_ros_communication()

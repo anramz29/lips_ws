@@ -30,7 +30,7 @@ class YoloKeypointDetectionNode:
         self.load_model_when_needed = True  # Lazy loading
         
         # State variables
-        self.enabled = False
+        self.enabled = True
         self.last_process_time = rospy.Time(0)
         self.process_interval = rospy.Duration(1.0 / 10)  # 10 Hz max
         
