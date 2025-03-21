@@ -204,7 +204,7 @@ class PickUpObject:
         
         return optimal_yaw
 
-    def pick_object(self, hover_height=0.15, approach_height=0.01, go_to_sleep_after=True):
+    def pick_object(self, hover_height=0.25, approach_height=0.05, go_to_sleep_after=True):
         """
         Complete pick-up sequence for objects using keypoint orientation
         
@@ -221,99 +221,93 @@ class PickUpObject:
         # 2. Calibrate the system using the armtag
         self.get_armtag()
 
-        # go to sleep pose if requested
-        if go_to_sleep_after:
-            self.arm.go_to_sleep_pose()
-
+        # 3. Go to home position first (as per recommended control sequence)
+        self.arm.go_to_home_pose()
         self.gripper.open()
-
         rospy.sleep(1.0)  # Short pause for stability
         
-        # 3. Get clusters to identify objects
+        # 4. Get clusters to identify objects
         success, clusters = self.get_clusters()
         if not success or len(clusters) == 0:
             rospy.logerr("No objects detected")
             return False
         
-        self.arm.set_ee_pose_components(x=0.3, z=0.2, moving_time=1.5)
-        self.gripper.open()
-            
-        # 4. Get the first cluster (assume it's our target)
+        # 5. Get the first cluster (assume it's our target)
         target_cluster = clusters[0]
         rospy.loginfo(f"Target object at position: {target_cluster}")
         x, y, z = target_cluster["position"]
-
-  
-        # 5. Move to hover position above object
+        
+        # 6. First move waist joint (align end-effector direction)
+        # If normalize_angle returns the optimal yaw for grasping
+        optimal_yaw = self.normalize_angle()
+        
+        waist_success = self.arm.set_single_joint_position(
+        joint_name="waist",  # Replace with the actual joint name for your robot
+        position=optimal_yaw,
+        moving_time=1.0,
+        blocking=True
+        )
+        
+        if not waist_success:
+            rospy.logerr("Failed to adjust waist position")
+            return False
+        
+        # 7. Move to hover position above object
         rospy.loginfo("Moving to hover position...")
         hover_success = self.arm.set_ee_pose_components(
-            x=x, y=y, z=0.25, moving_time=1.5,
+            x=x, y=y, z=hover_height, pitch=math.pi/2, moving_time=1.5
         )
-
-        rospy.sleep(0.5)  # Short pause for stability
-
-        
-        approach_success = self.arm.set_ee_cartesian_trajectory(pitch=math.pi/2)
         
         if not hover_success:
             rospy.logerr("Failed to reach hover position")
-            self.arm.go_to_sleep_pose()
+            self.arm.go_to_home_pose()
             return False
         
-        # 6. Get optimal yaw angle for grasping
-        optimal_yaw = self.normalize_angle()
-            
-        approach_success = self.arm.set_ee_cartesian_trajectory(yaw=optimal_yaw)
-
-        if not approach_success:
-            rospy.logerr("Failed to approach object")
-            self.arm.go_to_sleep_pose()
-            return False
+        rospy.sleep(0.5)  # Short pause for stability
         
-        # 9. Lower to approach height with Cartesian trajectory for straight-line motion
+        # 8. Lower to approach height with Cartesian trajectory (relative move)
         rospy.loginfo("Approaching object...")
-        approach_success = self.arm.set_ee_cartesian_trajectory(z=approach_height)
+        approach_success = self.arm.set_ee_cartesian_trajectory(
+            z=-(hover_height-approach_height),  # Negative value to move down
+            wp_moving_time=1.0,
+            wp_accel_time=0.5,
+            wp_period=0.05
+        )
         
         if not approach_success:
             rospy.logerr("Failed to approach object")
-            self.arm.go_to_sleep_pose()
+            self.arm.go_to_home_pose()
             return False
-            
-        # 10. Close the gripper to grasp the object
+        
+        # 9. Close the gripper to grasp the object
         rospy.loginfo("Grasping object...")
         self.gripper.close()
         rospy.sleep(0.5)  # Wait for the gripper to close
         
-        # 11. Lift the object
+        # 10. Lift the object using Cartesian trajectory (relative move)
         rospy.loginfo("Lifting object...")
-        lift_success = self.arm.set_ee_cartesian_trajectory(z=hover_height)
+        lift_success = self.arm.set_ee_cartesian_trajectory(
+            z=hover_height-approach_height,  # Positive value to move up
+            wp_moving_time=1.0,
+            wp_accel_time=0.5,
+            wp_period=0.05
+        )
         
         if not lift_success:
             rospy.logerr("Failed to lift object")
+            self.gripper.open()  # Release the object in case of failure
             self.arm.go_to_sleep_pose()
             return False
         
-        # 12. Go to sleep pose if requested
+        # 11. Return to home or sleep pose if requested
         if go_to_sleep_after:
+            rospy.loginfo("Moving to home pose...")
+            self.arm.go_to_home_pose()
             rospy.loginfo("Moving to sleep pose...")
             self.arm.go_to_sleep_pose()
-            
+        
         rospy.loginfo("Successfully picked up the object!")
         return True
-
-    def shutdown_handler(self):
-        """Handle shutdown cleanup"""
-        rospy.loginfo("PickUpObject shutting down, moving arm to safe position...")
-        try:
-            # Open gripper first (safer in case it's holding something)
-            self.gripper.open()
-            rospy.sleep(0.5)  # Short pause to ensure gripper opens
-            
-            # Move arm to sleep pose
-            self.arm.go_to_sleep_pose()
-            rospy.loginfo("Arm successfully moved to sleep pose")
-        except Exception as e:
-            rospy.logerr(f"Error during shutdown cleanup: {e}")
 
 
 def main():
