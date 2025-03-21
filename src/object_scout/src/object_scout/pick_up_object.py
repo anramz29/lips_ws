@@ -241,18 +241,19 @@ class PickUpObject:
         # If normalize_angle returns the optimal yaw for grasping
         optimal_yaw = self.normalize_angle()
         
+        # 7. Set the waist joint to the optimal yaw position
         waist_success = self.arm.set_single_joint_position(
-        joint_name="waist",  # Replace with the actual joint name for your robot
-        position=optimal_yaw,
-        moving_time=1.0,
-        blocking=True
+            joint_name="waist",  #
+            position=optimal_yaw,
+            moving_time=1.0,
+            blocking=True
         )
         
         if not waist_success:
             rospy.logerr("Failed to adjust waist position")
             return False
         
-        # 7. Move to hover position above object
+        # 8. Move to hover position above object
         rospy.loginfo("Moving to hover position...")
         hover_success = self.arm.set_ee_pose_components(
             x=x, y=y, z=hover_height, pitch=math.pi/2, moving_time=1.5
@@ -265,7 +266,7 @@ class PickUpObject:
         
         rospy.sleep(0.5)  # Short pause for stability
         
-        # 8. Lower to approach height with Cartesian trajectory (relative move)
+        # 9. Lower to approach height with Cartesian trajectory (relative move)
         rospy.loginfo("Approaching object...")
         approach_success = self.arm.set_ee_cartesian_trajectory(
             z=-(hover_height-approach_height),  # Negative value to move down
@@ -279,12 +280,12 @@ class PickUpObject:
             self.arm.go_to_home_pose()
             return False
         
-        # 9. Close the gripper to grasp the object
+        # 10. Close the gripper to grasp the object
         rospy.loginfo("Grasping object...")
         self.gripper.close()
         rospy.sleep(0.5)  # Wait for the gripper to close
         
-        # 10. Lift the object using Cartesian trajectory (relative move)
+        # 11. Lift the object using Cartesian trajectory (relative move)
         rospy.loginfo("Lifting object...")
         lift_success = self.arm.set_ee_cartesian_trajectory(
             z=hover_height-approach_height,  # Positive value to move up
@@ -299,7 +300,7 @@ class PickUpObject:
             self.arm.go_to_sleep_pose()
             return False
         
-        # 11. Return to home or sleep pose if requested
+        # 12. Return to home or sleep pose if requested
         if go_to_sleep_after:
             rospy.loginfo("Moving to home pose...")
             self.arm.go_to_home_pose()
