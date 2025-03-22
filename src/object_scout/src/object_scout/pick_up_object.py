@@ -104,35 +104,6 @@ class PickUpObject:
             self.keypoint_callback
         )
 
-    def keypoint_callback(self, msg):
-        """Process incoming keypoint data
-        
-        Message format: [num_instances, angle, x1, y1, x2, y2, ...]
-        """
-        try:
-            if not msg.data or len(msg.data) < 3:  # No valid data
-                return
-                
-            # First value is the number of instances
-            num_instances = int(msg.data[0])
-            
-            if num_instances > 0:
-                # Store the angle and keypoints
-                # The angle is the second value in the message
-                self.angle = float(msg.data[1])  # Ensure it's a float
-                
-                # Extract keypoints starting from the third value
-                keypoints = []
-                for i in range(2, len(msg.data), 2):
-                    if i+1 < len(msg.data):
-                        keypoints.append([msg.data[i], msg.data[i+1]])
-                        
-                # Store the first set of angle
-                self.latest_angle = self.angle
-
-                
-        except Exception as e:
-            rospy.logerr(f"Error processing keypoint data: {e}")
 
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection"""
