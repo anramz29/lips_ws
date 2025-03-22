@@ -182,7 +182,6 @@ class DistanceNode:
         return bbox_depth_data
     
     
-
     def annotate_frame(self, frame, cls_id, conf, x1, y1, x2, y2, depth):
         """
         Annotate a frame with bounding box, class, confidence, and depth.
@@ -198,21 +197,27 @@ class DistanceNode:
         cls_name = self.get_class_name(cls_id)
         label = f"{cls_name} {conf:.2f}"
         
-        # Draw class and confidence
+        # Get text sizes
         label_size, baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-        text_y = max(y1, label_size[1] + 5)
-        cv2.putText(frame, label, (x1, text_y), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
-        # Draw depth information
+        # Calculate positions for text
+        # First line (class + confidence) - place it above bounding box
+        text_y1 = max(y1 - 10, label_size[1])
+        
+        # Second line (depth) - place it just above the first line
+        text_y2 = max(y1 - 10 - label_size[1] - 5, baseline)
+        
+        # Draw class and confidence (first line)
+        cv2.putText(frame, label, (x1, text_y1), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        # Draw depth information (second line)
         if depth <= 0:
             depth_text = "Distance: Unknown"
         else:
             depth_text = f"Distance: {depth:.2f}m"
         
-        depth_y =  y2 + baseline + 5 
-
-        cv2.putText(frame, depth_text, (x1, depth_y), 
+        cv2.putText(frame, depth_text, (x1, text_y2), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
     def get_class_name(self, cls_id):

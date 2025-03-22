@@ -40,7 +40,7 @@ class YoloDetectionNode:
         
 
         # Optimization: Set model parameters
-        self.model.conf = 0.5  # Confidence threshold
+        self.model.conf = 0.45  # Confidence threshold
         self.model.iou = 0.45  # NMS IOU threshold
         self.model.max_det = 1  # Maximum detections per image
 
