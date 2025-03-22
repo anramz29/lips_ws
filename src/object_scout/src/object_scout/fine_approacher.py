@@ -189,6 +189,11 @@ class FineApproacher():
             tuple: (horizontal_gain, vertical_gain)
         """
         fx, fy = self.get_camera_info()
+
+        if fx is None or fy is None:
+            rospy.logwarn("Camera focal lengths not available, using default gains")
+            return 1.0, 1.0
+        
         
         horizontal_gain = 1.0 / fx if fx else 0
         vertical_gain = 1.0 / fy if fy else 0

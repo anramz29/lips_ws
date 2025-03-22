@@ -348,10 +348,16 @@ class YoloKeypointDetectionNode:
         # Calculate approach direction (from base to target)
         # Assuming robot base is at origin of base frame
         approach_direction = target_point_base / np.linalg.norm(target_point_base)
-        
-        return target_point_base, approach_direction
+
+        # Calculate yaw angle in the base frame's xy-plane
+        approach_angle = math.atan2(approach_direction[1], approach_direction[0])
+        # Convert to degrees for easier visualization
+        approach_angle_deg = math.degrees(approach_angle)
+            
+        return target_point_base, approach_direction, approach_angle_deg
+
     
-    def visualize_keypoints(self, keypoints, target_position, approach_direction):
+    def visualize_keypoints(self, keypoints, target_position, approach_direction, approach_angle):
         """
         Create visualization of keypoints and approach vector.
         
@@ -406,6 +412,25 @@ class YoloKeypointDetectionNode:
             2
         )
         
+        # Add text with approach angle
+        cv2.putText(
+            viz_image,
+            f"Angle: {approach_angle:.1f}° in base frame",
+            (10, 110),  # Position below the direction text
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2
+        )
+
+        # Draw approach vector (optional)
+        if target_position is not None:
+            start_point = (int(centroid[0]), int(centroid[1]))
+            end_point = (int(centroid[0] + approach_direction[0] * 50), 
+                         int(centroid[1] + approach_direction[1] * 50))
+            cv2.arrowedLine(viz_image, start_point, end_point, (255, 255, 0), 2, tipLength=0.2)
+
+
         # Publish visualization
         try:
             viz_msg = self.bridge.cv2_to_imgmsg(viz_image, encoding="bgr8")
@@ -450,7 +475,7 @@ class YoloKeypointDetectionNode:
             return
         
         # Calculate approach vector
-        target_position, approach_direction = self.calculate_approach_vector(keypoints)
+        target_position, approach_direction, approach_angle_deg = self.calculate_approach_vector(keypoints)
         if target_position is None or approach_direction is None:
             return
         
@@ -461,14 +486,13 @@ class YoloKeypointDetectionNode:
         ]
         
         # Concatenate target position and approach direction
-        keypoints_msg.data = np.concatenate([target_position, approach_direction]).tolist()
+        keypoints_msg.data = np.concatenate([target_position, approach_direction, approach_angle_deg]).tolist()
         
         # Publish keypoints
         self.keypoints_pub.publish(keypoints_msg)
         
         # If in debug mode, visualize the results
-        if self.debug_mode:
-            self.visualize_keypoints(keypoints, target_position, approach_direction)
+        self.visualize_keypoints(keypoints, target_position, approach_direction, approach_angle_deg)
 
 
 if __name__ == '__main__':

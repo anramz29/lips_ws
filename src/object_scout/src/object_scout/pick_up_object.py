@@ -68,23 +68,17 @@ class PickUpObject:
         self.angle_history = collections.deque(maxlen=10)
         self.last_valid_angle = None
 
-        # Camera intrinsics (initialized in get_camera_info)
-        self.fx = None
-        self.fy = None
-        self.cx = None
-        self.cy = None
-
         # ---------- ROS Interface SETUP ----------
-        self._setup_marker_subscription()
-        self._setup_keypoint_subscription()
 
+        # Set up the marker subscription for object detection
+        self._setup_ros_communication()
+    
         # ---------- SHUTDOWN HANDLER ----------
         rospy.on_shutdown(self.shutdown_handler)
     
-    def _setup_marker_subscription(self):
+    def _setup_ros_communication(self):
         """Set up ROS subscription for object marker information"""
         self.object_marker_topic = rospy.get_param(
-            '~object_marker_topic', 
             f'/{self.robot_name}/object_markers'
         )
         
@@ -93,17 +87,14 @@ class PickUpObject:
             Marker,
             self.object_marker_callback
         )
-
-    def _setup_keypoint_subscription(self):
-        """Set up subscription for keypoint data"""
-        self.keypoint_topic = f'/{self.robot_name}/camera/yolo/keypoints'
         
         self.keypoint_sub = rospy.Subscriber(
-            self.keypoint_topic,
+            f'/{self.robot_name}/camera/yolo/keypoints',
             Float32MultiArray,
             self.keypoint_callback
         )
 
+    
 
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection"""
@@ -133,6 +124,20 @@ class PickUpObject:
         """Process object marker messages and update history"""
         self.object_marker = msg
     
+    def keypoint_callback(self, msg):
+        """Process keypoint messages and update latest keypoints"""
+        if msg.data:
+            self.latest_keypoints = np.array(msg.data).reshape(-1, 2)
+            # Update the angle history with the latest keypoints
+            if self.latest_keypoints is not None and len(self.latest_keypoints) > 0:
+                self.angle = self.calculate_angle(self.latest_keypoints)
+                if self.angle is not None:
+                    self.angle_history.append(self.angle)
+                    self.last_valid_angle = self.angle
+                else:
+                    self.angle = self.last_valid_angle
+        else:
+            self.latest_keypoints = None
 
     def get_clusters(self):
         # get the positions of any clusters present w.r.t. the 'locobot/arm_base_link'
