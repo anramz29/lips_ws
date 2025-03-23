@@ -94,8 +94,6 @@ class PickUpObject:
             self.keypoint_callback
         )
 
-    
-
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection"""
         service_name = f'/{self.robot_name}/keypoint_detector/set_enabled'
@@ -153,6 +151,35 @@ class PickUpObject:
             rospy.loginfo(f"Found {len(clusters)} clusters")
         
         return success, clusters
+    
+    def pick_object(self):
+
+        # Enable keypoint detection
+        self.enable_keypoint_detection(True)
+        
+        # Get the clusters
+        success, clusters = self.get_clusters()
+
+        if not success:
+            rospy.logerr("Failed to get cluster positions")
+            return False
+        
+        # move arm to home position
+        self.arm.go_to_home_pose()
+
+        # move arm to the first cluster
+        cluster = clusters[0]
+        x, y, z = cluster
+
+        # move arm to the cluster
+        self.arm.set_ee_pose_components(x=x, y=y, z=z+0.10, pitch=1.5)
+
+
+            
+        
+    
+        
+        return True
 
 
     def shutdown_handler(self):
