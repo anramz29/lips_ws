@@ -16,7 +16,6 @@ import geometry_msgs.msg
 import sensor_msgs.msg
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped
-import collections
 
 
 class PickUpObject:
@@ -58,6 +57,7 @@ class PickUpObject:
         )
 
         # ---------- STATE VARIABLES ----------
+
         self.object_marker = None
         self.latest_keypoints = None
         self.angle = None
@@ -65,7 +65,6 @@ class PickUpObject:
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.bridge = CvBridge()
-        self.angle_history = collections.deque(maxlen=10)
         self.last_valid_angle = None
 
         # ---------- ROS Interface SETUP ----------
@@ -94,10 +93,18 @@ class PickUpObject:
             self.keypoint_callback
         )
 
-    
+    # ---------- Enable Key Points----------
 
     def enable_keypoint_detection(self, enable=True):
-        """Enable or disable keypoint detection"""
+        """Enable or disable keypoint detection by calling the appropriate service.
+
+        Args: 
+            enable (bool): True to enable keypoint detection, False to disable it.
+
+        Returns:
+            bool: True if the service call was successful, False otherwise.
+        """
+
         service_name = f'/{self.robot_name}/keypoint_detector/set_enabled'
         
         try:
@@ -124,20 +131,29 @@ class PickUpObject:
         """Process object marker messages and update history"""
         self.object_marker = msg
     
+        
+
     def keypoint_callback(self, msg):
-        """Process keypoint messages and update latest keypoints"""
-        if msg.data:
-            self.latest_keypoints = np.array(msg.data).reshape(-1, 2)
-            # Update the angle history with the latest keypoints
-            if self.latest_keypoints is not None and len(self.latest_keypoints) > 0:
-                self.angle = self.calculate_angle(self.latest_keypoints)
-                if self.angle is not None:
-                    self.angle_history.append(self.angle)
-                    self.last_valid_angle = self.angle
-                else:
-                    self.angle = self.last_valid_angle
-        else:
-            self.latest_keypoints = None
+        """Process keypoint messages and extract the angle from the first detection.
+        
+        Args:
+            msg (Float32MultiArray): Message containing keypoint data and angles
+        """
+        try:
+            # Check if the message contains at least one detection
+            if len(msg.data) > 0 and msg.data[0] >= 1:
+                num_detections = int(msg.data[0])
+                
+                if num_detections >= 1:
+                    # Get data for the first detection
+                    detection_data = msg.data[1:]
+                    
+                    self.angle = detection_data[11]
+
+        except IndexError as e:
+            rospy.logerr(f"Keypoint data is malformed: {e}")
+            return
+        
 
     def get_clusters(self):
         # get the positions of any clusters present w.r.t. the 'locobot/arm_base_link'
@@ -153,6 +169,20 @@ class PickUpObject:
             rospy.loginfo(f"Found {len(clusters)} clusters")
         
         return success, clusters
+    
+    def calculate_yaw(self):
+        """Calculate the perpendicular yaw angle keypoint angle 
+
+        args:
+            None
+
+        returns:
+            yaw (float): The calculated yaw angle in radians
+        
+        """
+
+        
+
 
 
     def shutdown_handler(self):
