@@ -234,8 +234,8 @@ class DistanceNode:
         """
         # Placeholder - you should use a proper mapping
         class_names = {
-            0: "grasshopper",
-            1: "box"
+            0: "box",
+            1: "grasshopper"
         }
         return class_names.get(cls_id, f"class_{cls_id}")
 

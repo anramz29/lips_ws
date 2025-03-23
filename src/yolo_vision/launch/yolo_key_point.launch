@@ -12,22 +12,21 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo_seg.rviz"/>
     <arg name="use_rviz" default="true"/>
     <arg name="debug_mode" default="false"/>
-    <arg name="enabled_by_default" default="true"/>
+    <arg name="is_enabled" default="true"/>
 
     <!-- Robot-specific Arguments -->
     <arg name="base_frame" default="$(arg robot_name)/base_link"/>
 
     <!-- Camera Topics -->
     <arg name="image_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
-    <arg name="camera_frame" default="$(arg robot_name)/camera_color_optical_frame"/>
-    <arg name="image_depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw"/>
-    <arg name="camera_info_topic" default="/$(arg robot_name)/camera/color/camera_info"/>
 
     <!-- YOLO Keypoint Detection Parameters -->
     <arg name="model_path" default="$(find yolo_vision)/models/grasshopper_and_boxes_keypoint.pt"/>
     <arg name="device" default="cuda"/>
     <arg name="input_size" default="640"/>
-    
+    <arg name="conf_threshold" default="0.5"/>
+
+
     <!-- Output Topics -->
     <arg name="keypoints_topic" default="camera/yolo/keypoints"/>
     <arg name="keypoints_viz_topic" default="camera/yolo/keypoints_visualization"/>
@@ -39,21 +38,16 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <node name="keypoint_detection_node" pkg="yolo_vision" type="yolo_keypoint_detection_node.py" output="screen" ns="$(arg robot_name)">
         <!-- Main parameters -->
         <param name="debug_mode" value="$(arg debug_mode)"/>
-        <param name="enabled_by_default" value="$(arg enabled_by_default)"/>
-
-        <!-- Transforms -->
-        <param name="base_frame" value="$(arg base_frame)"/>
-        <param name="camera_frame" value="$(arg camera_frame)"/>
+        <param name="is_enabled" value="$(arg is_enabled)"/>
 
         <!-- YOLO model parameters -->
         <param name="model" value="$(arg model_path)"/>
         <param name="device" value="$(arg device)"/>
         <param name="input_size" value="$(arg input_size)"/>
+        <param name="conf_threshold" value="$(arg conf_threshold)"/>
         
         <!-- Input topics -->
         <param name="image_topic" value="$(arg image_topic)"/>
-        <param name="image_depth_topic" value="$(arg image_depth_topic)"/>
-        <param name="camera_info_topic" value="$(arg camera_info_topic)"/>
 
         <!-- Output topics -->
         <param name="keypoints_topic" value="$(arg keypoints_topic)"/>

@@ -93,7 +93,7 @@ class PickUpObject:
             self.keypoint_callback
         )
 
-    # ---------- Enable Key Points----------
+    
 
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection by calling the appropriate service.
@@ -169,20 +169,6 @@ class PickUpObject:
             rospy.loginfo(f"Found {len(clusters)} clusters")
         
         return success, clusters
-    
-    def calculate_yaw(self):
-        """Calculate the perpendicular yaw angle keypoint angle 
-
-        args:
-            None
-
-        returns:
-            yaw (float): The calculated yaw angle in radians
-        
-        """
-
-        
-
 
 
     def shutdown_handler(self):

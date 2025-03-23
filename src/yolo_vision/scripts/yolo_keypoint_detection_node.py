@@ -5,11 +5,9 @@ import numpy as np
 from ultralytics import YOLO
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32MultiArray, MultiArrayDimension, Bool
-import math
-import tf2_ros
-import tf2_geometry_msgs
-import geometry_msgs.msg
+from std_msgs.msg import Float32MultiArray, Bool
+from std_srvs.srv import SetBool, SetBoolResponse
+
 
 class YoloKeypointDetectionNode:
     def __init__(self):
@@ -17,487 +15,350 @@ class YoloKeypointDetectionNode:
         
         # Global parameters
         self.debug_mode = rospy.get_param('~debug_mode')
-        self.enabled_by_default = rospy.get_param('~enabled_by_default')
+        self.is_enabled = rospy.get_param('~is_enabled', False)
 
         # YoLo model parameters
         self.model_path = rospy.get_param('~model')
         self.device = rospy.get_param('~device')
         self.input_size = rospy.get_param('~input_size')
+        self.conf_threshold = rospy.get_param('~conf_threshold')
+
+        # Robot name parameter (for service/topic namespace)
+        self.robot_name = rospy.get_param('~robot_name', 'locobot')
 
         # input topics
         self.image_topic = rospy.get_param('~image_topic')
-        self.camera_frame = rospy.get_param('~camera_frame')
-        self.base_frame = rospy.get_param('~base_frame')
-        self.image_depth_topic = rospy.get_param('~image_depth_topic')
-        self.camera_info_topic = rospy.get_param('~camera_info_topic')
 
         # Output topics
         self.keypoints_topic = rospy.get_param('~keypoints_topic', 'camera/yolo/keypoints')
         self.keypoints_viz_topic = rospy.get_param('~keypoints_viz_topic', 'camera/yolo/keypoints_visualization')
         
-        # Intialize Image processing bridge and tf2
+        # Intialize Image processing bridge
         self.bridge = CvBridge()
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
-        # Initialize model to None (lazy loading)
-        self.model = None
-        self.load_model_when_needed = True  
         
         # State variables
         self.latest_depth = None
-        self.latest_image = None
-        self.camera_info = None
-        self.camera_dict = {}
         self.last_process_time = rospy.Time(0)
         self.process_interval = rospy.Duration(1.0 / 10)  # 10 Hz max
 
-        # Initialize ROS communication
-        self.setup_ros_communication()
+        self.model = YOLO(self.model_path)
 
-        rospy.loginfo(f"Keypoint detection node initialized (initially disabled)")
-        rospy.loginfo(f"Will use model: {self.model_path}")
-        rospy.loginfo(f"Subscribing to: {self.image_topic}")
-        rospy.loginfo(f"Publishing to: {self.keypoints_topic} and {self.keypoints_viz_topic}")
+        # Setup ROS communication
+        self._setup_ros_communication()
 
-    
-    # --------------- ROS Communication --------------- #
-        
-    def setup_ros_communication(self):
-        """Setup ROS publishers and subscribers"""
-
-        # Setup publishers
-        self.keypoints_pub = rospy.Publisher(
-            self.keypoints_topic, 
-            Float32MultiArray, 
-            queue_size=1
-        )
-
-        self.viz_pub = rospy.Publisher(
-            self.keypoints_viz_topic, 
-            Image, 
-            queue_size=1
-        )
-        
-        # Setup subscribers
-        self.enable_sub = rospy.Subscriber(
-            'keypoint_detector/enable',
-            Bool,
-            self.enable_callback
-        )
-        
+    def _setup_ros_communication(self):
+        # Subscribe to RGB images
         self.image_sub = rospy.Subscriber(
-            self.image_topic,
-            Image,
-            self.image_callback,
-            queue_size=1,
-            buff_size=2**24
-        )
-        
-        self.depth_image_sub = rospy.Subscriber(
-            self.image_depth_topic,
-            Image,
-            self.depth_image_callback,
+            self.image_topic, 
+            Image, 
+            self.image_callback, 
             queue_size=1
         )
 
-        self.camera_info_sub = rospy.Subscriber(
-            self.camera_info_topic,
-            geometry_msgs.msg.CameraInfo,
-            self.camera_info_callback,
+        # Publishers
+        self.keypoints_pub = rospy.Publisher(
+            self.keypoints_topic,
+            Float32MultiArray,
             queue_size=1
         )
 
-    # --------------- Callbacks --------------- #
-    
+        self.keypoints_viz_pub = rospy.Publisher(
+            self.keypoints_viz_topic,
+            Image,
+            queue_size=1
+        )
+
+        # Subscribe to enable/disable topic
+        self.enable_sub = rospy.Subscriber(
+            f'/{self.robot_name}/keypoint_detector/enable',
+            Bool,
+            self.enable_callback,
+            queue_size=1
+        )
+
+        # Create service for direct access
+        self.service = rospy.Service(
+            f'/{self.robot_name}/keypoint_detector/set_enabled',
+            SetBool,
+            self.handle_set_enabled
+        )
+
+        rospy.loginfo(f"YOLO keypoint detection node initialized. Detection is currently {'enabled' if self.is_enabled else 'disabled'}.")
+
     def enable_callback(self, msg):
-        """Handle enable/disable messages"""
-        if msg.data != self.enabled_by_default:
-            self.enabled_by_default = msg.data
-            state = "enabled" if self.enabled else "disabled"
-            rospy.loginfo(f"Keypoint detection {state}")
-            
-            # Load model when first enabled
-            if self.enabled_by_default and self.load_model_when_needed and self.model is None:
-                rospy.loginfo("Loading YOLO keypoint model...")
-                try:
-                    self.model = YOLO(self.model_path)
-                    rospy.loginfo("Model loaded successfully")
-                    self.load_model_when_needed = False
-                except Exception as e:
-                    rospy.logerr(f"Failed to load model: {e}")
-                    self.enabled = False
-    
-    def should_process_image(self):
-        """Determine if we should process this image frame"""
-        if not self.enabled_by_default:
-            return False
-            
-        current_time = rospy.Time.now()
-        if (current_time - self.last_process_time) < self.process_interval:
-            return False
-            
-        self.last_process_time = current_time
-        return True
-    
-    def depth_image_callback(self, msg):
-        """
-        Callback for depth image. Currently unused but can be extended for depth processing.
+        """Callback for the enable/disable topic"""
+        self.is_enabled = msg.data
+        state = "enabled" if self.is_enabled else "disabled"
+        rospy.loginfo(f"Keypoint detection {state}")
+
+    def handle_set_enabled(self, req):
+        """Handle service request to enable/disable keypoint detection"""
+        self.is_enabled = req.data
         
-        Args:
-            msg: ROS Image message for depth image
-        """
-        try:
-            self.latest_depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
-        except Exception as e:
-            rospy.logerr(f"Failed to convert depth image: {e}")
-            self.latest_depth = None
-
-    def camera_info_callback(self, msg):
-        """
-        Store camera information for later use.
+        state = "enabled" if self.is_enabled else "disabled"
+        rospy.loginfo(f"Keypoint detection {state}")
         
-        Args:
-            msg: CameraInfo message containing camera parameters
-        """
-        self.camera_info = msg
-
-        # Extract camera intrinsics
-        fx = self.camera_info.K[0] 
-        fy = self.camera_info.K[4]
-        cx = self.camera_info.K[2]
-        cy = self.camera_info.K[5]
-
-        # Store camera info for later use
-        self.camera_dict = {
-            'fx': fx,
-            'fy': fy,
-            'cx': cx,
-            'cy': cy
-        }
-
-        rospy.loginfo("Camera info received")
-        rospy.loginfo(f"Camera intrinsics: fx={fx}, fy={fy}, cx={cx}, cy={cy}")
-
-        
-    # --------------- Coordinate Transformation --------------- #
-
-    def transform_to_base_frame(self, point_camera):
-        """
-        Transform a 3D point from camera frame to base frame.
-        
-        Args:
-            point_camera (numpy.ndarray): 3D point in camera frame [x, y, z]
-                
-        Returns:
-            numpy.ndarray: Transformed 3D point in base frame [x', y', z']
-        """
-        
-        try:
-            # Create a PointStamped message
-            point_stamped = geometry_msgs.msg.PointStamped()
-            point_stamped.header.frame_id = self.camera_frame
-            point_stamped.header.stamp = rospy.Time(0)
-            point_stamped.point.x = point_camera[0]
-            point_stamped.point.y = point_camera[1]
-            point_stamped.point.z = point_camera[2]
-            
-            # Transform the point
-            point_transformed = self.tf_buffer.transform(point_stamped, self.base_frame)
-            
-            # Return as numpy array
-            return np.array([
-                point_transformed.point.x,
-                point_transformed.point.y,
-                point_transformed.point.z
-            ])
-
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException) as e:
-            rospy.logwarn(f"TF Error: {str(e)}")
-            return None
-       
-        
-    # --------------- Image Proccesing --------------- #
+        # Return success response
+        return SetBoolResponse(
+            success=True,
+            message=f"Keypoint detection {state}"
+        )
 
     def run_model(self, image):
         """
-        Run the YOLO model on the given image and return detected keypoints.
-
+        Run the YOLO model on the input image.
+        
         Args:
-            image (numpy.ndarray): The input image in BGR format.
-
+            image: np.array, input image
+        
         Returns:
-            list: A list of detected keypoints, where each keypoint is represented as a numpy array.
+            results: dict, model output
         """
-
-        if self.model is None:
-            rospy.logwarn("Model not loaded, skipping detection")
-            return None
+        results = self.model(image,
+                            imgsz=self.input_size, 
+                            device=self.device,
+                            stream=True,
+                            verbose=False)
         
-        results = self.model.predict(
-            image, 
-            device=self.device, 
-            imgsz=self.input_size
-        )
-
-        keypoints = []
-        
-        for result in results:
-            if result.keypoints is not None:
-                keypoints.append(result.keypoints[0].cpu().numpy())
-        
-        return keypoints
+        return next(results)
     
-    def pixel_to_3d(self, u, v, depth):
+    def calculate_angle(self, keypoints):
         """
-        Convert pixel coordinates and depth to 3D camera coordinates.
+        Calculate the angle between consecutive keypoints with respect to the y-axis,
+        normalized to the (-90, 90) range.
         
         Args:
-            u: Pixel x-coordinate
-            v: Pixel y-coordinate
-            depth: Depth in meters
+            keypoints: np.array, shape (N, 3) with x, y, confidence for each keypoint
             
         Returns:
-            Point: 3D point in camera coordinates or None if conversion fails
+            angles: list of angle_deg values (only degrees, simplified)
         """
-        if self.camera_info is None:
-            rospy.logwarn("No camera info received yet")
-            return None
-        
+        angles = []
 
-        fx = self.camera_dict['fx']
-        fy = self.camera_dict['fy']
-        cx = self.camera_dict['cx']
-        cy = self.camera_dict['cy']
-
-        # Check if depth is valid
-        if depth <= 0:
-            rospy.logwarn("Invalid depth value")
-            return None
-        
-        # Convert pixel coordinates to camera coordinates
-        x = (u - cx) * depth / fx
-        y = (v - cy) * depth / fy
-        z = depth
-
-        return np.array([x, y, z])  # Return as a numpy array for consistency
-
-    def calculate_approach_vector(self, keypoints):
-        """
-        Calculate approach vector based on keypoints.
-        
-        Args:
-            keypoints: List of keypoints from YOLO model
+        # Need at least 2 keypoints to calculate an angle
+        if len(keypoints) < 2:
+            return angles
             
-        Returns:
-            tuple: (target_position, approach_direction) in base frame
-        """
-        if not keypoints or len(keypoints) == 0:
-            rospy.logwarn("No keypoints detected")
-            return None, None
-        
-        # Extract valid keypoints (with confidence > threshold)
-        valid_keypoints = []
-        for kp_set in keypoints:
-            for kp in kp_set:
-                if kp[2] > 0.5:  # Confidence threshold
-                    valid_keypoints.append(kp)
-        
-        if not valid_keypoints:
-            rospy.logwarn("No valid keypoints with sufficient confidence")
-            return None, None
-        
-        # Calculate centroid of keypoints
-        keypoint_coords = np.array([kp[:2] for kp in valid_keypoints])
-        centroid = np.mean(keypoint_coords, axis=0)
-        
-        # Get depth at centroid position
-        if self.latest_depth is None:
-            rospy.logwarn("No depth image available")
-            return None, None
-        
-        # Convert centroid to integer pixel coordinates
-        u, v = int(centroid[0]), int(centroid[1])
-        
-        # Ensure coordinates are within image bounds
-        if (u < 0 or u >= self.latest_depth.shape[1] or 
-            v < 0 or v >= self.latest_depth.shape[0]):
-            rospy.logwarn(f"Centroid outside image bounds: ({u}, {v})")
-            return None, None
-        
-        # Get depth value (might need scaling depending on your depth image format)
-        depth_value = self.latest_depth[v, u]
-        if depth_value == 0:  # Often 0 indicates invalid depth
-            rospy.logwarn("Invalid depth at keypoint centroid")
-            return None, None
-            
-        # Convert from raw depth value to meters (adjust scale factor as needed)
-        depth_meters = depth_value / 1000.0  # Example: convert mm to meters
-        
-        # Convert 2D centroid + depth to 3D point in camera frame
-        target_point_camera = self.pixel_to_3d(u, v, depth_meters)
-        if target_point_camera is None:
-            return None, None
-        
-        # Transform point to base frame
-        target_point_base = self.transform_to_base_frame(target_point_camera)
-        if target_point_base is None:
-            return None, None
-        
-        # Calculate approach direction (from base to target)
-        # Assuming robot base is at origin of base frame
-        approach_direction = target_point_base / np.linalg.norm(target_point_base)
+        # Calculate angles between consecutive keypoints
+        for i in range(len(keypoints) - 1):
+            if keypoints[i, 2] > 0.1 and keypoints[i+1, 2] > 0.1:  # Only use valid keypoints
+                # Calculate angle with respect to x-axis first
+                dx = keypoints[i+1, 0] - keypoints[i, 0]
+                dy = keypoints[i+1, 1] - keypoints[i, 1]
+                
+                # For y-axis reference, we need to calculate the angle from the vertical
+                # We can use arctan2(dx, dy) instead of arctan2(dy, dx)
+                # This effectively rotates our reference by 90 degrees
+                angle_rad = np.arctan2(dx, dy)
+                
+                # Normalize to (-pi/2, pi/2) range
+                if angle_rad > np.pi/2:
+                    angle_rad = angle_rad - np.pi
+                elif angle_rad < -np.pi/2:
+                    angle_rad = angle_rad + np.pi
+                
+                angle_deg = np.degrees(angle_rad)
+                
+                # Only store the angle in degrees
+                angles.append(angle_deg)
 
-        # Calculate yaw angle in the base frame's xy-plane
-        approach_angle = math.atan2(approach_direction[1], approach_direction[0])
-        # Convert to degrees for easier visualization
-        approach_angle_deg = math.degrees(approach_angle)
-            
-        return target_point_base, approach_direction, approach_angle_deg
-
+        return angles
     
-    def visualize_keypoints(self, keypoints, target_position, approach_direction, approach_angle):
+    def process_data(self, results):
         """
-        Create visualization of keypoints and approach vector.
+        Process the results of the YOLO model.
         
         Args:
-            keypoints: Detected keypoints
-            target_position: Target position in base frame
-            approach_direction: Approach direction vector
+            results: dict, model output
+        
+        Returns:
+            a list [class_id, conf, num_keypoints, keypoints..., num_angles, angles...]
         """
-        if self.latest_image is None:
-            return
+        # Check if we have any results
+        if len(results) == 0:
+            return None
+        
+        # Extract data from results
+        keypoints = results.keypoints.data if results.keypoints is not None else None
+        if keypoints is None or len(keypoints) == 0:
+            return None
             
-        viz_image = self.latest_image.copy()
+        class_ids = results.boxes.cls
+        confidences = results.boxes.conf
         
-        # Draw keypoints
-        for kp_set in keypoints:
-            for kp in kp_set:
-                if kp[2] > 0.5:  # Confidence threshold
-                    x, y = int(kp[0]), int(kp[1])
-                    cv2.circle(viz_image, (x, y), 5, (0, 255, 0), -1)
+        processed_results = []
         
-        # Draw centroid
-        keypoint_coords = []
-        for kp_set in keypoints:
-            for kp in kp_set:
-                if kp[2] > 0.5:
-                    keypoint_coords.append(kp[:2])
+        # Process each detection
+        for i in range(len(class_ids)):
+            if confidences[i].item() < self.conf_threshold:
+                continue
+
+            # Create an entry for this detection: [class_id, confidence, keypoints...]
+            detection = [class_ids[i].item(), confidences[i].item()]
+            
+            # Filter keypoints based on confidence
+            valid_keypoints = []
+            keypoints_data = keypoints[i]
+            
+            # Process each keypoint, filtering out low confidence or zero-coordinate points
+            valid_keypoints_array = []
+            for kp_idx, kp in enumerate(keypoints_data):
+                x, y, conf = kp
+                x_val, y_val, conf_val = x.item(), y.item(), conf.item()
+                
+                # Skip points with very low confidence or zero coordinates
+                if conf_val < 0.1 or (abs(x_val) < 0.01 and abs(y_val) < 0.01):
+                    continue
                     
-        if keypoint_coords:
-            centroid = np.mean(np.array(keypoint_coords), axis=0)
-            cv2.circle(viz_image, (int(centroid[0]), int(centroid[1])), 8, (255, 0, 0), -1)
+                valid_keypoints.extend([x_val, y_val, conf_val])
+                valid_keypoints_array.append([x_val, y_val, conf_val])
+            
+            # Convert to numpy array for angle calculation
+            valid_keypoints_array = np.array(valid_keypoints_array)
+            
+            # Calculate angles between consecutive keypoints (simplified to just degrees)
+            angles = self.calculate_angle(valid_keypoints_array)
+            
+            # Add number of valid keypoints and the keypoints themselves
+            detection.append(len(valid_keypoints) // 3)  # Number of valid keypoints
+            detection.extend(valid_keypoints)
+            
+            # Add number of angles and the angles themselves (only degrees values)
+            detection.append(len(angles))  # Number of angles
+            detection.extend(angles)  # Just add the angle degrees directly
+            
+            processed_results.append(detection)
         
-        # Add text with distance information
-        distance = np.linalg.norm(target_position)
-        cv2.putText(
-            viz_image,
-            f"Distance: {distance:.2f}m",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 0, 255),
-            2
-        )
+        return processed_results
+    
+    def publish_keypoints(self, processed_results):
+        """
+        Publishes keypoints as Float32MultiArray and visualization image
         
-        # Add text with approach direction
-        cv2.putText(
-            viz_image,
-            f"Dir: [{approach_direction[0]:.2f}, {approach_direction[1]:.2f}, {approach_direction[2]:.2f}]",
-            (10, 70),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 255),
-            2
-        )
+        Args:
+            processed_results: List of [class_id, conf, num_keypoints, keypoints..., num_angles, angles...] for each detection
+        """
+        if not processed_results:
+            return
         
-        # Add text with approach angle
-        cv2.putText(
-            viz_image,
-            f"Angle: {approach_angle:.1f}° in base frame",
-            (10, 110),  # Position below the direction text
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 255),
-            2
-        )
-
-        # Draw approach vector (optional)
-        if target_position is not None:
-            start_point = (int(centroid[0]), int(centroid[1]))
-            end_point = (int(centroid[0] + approach_direction[0] * 50), 
-                         int(centroid[1] + approach_direction[1] * 50))
-            cv2.arrowedLine(viz_image, start_point, end_point, (255, 255, 0), 2, tipLength=0.2)
-
-
-        # Publish visualization
-        try:
-            viz_msg = self.bridge.cv2_to_imgmsg(viz_image, encoding="bgr8")
-            self.viz_pub.publish(viz_msg)
-        except Exception as e:
-            rospy.logerr(f"Failed to publish visualization: {e}")
-
-    # -------------- Main Function --------------- #
-
+        # Create Float32MultiArray message
+        msg = Float32MultiArray()
+        
+        # First value is number of detections
+        all_data = [len(processed_results)]
+        
+        # Flatten the list of detections
+        for detection in processed_results:
+            all_data.extend(detection)
+        
+        msg.data = all_data
+        self.keypoints_pub.publish(msg)
+        
+    def create_viz_image(self, image, processed_results):
+        """
+        Create a visualization image with keypoints and angles
+        
+        Args:
+            image: np.array, input image
+            processed_results: List of [class_id, conf, num_keypoints, keypoints..., num_angles, angles...] for each detection
+        
+        Returns:
+            np.array, visualization image
+        """
+        if not processed_results:
+            return image
+        
+        for detection in processed_results:
+            # Extract basic info
+            class_id = detection[0]
+            confidence = detection[1]
+            num_keypoints = detection[2]
+            
+            if num_keypoints < 2:
+                continue  # Skip if not enough keypoints for angle calculation
+                
+            # Extract keypoints - starting after class_id, confidence, and num_keypoints
+            keypoints_flat = detection[3:3 + num_keypoints * 3]
+            keypoints = np.array(keypoints_flat).reshape(-1, 3)
+            
+            # Calculate average confidence
+            avg_conf = np.mean(keypoints[:, 2])
+            
+            # Draw only the valid keypoints
+            for kp_idx, kp in enumerate(keypoints):
+                x, y, conf = kp
+                if conf > 0.1:  # Additional filter for safety
+                    cv2.circle(image, (int(x), int(y)), 5, (0, 255, 0), -1)
+                    cv2.putText(image, f"{kp_idx}", (int(x)+5, int(y)+5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            
+            # Get the number of angles from the processed results
+            # The index after keypoints data
+            angles_index = 3 + num_keypoints * 3
+            num_angles = detection[angles_index]
+            
+            # Extract angle values (now just degrees)
+            angles = []
+            if num_angles > 0:
+                angles_start_idx = angles_index + 1  # Skip the num_angles value
+                angles = detection[angles_start_idx:angles_start_idx + num_angles]
+            
+            # Draw connecting lines and display angles
+            if num_angles > 0:
+                for i in range(len(keypoints) - 1):
+                    if keypoints[i, 2] > 0.1 and keypoints[i+1, 2] > 0.1:  # Only use valid keypoints
+                        # Draw line between the two keypoints
+                        cv2.line(image, 
+                                (int(keypoints[i, 0]), int(keypoints[i, 1])),
+                                (int(keypoints[i+1, 0]), int(keypoints[i+1, 1])),
+                                (0, 255, 0), 2)
+                        
+                        # Show angle between points
+                        if i < len(angles):
+                            mid_x = int((keypoints[i, 0] + keypoints[i+1, 0]) / 2)
+                            mid_y = int((keypoints[i, 1] + keypoints[i+1, 1]) / 2) - 40
+                            cv2.putText(image, f"{angles[i]:.1f}°", (mid_x, mid_y),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        
+            # Add overall stats
+            cv2.putText(image, f"Avg KP Conf: {avg_conf:.2f}", (10, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(image, f"Valid KPs: {num_keypoints}", (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(image, f"Angles: {num_angles}", (10, 90),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        
+        return image
+    
     def image_callback(self, msg):
         """
-        Callback for processing incoming images.
+        Callback for RGB image messages
         
         Args:
-            msg: ROS Image message
-
-        Publsher Output Format:
-            keypoints_msg: Float32MultiArray containing target position and approach direction
+            msg: Image, RGB image message
         """
-        if not self.should_process_image():
-            return
-        
-        # Convert ROS Image to OpenCV image
-        try:
-            self.latest_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-        except Exception as e:
-            rospy.logerr(f"Failed to convert image: {e}")
-            return
-        
-        # Check if we have all required data
-        if self.latest_depth is None:
-            rospy.logwarn_throttle(1.0, "No depth image available yet")
+        # Skip processing if the node is disabled
+        if not self.is_enabled:
             return
             
-        if self.camera_info is None:
-            rospy.logwarn_throttle(1.0, "No camera info available yet")
-            return
-        
-        # Detect keypoints using YOLO
-        keypoints = self.run_model(self.latest_image)
-        if not keypoints:
-            return
-        
-        # Calculate approach vector
-        target_position, approach_direction, approach_angle_deg = self.calculate_approach_vector(keypoints)
-        if target_position is None or approach_direction is None:
-            return
-        
-        # Prepare message for publishing
-        keypoints_msg = Float32MultiArray()
-        keypoints_msg.layout.dim = [
-            MultiArrayDimension(label="vectors", size=6, stride=6)
-        ]
-        
-        # Concatenate target position and approach direction
-        keypoints_msg.data = np.concatenate([target_position, approach_direction, approach_angle_deg]).tolist()
-        
+        # Convert image message to OpenCV image
+        image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+        # Run the model
+        results = self.run_model(image)
+
+        # Process the results
+        processed_results = self.process_data(results)
+
         # Publish keypoints
-        self.keypoints_pub.publish(keypoints_msg)
-        
-        # If in debug mode, visualize the results
-        self.visualize_keypoints(keypoints, target_position, approach_direction, approach_angle_deg)
+        self.publish_keypoints(processed_results)
+
+        # Create visualization image
+        viz_image = self.create_viz_image(image.copy(), processed_results)
+        viz_msg = self.bridge.cv2_to_imgmsg(viz_image, encoding='bgr8')
+        self.keypoints_viz_pub.publish(viz_msg)
 
 
 if __name__ == '__main__':
-    try:
-        node = YoloKeypointDetectionNode()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
+    node = YoloKeypointDetectionNode()
+    rospy.spin()
