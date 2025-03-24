@@ -35,7 +35,13 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <arg name="publish_visualizations" default="true" doc="Set to false to disable visualization topics (annotated, masks, boxes)"/>
 
     <!-- Launch YOLO Segmentation node -->
-    <node name="yolo_segmentation_node" pkg="yolo_vision" type="yolo_segmentation_node.py" output="screen" ns="$(arg robot_name)">
+    <node name="yolo_segmentation_node" 
+        pkg="yolo_vision" 
+        type="yolo_segmentation_node.py" 
+        output="screen" 
+        ns="$(arg robot_name)">
+
+        
         <!-- Main parameters -->
         <param name="model_path" value="$(arg model_path)"/>
         <param name="image_topic" value="$(arg rgb_topic)"/>

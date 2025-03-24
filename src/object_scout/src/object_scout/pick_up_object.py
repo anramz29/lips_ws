@@ -148,7 +148,7 @@ class PickUpObject:
                     # Get data for the first detection
                     detection_data = msg.data[1:]
                     
-                    self.angle = detection_data[11]
+                    self.angle = detection_data[12]
 
         except IndexError as e:
             rospy.logerr(f"Keypoint data is malformed: {e}")
@@ -170,7 +170,6 @@ class PickUpObject:
         
         return success, clusters
 
-
     def shutdown_handler(self):
         """Shutdown handler to ensure a clean exit"""
         rospy.loginfo("Shutting down...")
@@ -179,6 +178,76 @@ class PickUpObject:
         rospy.sleep(1.0)  # Short pause for stability
         rospy.loginfo("Shutdown complete")
 
+    def pick_object(self, approach_height=0.2, gripper_offset=0.05, pitch=1.5, max_attempts=3):
+        """Main function to pick up an object using the robot arm."""
+        
+        # Enable keypoint detection
+        if not self.enable_keypoint_detection(True):
+            rospy.logerr("Failed to enable keypoint detection")
+            return False
+        
+        # Wait for the object marker to be available
+        while self.object_marker is None:
+            rospy.loginfo("Waiting for object marker...")
+            rospy.sleep(0.5)
+
+
+        
+        # Get clusters from the point cloud
+        success, clusters = self.get_clusters()
+
+        if not success or len(clusters) == 0:
+            rospy.logerr("No clusters found")
+            return False
+        
+        # Extract the first cluster position
+        cluster_position = clusters[0]
+
+        # convert self.angle to radians and check if it is valid
+        if self.angle is not None:
+            self.angle = math.radians(self.angle)
+            if self.angle < -math.pi or self.angle > math.pi:
+                rospy.logerr("Invalid angle detected")
+                return False
+            
+        self.arm.go_to_home_pose()
+        self.gripper.open()
+
+
+        success = self.arm.set_ee_pose_components(
+            x=cluster_position[0],
+            y=cluster_position[1],
+            z=approach_height,
+            pitch=1.5,
+            yaw=self.angle 
+        )
+
+        if not success:
+            rospy.logerr("Failed to move arm to object position")
+            self.arm.go_to_sleep_pose()
+            return False
+
+        # Move the arm to the approach position
+        success = self.arm.set_ee_cartesian_trajectory(
+            y=-(approach_height - gripper_offset),  # Move down to the gripper offset
+        )
+
+        if not success:
+            rospy.logerr("Failed to move arm to gripper offset position")
+            self.arm.go_to_sleep_pose()
+            return False
+
+        self.gripper.close()
+
+        self.arm.go_to_sleep_pose()  
+
+        # check if the object marker is still present
+        if self.object_marker is None:
+            rospy.logerr("Object marker not found after pickup")
+            return False
+
+        return True
+    
 def main():
     # Initialize the ROS node
     rospy.init_node('pick_up_object', anonymous=False)

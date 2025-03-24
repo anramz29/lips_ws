@@ -96,12 +96,24 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
 
 
     <!-- PART 4: Launch Keypoint Activation Service -->
-  <node name="keypoint_activation_node" pkg="yolo_vision" type="yolo_keypoint_activation.py" output="screen" ns="$(arg robot_name)">
+  <node name="keypoint_activation_node" 
+        pkg="yolo_vision" 
+        type="yolo_keypoint_activation.py" 
+        output="screen" 
+        ns="$(arg robot_name)">
+
+
       <param name="robot_name" value="$(arg robot_name)"/>
   </node>
 
   <!-- PART 5: Launch Keypoint Detection node (initially disabled) -->
-  <node name="keypoint_detection_node" pkg="yolo_vision" type="yolo_keypoint_detection_node.py" output="screen" ns="$(arg robot_name)">
+  <node name="keypoint_detection_node" 
+        pkg="yolo_vision" 
+        type="yolo_keypoint_detection_node.py" 
+        output="screen" 
+        ns="$(arg robot_name)">
+
+          
       <!-- Main parameters -->
       <param name="model" value="$(arg keypoint_model_path)"/>
       <param name="image_topic" value="$(arg rgb_topic)"/>

@@ -125,13 +125,13 @@ class YoloKeypointDetectionNode:
     def calculate_angle(self, keypoints):
         """
         Calculate the angle between consecutive keypoints with respect to the y-axis,
-        normalized to the (-90, 90) range.
+        normalized to the (-90, 90) range, as well as the perpendicular angle.
         
         Args:
             keypoints: np.array, shape (N, 3) with x, y, confidence for each keypoint
             
         Returns:
-            angles: list of angle_deg values (only degrees, simplified)
+            angles: list of values containing both the angle_deg and perpendicular_angle_deg
         """
         angles = []
 
@@ -159,8 +159,15 @@ class YoloKeypointDetectionNode:
                 
                 angle_deg = np.degrees(angle_rad)
                 
-                # Only store the angle in degrees
+                # Calculate perpendicular angle (rotate by 90 degrees)
+                perp_angle_deg = angle_deg + 90.0
+                # Normalize to (-90, 90) range
+                if perp_angle_deg > 90:
+                    perp_angle_deg -= 180
+                
+                # Only store the angle in degrees and the perpendicular angle
                 angles.append(angle_deg)
+                angles.append(perp_angle_deg)
 
         return angles
     

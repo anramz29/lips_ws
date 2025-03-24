@@ -35,7 +35,13 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
 
 
     <!-- Launch Keypoint Detection node -->
-    <node name="keypoint_detection_node" pkg="yolo_vision" type="yolo_keypoint_detection_node.py" output="screen" ns="$(arg robot_name)">
+    <node name="keypoint_detection_node" 
+        pkg="yolo_vision" 
+        type="yolo_keypoint_detection_node.py" 
+        output="screen" 
+        ns="$(arg robot_name)">
+
+
         <!-- Main parameters -->
         <param name="debug_mode" value="$(arg debug_mode)"/>
         <param name="is_enabled" value="$(arg is_enabled)"/>
@@ -56,9 +62,12 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     
     <!-- RViz (conditionally launched) -->
     <group if="$(arg use_rviz)">
-        <node name="rviz" pkg="rviz" type="rviz" 
+        <node name="rviz" 
+            pkg="rviz" 
+            type="rviz" 
             args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
             ns="$(arg robot_name)">
+
             <remap from="/clicked_point" to="clicked_point"/>
             <remap from="/initialpose" to="initialpose"/>
             <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>

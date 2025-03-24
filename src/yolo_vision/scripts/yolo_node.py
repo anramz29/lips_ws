@@ -23,6 +23,7 @@ class YoloDetectionNode:
         self.image_topic = rospy.get_param('~image_topic')
         self.bbox_topic = rospy.get_param('~bbox_topic')
         self.device = rospy.get_param('~device', 'cuda:0')
+        self.confidence_threshold = rospy.get_param('~confidence_threshold', 0.45)
 
         # Check CUDA availability
         import torch
@@ -154,17 +155,23 @@ class YoloDetectionNode:
         bboxes = [len(result.boxes)]  # First element is number of boxes
         
         if len(result.boxes) > 0:
-            # Get the most confident detection
-            det = result.boxes[0]  # Only process the first detection
-            
-            # Get box coordinates and confidence
-            box = det.xyxy[0].cpu().numpy().astype(int)
-            x1, y1, x2, y2 = box
-            conf = float(det.conf[0])
-            cls_id = int(det.cls[0])
-            
-            # Add detection to bboxes
-            bboxes.extend([cls_id, conf, x1, y1, x2, y2])
+                
+            # Iterate over detected boxes
+            for det in result.boxes:
+                
+                # if confidence is below threshold, skip detection
+                if det.conf[0] < self.confidence_threshold:
+                    continue
+
+
+                # Get box coordinates and confidence
+                box = det.xyxy[0].cpu().numpy().astype(int)
+                x1, y1, x2, y2 = box
+                conf = float(det.conf[0])
+                cls_id = int(det.cls[0])
+                
+                # Add detection to bboxes
+                bboxes.extend([cls_id, conf, x1, y1, x2, y2])
         
         return bboxes
 
@@ -203,3 +210,4 @@ if __name__ == '__main__':
         node.spin()
     except rospy.ROSInterruptException:
         pass
+    
