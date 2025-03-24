@@ -70,6 +70,7 @@ class ObjectScanner:
         self.object_marker = None
         self.object_detected = False
         self.current_depth = None
+        self.current_class_id = None
         self.remaining_angles = []
         
         # ---------- ROS INTERFACE SETUP ----------
@@ -143,6 +144,9 @@ class ObjectScanner:
                 return
              # Extract depth from the new format - position 7
             self.current_depth = float(msg.data[7])
+
+            # Extract class ID from the new format - position 1
+            self.current_class_id = int(msg.data[1])
                 
     
     # ---------- STATE MANAGEMENT METHODS ----------
@@ -163,7 +167,7 @@ class ObjectScanner:
     
     # ---------- DETECTION METHODS ----------
     
-    def _scan_with_sustained_detection(self, angle):
+    def _scan_with_sustained_detection(self, angle, desired_class_id):
         """
         Scan for objects at current position with sustained detection requirement
         
@@ -184,26 +188,33 @@ class ObjectScanner:
         
         # Continue scanning until timeout
         while (rospy.Time.now() - scan_start) < self.scan_timeout and not rospy.is_shutdown():
-            # Check if we have a marker
-            if self.object_marker is not None:
-                # Start or continue timing the sustained detection
-                if detection_start is None:
-                    detection_start = rospy.Time.now()
-                    rospy.loginfo("Potential object detected, timing sustained detection...")
+                
+            # check if the desired class ID is set and if the current class ID matches it
+            if self.current_class_id == desired_class_id:
+                rospy.loginfo(f"Detected object with class ID {self.current_class_id}")
+
+                # Check if we have a marker
+                if self.object_marker is not None:
+                    # Start or continue timing the sustained detection
+                    if detection_start is None:
+                        detection_start = rospy.Time.now()
+                        rospy.loginfo("Potential object detected, timing sustained detection...")
+                    else:
+                        # Check if we've maintained detection long enough
+                        elapsed = rospy.Time.now() - detection_start
+                        if elapsed >= self.required_detection_duration:
+                            # Validate detection with depth check
+                            if self.current_depth is not None and self.current_depth < self.max_detection_depth:
+                                self.object_detected = True
+                                rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth:.2f}m")
+                                return True
                 else:
-                    # Check if we've maintained detection long enough
-                    elapsed = rospy.Time.now() - detection_start
-                    if elapsed >= self.required_detection_duration:
-                        # Validate detection with depth check
-                        if self.current_depth is not None and self.current_depth < self.max_detection_depth:
-                            self.object_detected = True
-                            rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth:.2f}m")
-                            return True
-            else:
-                # Lost detection, reset the timer
-                if detection_start is not None:
-                    rospy.logwarn("Lost detection during sustainment period, resetting timer")
-                    detection_start = None
+                    # Lost detection, reset the timer
+                    if detection_start is not None:
+                        rospy.logwarn("Lost detection during sustainment period, resetting timer")
+                        detection_start = None
+        
+
             
             rospy.sleep(0.1)  # Check at 10Hz
         
@@ -265,14 +276,14 @@ class ObjectScanner:
         self.object_marker = None
         
         # Scan for objects with sustained detection requirement
-        detected = self._scan_with_sustained_detection(angle)
+        detected = self._scan_with_sustained_detection(angle, desired_class_id=self.desired_class_id)
         
         # Convert boolean result to ScanResult enum
         return ScanResult.OBJECT_DETECTED if detected else ScanResult.NO_DETECTION
     
     # ---------- MAIN SCANNING METHOD ----------
     
-    def perform_scan_rotation(self, rotation_angles=None):
+    def perform_scan_rotation(self, rotation_angles=None, desired_class_id=None):
         """
         Perform a sequence of rotations to scan for objects
         
