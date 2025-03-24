@@ -5,7 +5,7 @@ import numpy as np
 from ultralytics import YOLO
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32MultiArray, Bool
+from std_msgs.msg import Float32MultiArray, Bool, Float32
 from std_srvs.srv import SetBool, SetBoolResponse
 
 
@@ -21,7 +21,7 @@ class YoloKeypointDetectionNode:
         self.model_path = rospy.get_param('~model')
         self.device = rospy.get_param('~device')
         self.input_size = rospy.get_param('~input_size')
-        self.conf_threshold = rospy.get_param('~conf_threshold')
+        self.conf_threshold = rospy.get_param('~confidence_threshold')
 
         # Robot name parameter (for service/topic namespace)
         self.robot_name = rospy.get_param('~robot_name', 'locobot')
@@ -32,7 +32,8 @@ class YoloKeypointDetectionNode:
         # Output topics
         self.keypoints_topic = rospy.get_param('~keypoints_topic', 'camera/yolo/keypoints')
         self.keypoints_viz_topic = rospy.get_param('~keypoints_viz_topic', 'camera/yolo/keypoints_visualization')
-        
+        self.object_angle_topic = rospy.get_param('~object_angle_topic', 'camera/yolo/object_angle')
+
         # Intialize Image processing bridge
         self.bridge = CvBridge()
         
@@ -65,6 +66,12 @@ class YoloKeypointDetectionNode:
         self.keypoints_viz_pub = rospy.Publisher(
             self.keypoints_viz_topic,
             Image,
+            queue_size=1
+        )
+
+        self.object_angle_pub = rospy.Publisher(
+            self.object_angle_topic,
+            Float32,
             queue_size=1
         )
 
@@ -179,21 +186,22 @@ class YoloKeypointDetectionNode:
             results: dict, model output
         
         Returns:
-            a list [class_id, conf, num_keypoints, keypoints..., num_angles, angles...]
+            tuple: (processed_results, perpendicular_angle) or (None, None) if no valid results
         """
         # Check if we have any results
         if len(results) == 0:
-            return None
+            return None, None  # Return tuple of None values
         
         # Extract data from results
         keypoints = results.keypoints.data if results.keypoints is not None else None
         if keypoints is None or len(keypoints) == 0:
-            return None
+            return None, None  # Return tuple of None values
             
         class_ids = results.boxes.cls
         confidences = results.boxes.conf
         
         processed_results = []
+        perpendicular_angle = None
         
         # Process each detection
         for i in range(len(class_ids)):
@@ -226,6 +234,10 @@ class YoloKeypointDetectionNode:
             # Calculate angles between consecutive keypoints (simplified to just degrees)
             angles = self.calculate_angle(valid_keypoints_array)
             
+            # Safely get perpendicular angle if available
+            if len(angles) >= 2:
+                perpendicular_angle = angles[1]  # Every other angle is the perpendicular angle
+            
             # Add number of valid keypoints and the keypoints themselves
             detection.append(len(valid_keypoints) // 3)  # Number of valid keypoints
             detection.extend(valid_keypoints)
@@ -236,7 +248,7 @@ class YoloKeypointDetectionNode:
             
             processed_results.append(detection)
         
-        return processed_results
+        return processed_results, perpendicular_angle
     
     def publish_keypoints(self, processed_results):
         """
@@ -260,6 +272,17 @@ class YoloKeypointDetectionNode:
         
         msg.data = all_data
         self.keypoints_pub.publish(msg)
+
+    def publish_object_angle(self, angle):
+        """
+        Publishes the object angle as a Float32 message
+        
+        Args:
+            angle: float, angle value
+        """
+        msg = Float32()
+        msg.data = angle
+        self.object_angle_pub.publish(msg)
         
     def create_viz_image(self, image, processed_results):
         """
@@ -355,15 +378,25 @@ class YoloKeypointDetectionNode:
         results = self.run_model(image)
 
         # Process the results
-        processed_results = self.process_data(results)
+        processed_results, perpendicular_angle = self.process_data(results)
 
-        # Publish keypoints
-        self.publish_keypoints(processed_results)
+        # Only publish if we have valid results
+        if processed_results is not None:
+            # Publish keypoints
+            self.publish_keypoints(processed_results)
 
-        # Create visualization image
-        viz_image = self.create_viz_image(image.copy(), processed_results)
-        viz_msg = self.bridge.cv2_to_imgmsg(viz_image, encoding='bgr8')
-        self.keypoints_viz_pub.publish(viz_msg)
+            # Publish object angle if valid
+            if perpendicular_angle is not None:
+                self.publish_object_angle(perpendicular_angle)
+
+            # Create visualization image
+            viz_image = self.create_viz_image(image.copy(), processed_results)
+            viz_msg = self.bridge.cv2_to_imgmsg(viz_image, encoding='bgr8')
+            self.keypoints_viz_pub.publish(viz_msg)
+        else:
+            # Publish empty visualization image when no results
+            viz_msg = self.bridge.cv2_to_imgmsg(image, encoding='bgr8')
+            self.keypoints_viz_pub.publish(viz_msg)
 
 
 if __name__ == '__main__':

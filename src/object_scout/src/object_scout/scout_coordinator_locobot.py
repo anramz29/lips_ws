@@ -42,8 +42,6 @@ class ScoutCoordinatorLocobot:
         self.poses_config = rospy.get_param('~poses_config', '')
         self.pose_command = rospy.get_param('~pose_command', 'all')
         self.max_objects = rospy.get_param('~max_objects', 0)  # 0 means find all objects
-
-        class_ids = [0, 1] # 0 are grasshoppers, 1 is box
         
         # Frame definitions
         self.world_frame = "map"
@@ -95,6 +93,47 @@ class ScoutCoordinatorLocobot:
         # Create object picker for picking up objects
         self.object_picker = PickUpObject(self.robot_name)
 
+    # ---------- OBJECT DETECTION METHODS ----------
+
+    def scan_for_objects(self, angles=None, desired_class_id=None):
+        """
+        Perform a rotation scan for objects
+        
+        Args:
+            angles (list, optional): List of angles to scan, or None for default
+            
+        Returns:
+            tuple: (scan_result, remaining_angles)
+        """
+        rospy.loginfo("Scanning for objects...")
+        scan_angles = angles if angles is not None else self.scanner.rotation_angles
+        return self.scanner.perform_scan_rotation(scan_angles, desired_class_id)
+
+    def approach_detected_object(self):
+        """
+        Approach a detected object
+        
+        Returns:
+            bool: True if approach succeeded, False otherwise
+        """
+        rospy.loginfo("Approaching detected object...")
+        object_marker = self.scanner.object_marker
+        
+        if object_marker is None:
+            rospy.logwarn("No object marker available for approach")
+            return False
+            
+        return self.approacher.approach_object(object_marker)
+
+    def perform_fine_approach(self):
+        """
+        Perform a fine approach to center the object in view
+        
+        Returns:
+            bool: True if fine approach succeeded, False otherwise
+        """
+        rospy.loginfo("Performing fine approach...")
+        return self.fine_approacher.fine_approach()
 
     # ---------- MISSION EXECUTION METHODS ----------
 
@@ -113,15 +152,13 @@ class ScoutCoordinatorLocobot:
             tuple: (scan_result, remaining_angles) for next scan
         """
         # Approach the detected object
-        approach_success = self.approacher.approach_object(x_detected, y_detected, orientation_detected)
+        approach_success = self.approach_detected_object()
 
         if approach_success:
             rospy.loginfo("Successfully approached object")
 
             # Perform fine approach
-            fine_approach_success = self.fine_approacher.fine_approach(x_detected, 
-                                                                        y_detected, 
-                                                                        orientation_detected)
+            fine_approach_success = self.perform_fine_approach()
 
             if fine_approach_success:
                 # Log success and update object count
@@ -195,7 +232,7 @@ class ScoutCoordinatorLocobot:
                 break
 
             # Initial scan at the pose
-            scan_result, remaining_angles = self.scanner.perform_scan_rotation(desrired_class_id=0)
+            scan_result, remaining_angles = self.scan_for_objects(desired_class_id=0)
             
             # Process any detected objects
             while scan_result == ScanResult.OBJECT_DETECTED:

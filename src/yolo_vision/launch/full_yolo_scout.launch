@@ -28,6 +28,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
   <arg name="input_size" default="640"/>
   <arg name="keypoints_topic" default="camera/yolo/keypoints"/>
   <arg name="keypoints_viz_topic" default="camera/yolo/keypoints_visualization"/>
+  <arg name="device" default="cuda:0"/>
   
 
   <!-- Yolo Distance Topics -->
@@ -46,12 +47,13 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <arg name="use_rviz" value="false"/>
     <arg name="robot_name" value="$(arg robot_name)"/>
     <arg name="model_path" value="$(arg model_path)"/>
+    <arg name="device" value="$(arg device)"/>
 
     <!-- Input Topics -->
     <arg name="rgb_topic" value="$(arg rgb_topic)"/>
     <arg name="depth_image_topic" value="$(arg depth_image_topic)"/>
     <arg name="bbox_topic" value="$(arg bbox_topic)"/>
-
+  
 
     <!-- Output Topucs -->
     <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
@@ -120,6 +122,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
       <param name="confidence_threshold" value="$(arg confidence_threshold)"/>
       <param name="input_size" value="$(arg input_size)"/>
       <param name="debug_mode" value="$(arg debug_mode)"/>
+      <param name="device" value="$(arg device)"/>
       
       <!-- Output topics -->
       <param name="keypoints_topic" value="$(arg keypoints_topic)"/>

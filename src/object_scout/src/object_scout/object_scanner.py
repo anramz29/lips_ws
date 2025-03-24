@@ -189,7 +189,6 @@ class ObjectScanner:
         # Continue scanning until timeout
         while (rospy.Time.now() - scan_start) < self.scan_timeout and not rospy.is_shutdown():
                 
-
             # Check if we have a marker
             if self.object_marker is not None:
                 # Check if the detected object matches the desired class ID
@@ -209,6 +208,11 @@ class ObjectScanner:
                                 self.object_detected = True
                                 rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth:.2f}m")
                                 return True
+                            
+                else:
+                    # Detected object does not match desired class, reset timer
+                    rospy.logwarn(f"Detected object with incorrect class ID {self.current_class_id}")
+                    detection_start = None
             else:
                 # Lost detection, reset the timer
                 if detection_start is not None:
@@ -224,7 +228,7 @@ class ObjectScanner:
     
     # ---------- ROTATION METHODS ----------
     
-    def _perform_single_rotation_scan(self, current_pose, angle, rotation_index, total_rotations):
+    def _perform_single_rotation_scan(self, current_pose, angle, rotation_index, total_rotations, desired_class_id):
         """
         Perform a single rotation and scan for objects
         
@@ -277,7 +281,7 @@ class ObjectScanner:
         self.object_marker = None
         
         # Scan for objects with sustained detection requirement
-        detected = self._scan_with_sustained_detection(angle, desired_class_id=self.desired_class_id)
+        detected = self._scan_with_sustained_detection(angle, desired_class_id)
         
         # Convert boolean result to ScanResult enum
         return ScanResult.OBJECT_DETECTED if detected else ScanResult.NO_DETECTION
@@ -329,7 +333,7 @@ class ObjectScanner:
             
             # Perform the scan at this angle
             result = self._perform_single_rotation_scan(
-                current_pose, current_angle, i, len(rotation_angles)
+                current_pose, current_angle, i, len(rotation_angles), desired_class_id
             )
             
             # Remove this angle from remaining angles AFTER processing it

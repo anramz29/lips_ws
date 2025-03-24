@@ -3,7 +3,7 @@
 import rospy
 import os
 from object_scout.pick_up_object import PickUpObject
-
+from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
 
 def tilt_camera_directly(robot_name, angle):
     """Tilt camera directly using JointGroupCommand publisher"""
@@ -35,10 +35,10 @@ if __name__ == "__main__":
     robot_name = rospy.get_param('~robot_name', 'locobot')
     
     # Create an instance of PickUpObject
-    object_picker = PickUpObject(robot_name)
+    object_picker = PickUpObject(robot_name, init_node=False)
     
     # Tilt the camera directly to a specified angle (e.g., 1.5 radians)
-    tilt_camera_directly(robot_name, 1.5)
+    tilt_camera_directly(robot_name, .75)
     
     # Attempt to pick up an object
     if object_picker.pick_object():

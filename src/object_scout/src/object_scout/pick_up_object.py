@@ -9,7 +9,7 @@ from interbotix_xs_modules.gripper import InterbotixGripperXSInterface
 from interbotix_perception_modules.pointcloud import InterbotixPointCloudInterface
 from interbotix_perception_modules.armtag import InterbotixArmTagInterface
 from std_srvs.srv import Empty, SetBool
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Float32
 import tf2_ros
 import tf2_geometry_msgs
 import geometry_msgs.msg
@@ -78,6 +78,7 @@ class PickUpObject:
     def _setup_ros_communication(self):
         """Set up ROS subscription for object marker information"""
         self.object_marker_topic = rospy.get_param(
+            "~object_marker_topic",
             f'/{self.robot_name}/object_markers'
         )
         
@@ -88,9 +89,9 @@ class PickUpObject:
         )
         
         self.keypoint_sub = rospy.Subscriber(
-            f'/{self.robot_name}/camera/yolo/keypoints',
-            Float32MultiArray,
-            self.keypoint_callback
+            f'/{self.robot_name}/camera/yolo/object_angle',
+            Float32,
+            self.angle_callback
         )
 
     
@@ -133,22 +134,18 @@ class PickUpObject:
     
         
 
-    def keypoint_callback(self, msg):
-        """Process keypoint messages and extract the angle from the first detection.
+    def angle_callback(self, msg):
+        """Process angle messages and extract the angle from the first detection.
         
         Args:
-            msg (Float32MultiArray): Message containing keypoint data and angles
+            msg (Float32): The message containing the perpendicular angle of the object.
         """
         try:
-            # Check if the message contains at least one detection
-            if len(msg.data) > 0 and msg.data[0] >= 1:
-                num_detections = int(msg.data[0])
-                
-                if num_detections >= 1:
-                    # Get data for the first detection
-                    detection_data = msg.data[1:]
-                    
-                    self.angle = detection_data[12]
+            # make sure it's the first message
+            if self.angle is None:
+                self.angle = msg.data
+
+            rospy.loginfo_once(f"Angle: {self.angle}, in radians: {math.radians(self.angle)}")
 
         except IndexError as e:
             rospy.logerr(f"Keypoint data is malformed: {e}")
@@ -178,7 +175,7 @@ class PickUpObject:
         rospy.sleep(1.0)  # Short pause for stability
         rospy.loginfo("Shutdown complete")
 
-    def pick_object(self, approach_height=0.2, gripper_offset=0.05, pitch=1.5, max_attempts=3):
+    def pick_object(self, approach_height=0.15, gripper_offset=0.05, pitch=1.5, max_attempts=3):
         """Main function to pick up an object using the robot arm."""
         
         # Enable keypoint detection
@@ -213,19 +210,28 @@ class PickUpObject:
         self.arm.go_to_home_pose()
         self.gripper.open()
 
+        x, y, z = cluster_position['position']
+
 
         success = self.arm.set_ee_pose_components(
-            x=cluster_position[0],
-            y=cluster_position[1],
+            x=x,
+            y=y,
             z=approach_height,
-            pitch=1.5,
-            yaw=self.angle 
         )
+
 
         if not success:
             rospy.logerr("Failed to move arm to object position")
             self.arm.go_to_sleep_pose()
             return False
+        
+        success = self.arm.set_ee_cartesian_trajectory(
+            pitch = -1.5,
+        )
+
+        success = self.arm.set_ee_pose_components(
+            yaw = self.angle
+        )
 
         # Move the arm to the approach position
         success = self.arm.set_ee_cartesian_trajectory(

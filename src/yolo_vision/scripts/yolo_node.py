@@ -23,7 +23,7 @@ class YoloDetectionNode:
         self.image_topic = rospy.get_param('~image_topic')
         self.bbox_topic = rospy.get_param('~bbox_topic')
         self.device = rospy.get_param('~device', 'cuda:0')
-        self.confidence_threshold = rospy.get_param('~confidence_threshold', 0.45)
+        self.confidence_threshold = rospy.get_param('~confidence_threshold', 0.5)
 
         # Check CUDA availability
         import torch
@@ -40,16 +40,11 @@ class YoloDetectionNode:
         self.model.to(self.device)
         
 
-        # Optimization: Set model parameters
-        self.model.conf = 0.45  # Confidence threshold
-        self.model.iou = 0.45  # NMS IOU threshold
-        self.model.max_det = 1  # Maximum detections per image
-
         # Processing rate control
         self.last_process_time = rospy.Time.now()
 
         # use 40 hz as default
-        self.min_process_interval = rospy.Duration(0.025)
+        self.min_process_interval = rospy.Duration(0.1)
 
         # Setup ROS communication
         self._setup_ros_communication()
