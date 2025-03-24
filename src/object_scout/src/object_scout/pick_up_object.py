@@ -173,7 +173,9 @@ class PickUpObject:
         self.bot.gripper.open()
         self.bot.go_to_home_pose()
 
+
         # Move the arm to the approach height above the object
+        rospy.loginfo_once(f"Moving arm to x={x}, y={y}, z={approach_height} with angle {angle_radians}")
         move_1_success = self.bot.arm.set_ee_pose_components(
             x=x,
             y=y,
