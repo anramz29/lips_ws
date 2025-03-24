@@ -3,11 +3,7 @@ import time
 import rospy
 import numpy as np
 from visualization_msgs.msg import Marker
-from interbotix_xs_modules.core import InterbotixRobotXSCore
-from interbotix_xs_modules.arm import InterbotixArmXSInterface
-from interbotix_xs_modules.gripper import InterbotixGripperXSInterface
-from interbotix_perception_modules.pointcloud import InterbotixPointCloudInterface
-from interbotix_perception_modules.armtag import InterbotixArmTagInterface
+from interbotix_xs_modules.locobot import InterbotixLocobotXS
 from std_srvs.srv import Empty, SetBool
 from std_msgs.msg import Float32MultiArray, Float32
 import tf2_ros
@@ -27,45 +23,17 @@ class PickUpObject:
             rospy.init_node('pick_up_object', anonymous=False)
 
         # ---------- ROBOT SETUP ----------
-        # Create the core interface for basic servo control
-        self.core = InterbotixRobotXSCore(
-            robot_model=f"{self.robot_name}_wx250s",
-            robot_name=self.robot_name,
-            init_node=False
-        )
         
-        # Create the arm interface
-        self.arm = InterbotixArmXSInterface(
-            core=self.core,
-            robot_model="mobile_wx250s",
-            group_name="arm"
-        )
-        
-        # Create the gripper interface
-        self.gripper = InterbotixGripperXSInterface(self.core, "gripper")
-        
-        # Create the perception interfaces
-        self.pcl = InterbotixPointCloudInterface(
-            filter_ns=f"{self.robot_name}/pc_filter",
-            init_node=False
-        )
-        
-        self.armtag = InterbotixArmTagInterface(
-            armtag_ns=f"{self.robot_name}/armtag",
-            apriltag_ns=f"{self.robot_name}/apriltag",
-            init_node=False
-        )
+        self.bot = InterbotixLocobotXS("locobot_wx250s", arm_model="mobile_wx250s")
 
         # ---------- STATE VARIABLES ----------
 
         self.object_marker = None
-        self.latest_keypoints = None
+        self.last_object_marker = None
         self.angle = None
-        self.latest_angle = None
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.bridge = CvBridge()
-        self.last_valid_angle = None
 
         # ---------- ROS Interface SETUP ----------
 
@@ -93,8 +61,6 @@ class PickUpObject:
             Float32,
             self.angle_callback
         )
-
-    
 
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection by calling the appropriate service.
@@ -131,8 +97,9 @@ class PickUpObject:
     def object_marker_callback(self, msg):
         """Process object marker messages and update history"""
         self.object_marker = msg
-    
-        
+
+        if self.object_marker is not None:
+            self.last_object_marker = self.object_marker
 
     def angle_callback(self, msg):
         """Process angle messages and extract the angle from the first detection.
@@ -155,27 +122,32 @@ class PickUpObject:
     def get_clusters(self):
         # get the positions of any clusters present w.r.t. the 'locobot/arm_base_link'
         # sort the clusters such that they appear from left-to-right w.r.t. the 'locobot/arm_base_link'
-        time.sleep(0.5)
-        success, clusters = self.pcl.get_cluster_positions(
+        success, clusters = self.bot.pcl.get_cluster_positions(
             ref_frame=f"{self.robot_name}/arm_base_link", 
             sort_axis="y", 
-            reverse=True)
+            reverse=True
+        )
         
         # log number of clusters found
         if success:
             rospy.loginfo(f"Found {len(clusters)} clusters")
-        
-        return success, clusters
+            x,y,z = clusters[0]['position']
+            rospy.loginfo(f"Cluster position: x={x}, y={y}, z={z}")
+        else:
+            rospy.logerr("Failed to get cluster positions")
+            return []
+            
+        return success, x,y,z
 
     def shutdown_handler(self):
         """Shutdown handler to ensure a clean exit"""
         rospy.loginfo("Shutting down...")
         self.enable_keypoint_detection(False)
-        self.arm.go_to_sleep_pose()
+        self.bot.arm.go_to_sleep_pose()
         rospy.sleep(1.0)  # Short pause for stability
         rospy.loginfo("Shutdown complete")
 
-    def pick_object(self, approach_height=0.15, gripper_offset=0.05, pitch=1.5, max_attempts=3):
+    def pick_object(self, approach_height=0.15):
         """Main function to pick up an object using the robot arm."""
         
         # Enable keypoint detection
@@ -188,64 +160,58 @@ class PickUpObject:
             rospy.loginfo("Waiting for object marker...")
             rospy.sleep(0.5)
 
+        # Get the position of the object marker
+        x, y, _ = self.get_clusters()
 
-        
-        # Get clusters from the point cloud
-        success, clusters = self.get_clusters()
-
-        if not success or len(clusters) == 0:
-            rospy.logerr("No clusters found")
+        # turn the angle into radians
+        if self.angle is None:
+            rospy.logerr("No angle detected for object")
             return False
-        
-        # Extract the first cluster position
-        cluster_position = clusters[0]
+        angle_radians = math.radians(self.angle)
+        rospy.loginfo_once(f"Using angle: {self.angle} radians")
 
-        # convert self.angle to radians and check if it is valid
-        if self.angle is not None:
-            self.angle = math.radians(self.angle)
-            if self.angle < -math.pi or self.angle > math.pi:
-                rospy.logerr("Invalid angle detected")
-                return False
-            
-        self.arm.go_to_home_pose()
-        self.gripper.open()
+        self.bot.gripper.open()
+        self.bot.go_to_home_pose()
 
-        x, y, z = cluster_position['position']
-
-
-        success = self.arm.set_ee_pose_components(
+        # Move the arm to the approach height above the object
+        move_1_success = self.bot.arm.set_ee_pose_components(
             x=x,
             y=y,
-            z=approach_height,
+            z=approach_height, 
+            pitch=1.5, 
+            yaw=angle_radians
         )
 
-
-        if not success:
-            rospy.logerr("Failed to move arm to object position")
-            self.arm.go_to_sleep_pose()
+        if not move_1_success:
+            rospy.logerr("Failed to move arm to approach height")
+            self.bot.arm.go_to_sleep_pose()
             return False
         
-        success = self.arm.set_ee_cartesian_trajectory(
-            pitch = -1.5,
+        # Wait for the arm to reach the position
+        move_2_success = self.bot.arm.set_ee_pose_components(
+            x=x, 
+            y=y, 
+            z=0.05, 
+            pitch=1.5, 
+            yaw=angle_radians
         )
 
-        success = self.arm.set_ee_pose_components(
-            yaw = self.angle
-        )
-
-        # Move the arm to the approach position
-        success = self.arm.set_ee_cartesian_trajectory(
-            y=-(approach_height - gripper_offset),  # Move down to the gripper offset
-        )
-
-        if not success:
-            rospy.logerr("Failed to move arm to gripper offset position")
-            self.arm.go_to_sleep_pose()
+        if not move_2_success:
+            rospy.logerr("Failed to move arm to object height")
+            self.bot.arm.go_to_sleep_pose()
             return False
 
-        self.gripper.close()
+        # Wait for the arm to reach the position
+        rospy.sleep(1.0)
 
-        self.arm.go_to_sleep_pose()  
+        # Close the gripper to pick up the object
+        self.bot.gripper.close()
+
+        # Wait for the gripper to close
+        rospy.sleep(1.0)
+
+        # Move the arm back to sleep pose
+        self.bot.arm.go_to_sleep_pose()
 
         # check if the object marker is still present
         if self.object_marker is None:
@@ -270,7 +236,7 @@ def main():
         rospy.logerr("Object pickup failed")
     
     # Put the arm in a safe position
-    po.arm.go_to_sleep_pose()
+    po.bot.arm.go_to_sleep_pose()
     
 if __name__ == "__main__":
     main()
