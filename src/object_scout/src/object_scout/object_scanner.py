@@ -189,12 +189,13 @@ class ObjectScanner:
         # Continue scanning until timeout
         while (rospy.Time.now() - scan_start) < self.scan_timeout and not rospy.is_shutdown():
                 
-            # check if the desired class ID is set and if the current class ID matches it
-            if self.current_class_id == desired_class_id:
-                rospy.loginfo(f"Detected object with class ID {self.current_class_id}")
 
-                # Check if we have a marker
-                if self.object_marker is not None:
+            # Check if we have a marker
+            if self.object_marker is not None:
+                # Check if the detected object matches the desired class ID
+                if self.current_class_id == desired_class_id:
+                    rospy.loginfo(f"Detected object with class correct ID {self.current_class_id})")
+
                     # Start or continue timing the sustained detection
                     if detection_start is None:
                         detection_start = rospy.Time.now()
@@ -208,11 +209,11 @@ class ObjectScanner:
                                 self.object_detected = True
                                 rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth:.2f}m")
                                 return True
-                else:
-                    # Lost detection, reset the timer
-                    if detection_start is not None:
-                        rospy.logwarn("Lost detection during sustainment period, resetting timer")
-                        detection_start = None
+            else:
+                # Lost detection, reset the timer
+                if detection_start is not None:
+                    rospy.logwarn("Lost detection during sustainment period, resetting timer")
+                    detection_start = None
         
 
             
