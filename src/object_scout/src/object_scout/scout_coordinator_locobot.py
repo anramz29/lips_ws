@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import rospy
-import sys
 import tf2_ros
 from object_scout.navigation_controller import NavigationController
 from object_scout.object_scanner import ObjectScanner, ScanResult
@@ -8,7 +7,6 @@ from object_scout.object_approacher import ObjectApproacher
 from object_scout.pose_manager import PoseManager
 from object_scout.fine_approacher import FineApproacher
 from object_scout.pick_up_object import PickUpObject
-from object_scout.utils import get_robot_pose
 
 # ---------- CLASS DEFINITION ----------
 

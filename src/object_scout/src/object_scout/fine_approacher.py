@@ -8,11 +8,6 @@ from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker
 from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
 import sensor_msgs.msg
-import tf
-import tf2_ros
-
-from object_scout.utils import get_robot_pose
-from object_scout.navigation_controller import NavigationController
 
 
 class FineApproacher():
@@ -324,7 +319,7 @@ class FineApproacher():
         quat = Quaternion(*quaternion_from_euler(0, 0, rotation_angle))
         
         # Get current robot position
-        robot_pose = get_robot_pose()
+        robot_pose = self.nav_controller.get_robot_pose()
         
         # Use navigation controller to execute rotation in place
         success = self.nav_controller.move_to_position(
@@ -394,7 +389,7 @@ class FineApproacher():
         rospy.loginfo(f"Moving base by {vertical_distance} meters to center object")
         
         # Get current robot position
-        robot_pose = get_robot_pose()
+        robot_pose = self.nav_controller.get_robot_pose()
         
         # Calculate new position
         new_x = robot_pose.position.x + vertical_distance

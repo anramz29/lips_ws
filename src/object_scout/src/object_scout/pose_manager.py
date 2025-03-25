@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 import rospy
-import yaml
 import rospkg
 from geometry_msgs.msg import Pose
-
-# Import utilities
-from object_scout.utils import load_poses
-
 
 class PoseManager:
     """
@@ -26,13 +21,23 @@ class PoseManager:
         self.poses_config = poses_config
         
         # Load poses from config file
-        self.poses = load_poses(poses_config)
+        self.poses = self.load_poses(poses_config)
         
         if not self.poses:
             rospy.logerr(f"Failed to load poses from config file: {poses_config}")
             raise ValueError(f"No poses found in configuration: {poses_config}")
             
         rospy.loginfo(f"Loaded {len(self.poses)} poses from {poses_config}")
+
+    def load_poses(self, poses_config):
+        """Load poses from YAML config file"""
+        try:
+            with open(poses_config, 'r') as file:
+                return yaml.safe_load(file)['locations']
+        except Exception as e:
+            rospy.logerr(f"Error loading config: {str(e)}")
+            return None
+    
         
     def get_pose(self, pose_name):
         """

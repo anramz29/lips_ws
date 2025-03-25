@@ -1,17 +1,11 @@
 import math
-import time
 import rospy
-import numpy as np
 from visualization_msgs.msg import Marker
 from interbotix_xs_modules.locobot import InterbotixLocobotXS
 from std_srvs.srv import Empty, SetBool
 from std_msgs.msg import Float32MultiArray, Float32
 import tf2_ros
-import tf2_geometry_msgs
-import geometry_msgs.msg
-import sensor_msgs.msg
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PointStamped
 
 
 class PickUpObject:

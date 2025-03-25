@@ -7,8 +7,7 @@ from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker
 
-# Import utilities
-from object_scout.utils import get_robot_pose, calculate_safe_approach_point, is_position_safe_approach
+
 
 # ---------- CLASS DEFINITION ----------
 
@@ -215,19 +214,19 @@ class ObjectApproacher:
             tuple: (next_x, next_y) or (None, None) if no safe path found
         """
         # First attempt with normal step size
-        next_x, next_y = calculate_safe_approach_point(
+        next_x, next_y = self.nav_controller.calculate_safe_approach_point(
             target_x, target_y, current_pose, max_step=1.0
         )
         
         # Verify the calculated position is safe
-        if not is_position_safe_approach(self.costmap, next_x, next_y):
+        if not self.nav_controller.is_position_safe_approach(self.costmap, next_x, next_y):
             # If retry enabled, try with a shorter step
             if retry:
-                next_x, next_y = calculate_safe_approach_point(
+                next_x, next_y = self.nav_controller.calculate_safe_approach_point(
                     target_x, target_y, current_pose, max_step=0.5
                 )
                 
-                if not is_position_safe_approach(self.costmap, next_x, next_y):
+                if not self.nav_controller.is_position_safe_approach(self.costmap, next_x, next_y):
                     rospy.logerr("Cannot find safe approach path!")
                     return None, None
             else:
@@ -423,7 +422,7 @@ class ObjectApproacher:
         self.marker_positions = [(initial_target_x, initial_target_y)]
         
         # Get initial robot pose (for potential fallback)
-        original_pose = get_robot_pose()
+        original_pose = self.nav_controller.get_robot_pose()
         if original_pose is None:
             rospy.logerr("Failed to get robot pose")
             return False
@@ -467,7 +466,7 @@ class ObjectApproacher:
             # If None, continue approach
 
             # Get current pose
-            current_pose = get_robot_pose()
+            current_pose = self.nav_controller.get_robot_pose()
             if current_pose is None:
                 rospy.logerr("Failed to get current robot pose")
                 return False

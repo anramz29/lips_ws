@@ -11,8 +11,6 @@ from object_scout.navigation_controller import NavigationController
 # Import actionlib for navigation
 import actionlib
 
-# Import utilities
-from object_scout.utils import get_robot_pose
 
 # ---------- ENUMERATIONS ----------
 
@@ -315,7 +313,7 @@ class ObjectScanner:
         self.remaining_angles = rotation_angles.copy()
         
         # Get current position
-        current_pose = get_robot_pose()
+        current_pose = self.nav_controller.get_robot_pose()
         if current_pose is None:
             rospy.logerr("Failed to get current robot pose")
             self.scanning_in_progress = False
