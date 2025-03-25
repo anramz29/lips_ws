@@ -33,7 +33,6 @@ Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordina
 ---
 
 ## Directory Structure
-### YOLO Vision (ROS 1)
 
 ### [ROS1](ROS1)
 Contains resources, issues, dockerfile, and quick setup for ROS1.
