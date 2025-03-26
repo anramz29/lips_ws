@@ -23,7 +23,7 @@ class YoloDetectionNode:
         self.image_topic = rospy.get_param('~image_topic')
         self.bbox_topic = rospy.get_param('~bbox_topic')
         self.device = rospy.get_param('~device', 'cuda:0')
-        self.confidence_threshold = rospy.get_param('~confidence_threshold', 0.5)
+        self.confidence_threshold = rospy.get_param('~confidence_threshold', 0.2)
 
         # Check CUDA availability
         import torch
@@ -138,35 +138,48 @@ class YoloDetectionNode:
 
     def process_detections(self, result):
         """
-        Process detection results and prepare bounding box data for publishing.
+        Process detection results and only return the bounding box with highest confidence.
         
         Args:
             result: YOLO detection results
             
         Returns:
-            list: List of bounding boxes in format [n_boxes, cls_id, conf, x1, y1, x2, y2]
+            list: List containing single highest confidence bounding box in format 
+                [n_boxes, cls_id, conf, x1, y1, x2, y2]
+                If no detections meet the threshold, returns [0]
         """
-        # Initialize bboxes array with number of detections
-        bboxes = [len(result.boxes)]  # First element is number of boxes
+        # Initialize with 0 detections
+        bboxes = [0]  # First element is number of boxes
+        best_det = None
+        best_conf = 0.0
         
         if len(result.boxes) > 0:
-                
             # Iterate over detected boxes
             for det in result.boxes:
-                
                 # if confidence is below threshold, skip detection
                 if det.conf[0] < self.confidence_threshold:
                     continue
-
-
-                # Get box coordinates and confidence
-                box = det.xyxy[0].cpu().numpy().astype(int)
-                x1, y1, x2, y2 = box
-                conf = float(det.conf[0])
-                cls_id = int(det.cls[0])
                 
-                # Add detection to bboxes
-                bboxes.extend([cls_id, conf, x1, y1, x2, y2])
+                # Get confidence
+                conf = float(det.conf[0])
+                
+                # Update best detection if confidence is higher
+                if conf > best_conf:
+                    best_conf = conf
+                    best_det = det
+        
+        # If we found a valid detection
+        if best_det is not None:
+            # Get box coordinates of best detection
+            box = best_det.xyxy[0].cpu().numpy().astype(int)
+            x1, y1, x2, y2 = box
+            cls_id = int(best_det.cls[0])
+            
+            # Update number of boxes to 1
+            bboxes[0] = 1
+            
+            # Add best detection details
+            bboxes.extend([cls_id, best_conf, x1, y1, x2, y2])
         
         return bboxes
 

@@ -192,7 +192,7 @@ class ObjectScanner:
             if self.object_marker is not None:
                 # Check if the detected object matches the desired class ID
                 if self.current_class_id == desired_class_id:
-                    rospy.loginfo(f"Detected object with class correct ID {self.current_class_id})")
+                    rospy.loginfo_throttle(5.0, f"Detected object with class correct ID {self.current_class_id})")
 
                     # Start or continue timing the sustained detection
                     if detection_start is None:

@@ -57,9 +57,6 @@ class ScoutCoordinatorLocobot:
         
         # Track found objects
         self.found_objects = []
-
-        # Initialize the object picker
-        self.object_picker = PickUpObject(robot_name=self.robot_name, init_node=False)
         
         # Register shutdown handler
         rospy.on_shutdown(self.shutdown_handler)
@@ -89,7 +86,7 @@ class ScoutCoordinatorLocobot:
         self.fine_approacher = FineApproacher(self.robot_name, self.nav_controller)
 
         # Create object picker for picking up objects
-        self.object_picker = PickUpObject(self.robot_name)
+        self.object_picker = PickUpObject(self.fine_approacher, self.robot_name)
 
     # ---------- OBJECT DETECTION METHODS ----------
 
@@ -159,7 +156,7 @@ class ScoutCoordinatorLocobot:
                 self.found_objects.append(pose_name)
 
                 # pick up object 
-                if self.object_picker.pick_object():
+                if self.object_picker.pick_object_with_retries():
                     rospy.loginfo("Object picked up")
                 else:
                     rospy.logwarn("Object not picked up")
@@ -224,12 +221,12 @@ class ScoutCoordinatorLocobot:
                 break
 
             # Initial scan at the pose
-            scan_result, remaining_angles = self.scan_for_objects(desired_class_id=0)
+            scan_result, remaining_angles = self.scan_for_objects(desired_class_id=1)
             
             # Process any detected objects
             while scan_result == ScanResult.OBJECT_DETECTED:
                 # Get position where object was detected
-                x_detected, y_detected, orientation_detected = self.nav_controller.get_robot_pose()
+                x_detected, y_detected, orientation_detected = self.nav_controller.get_robot_pose_postions()
                 
                 # Process the detected object
                 scan_result, remaining_angles = self.process_detected_object(

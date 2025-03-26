@@ -41,7 +41,7 @@ if __name__ == "__main__":
     tilt_camera_directly(robot_name, .75)
     
     # Attempt to pick up an object
-    if object_picker.pick_object():
+    if object_picker.pick_object_with_retries():
         rospy.loginfo("Object picked up successfully")
     else:
         rospy.logwarn("Failed to pick up object")

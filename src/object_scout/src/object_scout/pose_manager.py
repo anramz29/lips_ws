@@ -2,6 +2,7 @@
 import rospy
 import rospkg
 from geometry_msgs.msg import Pose
+import yaml
 
 class PoseManager:
     """

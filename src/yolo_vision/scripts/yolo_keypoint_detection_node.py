@@ -236,11 +236,16 @@ class YoloKeypointDetectionNode:
             
             # Safely get perpendicular angle if available
             if len(angles) >= 2:
-                perpendicular_angle = angles[1]  # Every other angle is the perpendicular angle
+                perpendicular_angle = angles[0]  # Every other angle is the perpendicular angle
             
             # Add number of valid keypoints and the keypoints themselves
             detection.append(len(valid_keypoints) // 3)  # Number of valid keypoints
             detection.extend(valid_keypoints)
+            
+            # Add angles data to the detection list
+            detection.append(len(angles))  # Number of angles
+            detection.extend(angles)      # The actual angle values
+            
             processed_results.append(detection)
         
         return processed_results, perpendicular_angle

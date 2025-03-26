@@ -242,7 +242,7 @@ class NavigationController:
         self.cancel_pub.publish(cancel_msg)
         rospy.loginfo("Sent navigation cancellation commands")
 
-    def get_robot_pose(self):
+    def get_robot_pose_postions(self):
         """Get current robot pose in map frame"""
         try:
             # Create tf buffer and listener when needed

@@ -156,7 +156,7 @@ class FineApproacher():
             tuple: (x_center, y_center) coordinates
         """
         x_center = self.image_width / 2
-        y_center = self.image_height * 2 / 3
+        y_center = self.image_height * 4 / 5
 
         return x_center, y_center
     

@@ -21,7 +21,8 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <arg name="image_topic" default="/$(arg robot_name)/camera/color/image_raw"/>
 
     <!-- YOLO Keypoint Detection Parameters -->
-    <arg name="model_path" default="$(find yolo_vision)/models/grasshopper_and_boxes_keypoint.pt"/>
+    <arg name="model_path_bbox" default="$(find yolo_vision)/models/simple_bbox_detection.pt"/>
+    <arg name="model_path_keypoint" default="$(find yolo_vision)/models/grasshopper_and_boxes_keypoint.pt"/>
     <arg name="device" default="cuda"/>
     <arg name="input_size" default="640"/>
     <arg name="confidence_threshold" default="0.5"/>
@@ -30,11 +31,15 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
     <!-- Output Topics -->
     <arg name="keypoints_topic" default="camera/yolo/keypoints"/>
     <arg name="keypoints_viz_topic" default="camera/yolo/keypoints_visualization"/>
-    <arg name="object_angle_topic" default="camera/yolo/object_angle"/>
+    <arg name="object_angle_topic" default="camera/yolo/object_angle"/>\
+    <arg name="bbox_topic" default="camera/yolo/bbox"/>
+
+    <include file="$(find yolo_vision)/launch/yolo_vision.launch">
+        <arg name="use_rviz" value="false"/>
+        <arg name="robot_name" value="$(arg robot_name)"/>
+
+    </include>
     
-    <!-- Camera Frame -->
-
-
     <!-- Launch Keypoint Detection node -->
     <node name="keypoint_detection_node" 
         pkg="yolo_vision" 
@@ -48,7 +53,7 @@ Base command: roslaunch interbotix_xslocobot_control xslocobot_control.launch ro
         <param name="is_enabled" value="$(arg is_enabled)"/>
 
         <!-- YOLO model parameters -->
-        <param name="model" value="$(arg model_path)"/>
+        <param name="model" value="$(arg model_path_keypoint)"/>
         <param name="device" value="$(arg device)"/>
         <param name="input_size" value="$(arg input_size)"/>
         <param name="confidence_threshold" value="$(arg confidence_threshold)"/>

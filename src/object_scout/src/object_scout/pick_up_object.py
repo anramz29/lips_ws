@@ -6,10 +6,10 @@ from std_srvs.srv import Empty, SetBool
 from std_msgs.msg import Float32MultiArray, Float32
 import tf2_ros
 from cv_bridge import CvBridge
-
+import numpy as np
 
 class PickUpObject:
-    def __init__(self, robot_name="locobot", init_node=False):
+    def __init__(self,  fine_approacher, robot_name="locobot", init_node=False):
         # ---------- ROS NODE SETUP ----------
         self.robot_name = robot_name
 
@@ -18,12 +18,17 @@ class PickUpObject:
 
         # ---------- ROBOT SETUP ----------
         
-        self.bot = InterbotixLocobotXS("locobot_wx250s", arm_model="mobile_wx250s")
+        self.bot = InterbotixLocobotXS(
+            "locobot_wx250s", 
+            arm_model="mobile_wx250s",
+            init_node=False
+        )
 
         # ---------- STATE VARIABLES ----------
 
-        self.object_marker = None
-        self.last_object_marker = None
+        self.fine_approacher = fine_approacher
+        self.n_boxes_detected = None
+        self.last_detection = None
         self.angle = None
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -39,15 +44,13 @@ class PickUpObject:
     
     def _setup_ros_communication(self):
         """Set up ROS subscription for object marker information"""
-        self.object_marker_topic = rospy.get_param(
-            "~object_marker_topic",
-            f'/{self.robot_name}/object_markers'
-        )
-        
-        self.object_marker_sub = rospy.Subscriber(
-            self.object_marker_topic,
-            Marker,
-            self.object_marker_callback
+
+
+            # Add bbox subscription
+        self.bbox_sub = rospy.Subscriber(
+            f'/{self.robot_name}/camera/yolo/bbox_depth',
+            Float32MultiArray,
+            self.bbox_callback
         )
         
         self.keypoint_sub = rospy.Subscriber(
@@ -55,6 +58,26 @@ class PickUpObject:
             Float32,
             self.angle_callback
         )
+
+    def bbox_callback(self, msg):
+        """
+        Callback function for bounding box messages
+        
+        Args:
+            msg (Float32MultiArray): Message containing bounding box coordinates and depth
+                Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
+        """
+        # if not msg.data or len(msg.data) < 8:
+        #     rospy.logwarn("Received empty or invalid message")
+        #     return
+            
+        # Extract values from new format
+        n_boxes = int(msg.data[0])
+        if n_boxes < 1:
+            return 
+        else:
+            self.n_boxes_detected = n_boxes
+
 
     def enable_keypoint_detection(self, enable=True):
         """Enable or disable keypoint detection by calling the appropriate service.
@@ -88,28 +111,29 @@ class PickUpObject:
             rospy.logerr(f"Service call failed: {e}")
             return False
 
-    def object_marker_callback(self, msg):
-        """Process object marker messages and update history"""
-        self.object_marker = msg
-
-        if self.object_marker is not None:
-            self.last_object_marker = self.object_marker
 
     def angle_callback(self, msg):
-        """Process angle messages and extract the angle from the first detection.
+        """Process angle messages and normalize the angle to a workable range.
         
         Args:
             msg (Float32): The message containing the perpendicular angle of the object.
         """
         try:
-            # make sure it's the first message
-            if self.angle is None:
-                self.angle = msg.data
-
+            raw_angle = msg.data
+            
+            # Normalize angle to stay within workable limits
+            # If angle is between 85-90 or -85-(-90), cap it at 84 degrees
+            if abs(raw_angle) > 76.0:
+                # Keep the sign but cap the magnitude
+                self.angle = 75.0 * (1 if raw_angle > 0 else -1)
+                rospy.loginfo_once(f"Normalized angle from {raw_angle} to {self.angle}")
+            else:
+                self.angle = raw_angle
+                
             rospy.loginfo_once(f"Angle: {self.angle}, in radians: {math.radians(self.angle)}")
 
-        except IndexError as e:
-            rospy.logerr(f"Keypoint data is malformed: {e}")
+        except Exception as e:
+            rospy.logerr(f"Error processing angle: {e}")
             return
         
 
@@ -141,40 +165,82 @@ class PickUpObject:
         rospy.sleep(1.0)  # Short pause for stability
         rospy.loginfo("Shutdown complete")
 
-    def pick_object(self, approach_height=0.15):
-        """Main function to pick up an object using the robot arm."""
+    def find_working_pitch_for_both(self, x, y, grab_height, angle_radians):
+        """Find a pitch angle that works for both approach and grasp heights."""
         
-        # Enable keypoint detection
-        if not self.enable_keypoint_detection(True):
-            rospy.logerr("Failed to enable keypoint detection")
-            return False
+        pitches = [1.5, 1.3, 1.1, 0.9, 0.7]
+        working_pitch = None
         
-        # Wait for the object marker to be available
-        while self.object_marker is None:
-            rospy.loginfo("Waiting for object marker...")
-            rospy.sleep(0.5)
+        for pitch in pitches:
+            rospy.loginfo(f"Testing pitch {pitch} for final ee position")
+            
+            # Test approach position with this pitch
+            try:
+                approach_result = self.bot.arm.set_ee_pose_components(
+                    x=x, y=y, z=grab_height, pitch=pitch, yaw=angle_radians, execute=False
+                )
+                
+                # If approach position works, test grab position with same pitch
+                if approach_result[1]:
+                    working_pitch = pitch
+                    rospy.loginfo(f"Pitch {pitch} works for approach")
+                    return True, working_pitch
+                else:
+                    rospy.loginfo(f"Pitch {pitch} doesn't work for approach")
+                    
+            except Exception as e:
+                rospy.logwarn(f"Error testing pitch {pitch}: {e}")
+        
+        # If we get here, no pitch worked for both positions
+        rospy.logerr("No pitch found that works for both positions")
+        return False, None
 
+    def pick_object(self, approach_height=0.15, grab_height=0.03):
+        """Main function to pick up an object using the robot arm."""
+        rospy.sleep(2.0) # Wait for keypoint detection to stabilize
+
+  
+        
         # Get the position of the object marker
-        x, y, _ = self.get_clusters()
+        success, x, y, z = self.get_clusters()
+
+        if not success:
+            rospy.logerr("Failed to get cluster positions")
+            return False
 
         # turn the angle into radians
         if self.angle is None:
             rospy.logerr("No angle detected for object")
             return False
         angle_radians = math.radians(self.angle)
-        rospy.loginfo_once(f"Using angle: {self.angle} radians")
+        rospy.loginfo_once(f"Using angle: {angle_radians} radians")
 
+        # Prepare the arm
         self.bot.gripper.open()
-        self.bot.go_to_home_pose()
+        self.bot.arm.go_to_home_pose()
+        
+        # Calculate grab height with safety margin
+        safe_grab_height = max(z + grab_height, -0.08)  # Never go below -0.08m
+        
+        # Find a pitch that works for both positions
+        success, working_pitch = self.find_working_pitch_for_both(
+            x, y, safe_grab_height, angle_radians
+        )
 
-
-        # Move the arm to the approach height above the object
-        rospy.loginfo_once(f"Moving arm to x={x}, y={y}, z={approach_height} with angle {angle_radians}")
+        if not success:
+            rospy.logerr("Failed to find a pitch that works for both positions")
+            return False
+        
+        # Now execute the movements with the consistent pitch
+        
+        # First, move to approach position
+        rospy.loginfo(f"Moving arm to x={x}, y={y}, z={approach_height} with angle {angle_radians}, pitch={working_pitch}")
+        
         move_1_success = self.bot.arm.set_ee_pose_components(
             x=x,
             y=y,
             z=approach_height, 
-            pitch=1.5, 
+            pitch=working_pitch, 
             yaw=angle_radians
         )
 
@@ -183,15 +249,15 @@ class PickUpObject:
             self.bot.arm.go_to_sleep_pose()
             return False
         
-        # Wait for the arm to reach the position
-        move_2_success = self.bot.arm.set_ee_pose_components(
-            x=x, 
-            y=y, 
-            z=0.05, 
-            pitch=1.5, 
-            yaw=angle_radians
-        )
-
+        # Wait for the arm to stabilize
+        rospy.sleep(1.0)
+        
+        # Then move to grab position with the SAME pitch
+        rospy.loginfo(f"Moving arm to z={safe_grab_height} with angle {angle_radians}, maintaining pitch={working_pitch}")
+        
+        move_2_success = self.bot.arm.set_ee_cartesian_trajectory(
+            z=-(approach_height - safe_grab_height))
+        
         if not move_2_success:
             rospy.logerr("Failed to move arm to object height")
             self.bot.arm.go_to_sleep_pose()
@@ -205,16 +271,81 @@ class PickUpObject:
 
         # Wait for the gripper to close
         rospy.sleep(1.0)
-
-        # Move the arm back to sleep pose
+        self.bot.arm.go_to_home_pose()
         self.bot.arm.go_to_sleep_pose()
 
-        # check if the object marker is still present
-        if self.object_marker is None:
-            rospy.logerr("Object marker not found after pickup")
-            return False
-
         return True
+    
+    def pick_object_with_retries(self, max_retries=3, retry_delay=2.0):
+        """
+        Attempt to pick up an object with multiple retries if objects are detected.
+        
+        Args:
+            max_retries (int): Maximum number of attempts to pick up the object
+            retry_delay (float): Delay between retry attempts in seconds
+            
+        Returns:
+            bool: True if object was picked up successfully, False otherwise
+        """
+
+        # Enable keypoint detection
+        if not self.enable_keypoint_detection(True):
+            rospy.logerr("Failed to enable keypoint detection")
+            return False
+        
+        rospy.sleep(3.0)
+
+
+        for attempt in range(max_retries):
+            # Check if we have objects detected
+            if self.n_boxes_detected is None or self.n_boxes_detected < 1:
+                rospy.logwarn(f"No objects detected before attempt {attempt+1}, waiting...")
+                # Wait for detection
+                detection_start = rospy.Time.now()
+                while (rospy.Time.now() - detection_start).to_sec() < retry_delay:
+                    if self.n_boxes_detected is not None and self.n_boxes_detected > 0:
+                        rospy.loginfo(f"Objects detected: {self.n_boxes_detected}")
+                        break
+                    rospy.sleep(0.2)
+                
+                # Check if we have detection now
+                if self.n_boxes_detected is None or self.n_boxes_detected < 1:
+                    rospy.logwarn(f"Still no objects detected, skipping attempt {attempt+1}")
+                    continue
+
+            rospy.loginfo(f"Attempt {attempt+1}/{max_retries}: {self.n_boxes_detected} objects detected")
+            self.fine_approacher.tilt_camera(0.75)
+            rospy.sleep(1.0)
+            
+            # Try to pick up the object
+            success = self.pick_object()
+
+            # move the camera up
+            self.fine_approacher.tilt_camera(0.60)
+            
+            # After pick attempt, wait and check if object is still detected
+            self.n_boxes_detected = None  # Reset to force new detection
+            rospy.loginfo("Checking if object was picked up...")
+            
+            # Wait a moment for detection to update
+            rospy.sleep(2.0)
+            
+            # If no objects are detected, pickup was successful
+            if self.n_boxes_detected is None or self.n_boxes_detected < 1:
+                rospy.loginfo("No objects detected after pickup - success!")
+                return True
+            
+            # If objects are still detected, pickup failed
+            rospy.logwarn(f"Still detecting {self.n_boxes_detected} objects - pickup failed")
+            rospy.logwarn(f"Failed to pick up object on attempt {attempt+1}, retrying...")
+            
+            # Wait before retrying
+            rospy.sleep(retry_delay)
+        
+        rospy.logerr(f"Failed to pick up object after {max_retries} attempts")
+        return False
+    
+
     
 def main():
     # Initialize the ROS node
@@ -224,7 +355,7 @@ def main():
     po = PickUpObject(init_node=False)
     
     # Run the pickup sequence
-    success = po.pick_object()
+    success = po.pick_object_with_retries()
     
     if success:
         rospy.loginfo("Object pickup completed successfully")
