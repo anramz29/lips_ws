@@ -70,6 +70,7 @@ class ObjectScanner:
         self.current_depth = None
         self.current_class_id = None
         self.remaining_angles = []
+        self.detected_object_poses = []
         
         # ---------- ROS INTERFACE SETUP ----------
         
@@ -204,9 +205,19 @@ class ObjectScanner:
                             # Validate detection with depth check
                             if self.current_depth is not None and self.current_depth < self.max_detection_depth:
                                 self.object_detected = True
-                                rospy.loginfo(f"Object detected at {angle} degrees with depth {self.current_depth:.2f}m")
-                                return True
-                            
+
+
+                                current_pose = self.nav_controller.get_robot_pose()
+                                if current_pose is not None:
+                                    detection_info = {
+                                        'angle': angle,
+                                        'class_id': self.current_class_id,
+                                        'pose': current_pose
+                                    }
+                                    self.detected_object_poses.append(detection_info)
+
+                                rospy.loginfo(f"Object detected at {angle} with class id {self.current_class_id}")
+                                return True          
                 else:
                     # Detected object does not match desired class, reset timer
                     rospy.logwarn(f"Detected object with incorrect class ID {self.current_class_id}")
@@ -215,10 +226,7 @@ class ObjectScanner:
                 # Lost detection, reset the timer
                 if detection_start is not None:
                     rospy.logwarn("Lost detection during sustainment period, resetting timer")
-                    detection_start = None
-        
-
-            
+                    detection_start = None      
             rospy.sleep(0.1)  # Check at 10Hz
         
         rospy.loginfo(f"No sustained detection at {angle} degrees within timeout")
@@ -356,6 +364,21 @@ class ObjectScanner:
         self.scanning_in_progress = False
         rospy.loginfo("Completed scan rotation sequence, no objects detected")
         return ScanResult.NO_DETECTION, self.remaining_angles
+   
+
+    def get_detected_object_poses(self):
+        """
+        Get list of detected object poses with their class IDs
+        
+        Returns:
+            list: List of dicts containing 'pose', 'class_id', 'angle'
+        """
+        return self.detected_object_poses
+
+    
+    def clear_detected_object_poses(self):
+        """Clear the list of detected object poses"""
+        self.detected_object_poses = []
 
 # ---------- DIRECT EXECUTION BLOCK ----------
 

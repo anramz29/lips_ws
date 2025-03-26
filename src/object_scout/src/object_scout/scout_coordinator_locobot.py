@@ -115,13 +115,7 @@ class ScoutCoordinatorLocobot:
             bool: True if approach succeeded, False otherwise
         """
         rospy.loginfo("Approaching detected object...")
-        object_marker = self.scanner.object_marker
-        
-        if object_marker is None:
-            rospy.logwarn("No object marker available for approach")
-            return False
-            
-        return self.approacher.approach_object(object_marker)
+        return self.approacher.approach_object()
 
     def perform_fine_approach(self):
         """

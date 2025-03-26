@@ -392,7 +392,7 @@ class ObjectApproacher:
 
     # ---------- MAIN APPROACH METHOD ----------
 
-    def approach_object(self, object_marker):
+    def approach_object(self):
         """
         Approach a detected object with graduated approach and marker tracking
         
@@ -410,13 +410,13 @@ class ObjectApproacher:
         rospy.loginfo("Moving to detected object with graduated approach...")
         
         # Initial validation
-        if object_marker is None:
+        if self.object_marker is None:
             rospy.logerr("No object marker available to approach, check topic")
             return False
         
         # Store initial marker details as a fallback
-        initial_target_x = object_marker.pose.position.x
-        initial_target_y = object_marker.pose.position.y
+        initial_target_x = self.object_marker.pose.position.x
+        initial_target_y = self.object_marker.pose.position.y
 
         # Initialize marker position history with initial position
         self.marker_positions = [(initial_target_x, initial_target_y)]
@@ -494,6 +494,25 @@ class ObjectApproacher:
             # If None, continue to next approach step
         
         return False  # If we get here, we've been shutdown
+    
+
+    # ---------- Object Saving -----------
+    def save_object(self):
+        """
+        Save the pose of the detected object for later use"
+        """
+
+        if self.object_marker is None:
+            rospy.logerr("No object marker available to save")
+            return False
+
+        # Extract position from the marker
+        position = self.object_marker.pose.position
+        rospy.loginfo(f"Saving object position: ({position.x}, {position.y}, {position.z})")
+        
+        # Here you would implement saving logic, e.g., to a database or file
+        # For now, we just log the action
+        return position
 
 # ---------- DIRECT EXECUTION BLOCK ----------
 
