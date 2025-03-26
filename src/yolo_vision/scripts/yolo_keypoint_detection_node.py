@@ -241,11 +241,6 @@ class YoloKeypointDetectionNode:
             # Add number of valid keypoints and the keypoints themselves
             detection.append(len(valid_keypoints) // 3)  # Number of valid keypoints
             detection.extend(valid_keypoints)
-            
-            # Add number of angles and the angles themselves (only degrees values)
-            detection.append(len(angles))  # Number of angles
-            detection.extend(angles)  # Just add the angle degrees directly
-            
             processed_results.append(detection)
         
         return processed_results, perpendicular_angle
@@ -255,7 +250,7 @@ class YoloKeypointDetectionNode:
         Publishes keypoints as Float32MultiArray and visualization image
         
         Args:
-            processed_results: List of [class_id, conf, num_keypoints, keypoints..., num_angles, angles...] for each detection
+            processed_results: List of [class_id, conf, num_keypoints, keypoints...] for each detection
         """
         if not processed_results:
             return
