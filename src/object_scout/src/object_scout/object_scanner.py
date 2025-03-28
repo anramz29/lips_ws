@@ -166,7 +166,7 @@ class ObjectScanner:
     
     # ---------- DETECTION METHODS ----------
     
-    def _scan_with_sustained_detection(self, angle, desired_class_id):
+    def _scan_with_sustained_detection(self, angle, desired_class_id=None):
         """
         Scan for objects at current position with sustained detection requirement
         
@@ -175,6 +175,7 @@ class ObjectScanner:
         
         Args:
             angle (float): Current rotation angle for logging
+            desired_class_id (int, optional): Class ID to scan for, or None to accept any class
             
         Returns:
             bool: True if object detected with sustained requirement, False otherwise
@@ -190,9 +191,11 @@ class ObjectScanner:
                 
             # Check if we have a marker
             if self.object_marker is not None:
-                # Check if the detected object matches the desired class ID
-                if self.current_class_id == desired_class_id:
-                    rospy.loginfo_throttle(5.0, f"Detected object with class correct ID {self.current_class_id})")
+                # Accept any class ID if desired_class_id is None, otherwise check for match
+                class_match = (desired_class_id is None) or (self.current_class_id == desired_class_id)
+                
+                if class_match:
+                    rospy.loginfo_throttle(5.0, f"Detected object with class ID {self.current_class_id}")
 
                     # Start or continue timing the sustained detection
                     if detection_start is None:
@@ -205,7 +208,6 @@ class ObjectScanner:
                             # Validate detection with depth check
                             if self.current_depth is not None and self.current_depth < self.max_detection_depth:
                                 self.object_detected = True
-
 
                                 current_pose = self.nav_controller.get_robot_pose()
                                 if current_pose is not None:
@@ -294,7 +296,7 @@ class ObjectScanner:
     
     # ---------- MAIN SCANNING METHOD ----------
     
-    def perform_scan_rotation(self, rotation_angles=None, desired_class_id=None):
+    def perform_scan_rotation(self, rotation_angles=None, desired_class_id=None, complete_scan=False):
         """
         Perform a sequence of rotations to scan for objects
         
@@ -304,6 +306,9 @@ class ObjectScanner:
         Args:
             rotation_angles (list, optional): List of angles in degrees to scan.
                                              If None, uses default angles.
+            desired_class_id (int, optional): Class ID to scan for.
+            complete_scan (bool, optional): If True, completes all rotations regardless
+                                           of detections. If False, exits early on first detection.
         
         Returns:
             tuple: (ScanResult, remaining_angles) where:
@@ -314,11 +319,13 @@ class ObjectScanner:
             rotation_angles = self.rotation_angles.copy()
         
         rospy.loginfo(f"Starting scan rotation sequence with {len(rotation_angles)} angles: {rotation_angles}")
+        rospy.loginfo(f"Scan mode: {'Complete scan' if complete_scan else 'Early exit on detection'}")
         
         # Set scanning flag to true and initialize state
         self.scanning_in_progress = True
         self.object_detected = False    
         self.remaining_angles = rotation_angles.copy()
+        found_object = False
         
         # Get current position
         current_pose = self.nav_controller.get_robot_pose()
@@ -346,11 +353,14 @@ class ObjectScanner:
             self.remaining_angles.pop(0)
             rospy.loginfo(f"Remaining angles after processing {current_angle} degrees: {self.remaining_angles}")
             
-            # If object detected, return early with remaining angles
+            # If object detected, either return early or continue based on complete_scan flag
             if result == ScanResult.OBJECT_DETECTED:
-                self.scanning_in_progress = False
+                found_object = True
                 rospy.loginfo(f"Object detected during scan rotation at angle {current_angle}")
-                return ScanResult.OBJECT_DETECTED, self.remaining_angles
+                if not complete_scan:
+                    self.scanning_in_progress = False
+                    return ScanResult.OBJECT_DETECTED, self.remaining_angles
+                # If complete_scan is True, continue to next angle
             
             # If error occurred, log and continue to next angle
             if result == ScanResult.ERROR:
@@ -360,11 +370,15 @@ class ObjectScanner:
             if i < len(rotation_angles) - 1:  # Don't pause after the last rotation
                 rospy.sleep(0.5)
         
-        # End of rotation sequence - no detection
+        # End of rotation sequence
         self.scanning_in_progress = False
-        rospy.loginfo("Completed scan rotation sequence, no objects detected")
-        return ScanResult.NO_DETECTION, self.remaining_angles
-   
+        
+        if found_object:
+            rospy.loginfo("Completed scan rotation sequence, detected objects at one or more angles")
+            return ScanResult.OBJECT_DETECTED, self.remaining_angles
+        else:
+            rospy.loginfo("Completed scan rotation sequence, no objects detected")
+            return ScanResult.NO_DETECTION, self.remaining_angles
 
     def get_detected_object_poses(self):
         """

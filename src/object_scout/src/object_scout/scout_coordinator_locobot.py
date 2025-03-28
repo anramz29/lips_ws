@@ -7,6 +7,7 @@ from object_scout.object_approacher import ObjectApproacher
 from object_scout.pose_manager import PoseManager
 from object_scout.fine_approacher import FineApproacher
 from object_scout.pick_up_object import PickUpObject
+from object_scout.place_object import PlaceObject
 
 # ---------- CLASS DEFINITION ----------
 
@@ -46,17 +47,16 @@ class ScoutCoordinatorLocobot:
         self.robot_frame = f"{self.robot_name}/base_link"
         
         # ---------- COMPONENT INITIALIZATION ----------
+
+        # Initialize variables
+        self.detected_object_poses = []
+        self.found_objects = []
         
         # Setup TF listener for coordinate transforms
         self._initialize_tf_listener()
         
         # Initialize all required components
         self._initialize_components()
-        
-        # ---------- STATE VARIABLES ----------
-        
-        # Track found objects
-        self.found_objects = []
         
         # Register shutdown handler
         rospy.on_shutdown(self.shutdown_handler)
@@ -88,124 +88,108 @@ class ScoutCoordinatorLocobot:
         # Create object picker for picking up objects
         self.object_picker = PickUpObject(self.fine_approacher, self.robot_name)
 
+        self.object_placer = PlaceObject(self.fine_approacher, self.robot_name)
+
     # ---------- OBJECT DETECTION METHODS ----------
 
-    def scan_for_objects(self, angles=None, desired_class_id=None):
-        """
-        Perform a rotation scan for objects
+    def intial_scan_rotation(self):
+        """Perform the initial obtain data of all detected objects in the room"""
+
+        rospy.loginfo("Starting initial scan...")
+        scan_result = self.scanner.perform_scan_rotation(complete_scan=True, desired_class_id=1)
+        if scan_result:
+            self.detected_object_poses = self.scanner.get_detected_object_poses()
+            if self.detected_object_poses:
+                rospy.loginfo(f"Detected {len(self.detected_object_poses)} objects during initial scan.")
+                return self.detected_object_poses
+        else:
+            rospy.logwarn("No objects detected during initial scan.")
+
+    def approach_and_save_box(self):
+        """Approach the detected box and save its pose for later use"""
+        for object_poses in self.detected_object_poses:
+            if object_poses['class_id'] == 0:
+                rospy.loginfo("Box Detected, approaching...")
+                box_pose = object_poses['pose']
+                self.nav_controller.move_to_position(box_pose)
+                self.approacher.approach_object(box_pose, approach_max_depth=.8, approach_min_depth=.5)
+                position = self.approacher.save_object(box_pose)
+         
+                if position:
+                    rospy.loginfo(f"Box pose saved: {position}")
+                    return position
+                else:
+                    rospy.logwarn("Failed to save box pose.")
+                    return None
+
+    def approach_and_pick_up_object(self, pose_name):
+        """Approach the detected object and pick it up"""
         
-        Args:
-            angles (list, optional): List of angles to scan, or None for default
-            
-        Returns:
-            tuple: (scan_result, remaining_angles)
-        """
-        rospy.loginfo("Scanning for objects...")
-        scan_angles = angles if angles is not None else self.scanner.rotation_angles
-        return self.scanner.perform_scan_rotation(scan_angles, desired_class_id)
-
-    def approach_detected_object(self):
-        """
-        Approach a detected object
-        
-        Returns:
-            bool: True if approach succeeded, False otherwise
-        """
-        rospy.loginfo("Approaching detected object...")
-        return self.approacher.approach_object()
-
-    def perform_fine_approach(self):
-        """
-        Perform a fine approach to center the object in view
-        
-        Returns:
-            bool: True if fine approach succeeded, False otherwise
-        """
-        rospy.loginfo("Performing fine approach...")
-        return self.fine_approacher.fine_approach()
-
-    # ---------- MISSION EXECUTION METHODS ----------
-
-    def process_detected_object(self, pose_name, x_detected, y_detected, orientation_detected, remaining_angles):
-        """
-        Process a detected object - approach, fine-tune, and return to scan position
-        
-        Args:
-            pose_name (str): Name of the pose where object was detected
-            x_detected (float): X coordinate where object was detected
-            y_detected (float): Y coordinate where object was detected
-            orientation_detected: Orientation where object was detected
-            remaining_angles (list): Remaining scan angles
-            
-        Returns:
-            tuple: (scan_result, remaining_angles) for next scan
-        """
-        # Approach the detected object
-        approach_success = self.approach_detected_object()
-
+        approach_success = self.approacher.approach_object()
         if approach_success:
-            rospy.loginfo("Successfully approached object")
-
+            rospy.loginfo("Successfully approached the object.")
             # Perform fine approach
-            fine_approach_success = self.perform_fine_approach()
+            fine_approach_success = self.fine_approacher.fine_approach()
 
             if fine_approach_success:
                 # Log success and update object count
-                rospy.loginfo(f"Successfully completed approach to object at pose {pose_name}")
+                rospy.loginfo(f"Successfully completed approach fine approach.")
                 rospy.sleep(1.0)  # Pause for a moment
-                self.found_objects.append(pose_name)
-
-                # pick up object 
                 if self.object_picker.pick_object_with_retries():
                     rospy.loginfo("Object picked up")
+                    # Reset camera tilt angle
+                    self.fine_approacher.reset_camera_tilt()
+
+                    # add the picked object to the found objects list
+                    self.found_objects.append(pose_name)
+                    return True
                 else:
                     rospy.logwarn("Object not picked up")
-
-                # Reset camera tilt angle
-                self.fine_approacher.reset_camera_tilt()
+                    # Reset camera tilt angle
+                    self.fine_approacher.reset_camera_tilt()
+                    return False
             else:
                 rospy.logwarn("Fine approach failed")
+                # Reset camera tilt angle
+                self.fine_approacher.reset_camera_tilt()
+                return False
         else:
             rospy.logwarn("Failed to approach object")
-
-        # Return to the position where the object was detected
-        self.nav_controller.return_to_position(x_detected, y_detected, orientation_detected)
-
-        # Perform another scan rotation with remaining angles
-        return self.scan_for_objects(remaining_angles)
-
-    def check_mission_complete(self):
-        """
-        Check if the mission is complete based on max objects found
+            return False
         
-        Returns:
-            bool: True if mission complete, False otherwise
-        """
-        if self.max_objects > 0 and len(self.found_objects) >= self.max_objects:
-            rospy.loginfo(f"Reached maximum number of objects ({self.max_objects}), mission complete")
-            return True
-        return False
+    def place_object(self, box_pose):
+        """Place the picked object at a designated location"""
+        current_pose = self.nav_controller.get_robot_pose_postions()
+        
+        next_x, next_y = self.nav_controller.calculate_intermediate_point(box_pose.x, box_pose.y, current_pose)
+        rospy.loginfo("Moving to intermediate pose for object placement...")
+
+        if self.nav_controller.move_to_position(next_x, next_y):
+            self.approacher.approach_object(approach_max_depth=.6, approach_min_depth=.4)
+            rospy.loginfo("Approaching object placement position...")
+            if self.object_placer.place_at_centroid():
+                rospy.loginfo("Object placed successfully")
+                return 
+            else:
+                rospy.logwarn("Failed to place object")
+                return False
+        else:
+            rospy.logwarn("Failed to move to intermediate pose")
+            return False
+
+        
+    # ---------- SCOUTING MISSION EXECUTION ----------
 
     def execute_scouting_mission(self):
         """
         Execute the complete object scouting mission
         
-        This method orchestrates the entire scouting process:
-        1. Reset camera to default position
-        2. Navigate to each predefined pose
-        3. Scan for objects with 360-degree rotation
-        4. Approach and document any detected objects
-        5. Continue until all poses are visited or max objects found
-        
         Returns:
-            int: Number of objects found during the mission
+            tuple: (success, num_objects) - Whether mission was successful and number of objects found
         """
         # Reset camera tilt angle to start
         self.fine_approacher.reset_camera_tilt()
         
-        # clear costmap
-        # self.nav_controller.clear_costmaps()
-
         # Get all poses to visit
         rospy.loginfo("Starting object scouting mission")
         pose_names = self.pose_manager.get_all_pose_names()
@@ -220,31 +204,107 @@ class ScoutCoordinatorLocobot:
             if self.check_mission_complete():
                 break
 
+            if self.intial_scan_rotation():
+                # Approach and save the box pose if detected
+                box_pose = self.approach_and_save_box()
+                if box_pose:
+                    rospy.loginfo(f"Box pose saved: {box_pose}")
+                else:
+                    rospy.logwarn("No box detected or failed to save pose")
+                    return False, 0
+
             # Initial scan at the pose
-            scan_result, remaining_angles = self.scan_for_objects(desired_class_id=1)
+            scan_result, remaining_angles = self.scanner.perform_scan_rotation(desired_class_id=1)
             
             # Process any detected objects
             while scan_result == ScanResult.OBJECT_DETECTED:
                 # Get position where object was detected
                 x_detected, y_detected, orientation_detected = self.nav_controller.get_robot_pose_postions()
                 
-                # Process the detected object
-                scan_result, remaining_angles = self.process_detected_object(
-                    pose_name, x_detected, y_detected, orientation_detected, remaining_angles
-                )
-                
-                # Check if we've reached the maximum number of objects
-                if self.check_mission_complete():
-                    break
+                pick_up_success = self.approach_and_pick_up_object(pose_name)
+                if pick_up_success:
+                    rospy.loginfo("Object picked up successfully")
+                    # Place the object at a designated location
+                    if self.place_object(box_pose):
+                        rospy.loginfo("Object placed successfully")
+                        # Return to the position where the object was detected
+                        self.nav_controller.return_to_position(x_detected, y_detected, orientation_detected)
+                        
+                        # Perform another scan rotation to find more objects
+                        scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles, desired_class_id=1)
+                        
+                        if self.check_mission_complete():
+                            rospy.loginfo("Reached maximum number of objects, mission complete")
+                            break
+                    else:
+                        rospy.logwarn("Failed to place object")
+                        return False, 0
+                else:
+                    rospy.logwarn("Failed to pick up object")
+                    # Return to the position where the object was detected to try another scan
+                    self.nav_controller.return_to_position(x_detected, y_detected, orientation_detected)
                     
+                    # Perform another scan rotation with remaining angles
+                    scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles, desired_class_id=1)
+                    continue
+                
                 # If no more objects detected, exit the inner loop
                 if scan_result != ScanResult.OBJECT_DETECTED:
                     rospy.loginfo("No more objects detected in current scan position")
                     break
                     
         # Mission complete
-        rospy.loginfo(f"Mission complete. Found {len(self.found_objects)} objects: {self.found_objects}")
-        return len(self.found_objects)
+        found_count = len(self.found_objects)
+        rospy.loginfo(f"Mission complete. Found {found_count} objects: {self.found_objects}")
+        return True, found_count
+    
+
+    def check_mission_complete(self):
+        """
+        Check if the mission is complete based on max objects found
+        
+        Returns:
+            bool: True if mission complete, False otherwise
+        """
+        if self.max_objects > 0 and len(self.found_objects) >= self.max_objects:
+            rospy.loginfo(f"Reached maximum number of objects ({self.max_objects}), mission complete")
+            return True
+        return False
+    
+
+if __name__ == "__main__":
+    try:
+        coordinator = ScoutCoordinatorLocobot(init_node=True)
+        success, num_objects = coordinator.execute_scouting_mission()
+        if not success or num_objects == 0:
+            rospy.spin()  # Keep node running if no object was found
+    except rospy.ROSInterruptException:
+        rospy.loginfo("Scout coordinator interrupted")
+
+
+
+            
+
+
+
+            
+
+  
+
+        
+
+
+
+
+        
+        
+
+
+        
+
+                        
+
+
 
     def shutdown_handler(self):
         """Handle shutdown cleanup for the coordinator"""

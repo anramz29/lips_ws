@@ -41,9 +41,7 @@ class ObjectApproacher:
         self.nav_controller = nav_controller
         self.costmap = nav_controller.costmap
         
-        # Approach parameters
-        self.approach_min_depth = 0.80  # meters
-        self.approach_max_depth = 1.0   # meters
+
         self.navigation_timeout = 40.0  # seconds
         
         # Marker history configuration
@@ -236,7 +234,7 @@ class ObjectApproacher:
 
     # ---------- VALIDATION METHODS ----------
     
-    def _depth_and_marker_check(self):
+    def _depth_and_marker_check(self, approach_max_depth, approach_min_depth):
         """
         Validate depth and marker with sustained detection for 1 second
         
@@ -280,7 +278,7 @@ class ObjectApproacher:
         rospy.loginfo(f"Sustained detection confirmed at depth: {self.current_depth:.2f}m")
 
         # Check if we've reached the target depth range
-        if self.approach_min_depth <= self.current_depth <= self.approach_max_depth:   
+        if approach_min_depth <= self.current_depth <= approach_max_depth:   
             rospy.loginfo(f"Object detected at correct distance: {self.current_depth:.2f}m")
 
             # Cancel active navigation if needed
@@ -293,7 +291,7 @@ class ObjectApproacher:
             # Object is detected but not at the correct distance yet
             rospy.loginfo(
                 f"Current: {self.current_depth:.2f}m, "
-                f"Target: {self.approach_min_depth:.2f}m-{self.approach_max_depth:.2f}m"
+                f"Target: {approach_min_depth:.2f}m-{approach_max_depth:.2f}m"
             )
             return None
 
@@ -392,7 +390,7 @@ class ObjectApproacher:
 
     # ---------- MAIN APPROACH METHOD ----------
 
-    def approach_object(self):
+    def approach_object(self, approach_max_depth=1.0, approach_min_depth=0.8):
         """
         Approach a detected object with graduated approach and marker tracking
         
@@ -456,7 +454,7 @@ class ObjectApproacher:
                 rospy.logwarn("Using initial marker position as fallback")
 
             # Perform depth and marker validation
-            depth_check = self._depth_and_marker_check()
+            depth_check = self._depth_and_marker_check(approach_max_depth, approach_min_depth)
             
             # Process depth check results
             if depth_check is True:
