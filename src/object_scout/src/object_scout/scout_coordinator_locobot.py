@@ -88,7 +88,7 @@ class ScoutCoordinatorLocobot:
         # Create object picker for picking up objects
         self.object_picker = PickUpObject(self.fine_approacher, self.robot_name)
 
-        self.object_placer = PlaceObject(self.fine_approacher, self.robot_name)
+        self.object_placer = PlaceObject(self.robot_name)
 
     # ---------- OBJECT DETECTION METHODS ----------
 
@@ -96,7 +96,7 @@ class ScoutCoordinatorLocobot:
         """Perform the initial obtain data of all detected objects in the room"""
 
         rospy.loginfo("Starting initial scan...")
-        scan_result = self.scanner.perform_scan_rotation(complete_scan=True, desired_class_id=1)
+        scan_result = self.scanner.perform_scan_rotation(complete_scan=True, desired_class_id=0)
         if scan_result:
             self.detected_object_poses = self.scanner.get_detected_object_poses()
             if self.detected_object_poses:
@@ -169,7 +169,7 @@ class ScoutCoordinatorLocobot:
             rospy.loginfo("Approaching object placement position...")
             if self.object_placer.place_at_centroid():
                 rospy.loginfo("Object placed successfully")
-                return 
+                return True
             else:
                 rospy.logwarn("Failed to place object")
                 return False
@@ -272,40 +272,6 @@ class ScoutCoordinatorLocobot:
         return False
     
 
-if __name__ == "__main__":
-    try:
-        coordinator = ScoutCoordinatorLocobot(init_node=True)
-        success, num_objects = coordinator.execute_scouting_mission()
-        if not success or num_objects == 0:
-            rospy.spin()  # Keep node running if no object was found
-    except rospy.ROSInterruptException:
-        rospy.loginfo("Scout coordinator interrupted")
-
-
-
-            
-
-
-
-            
-
-  
-
-        
-
-
-
-
-        
-        
-
-
-        
-
-                        
-
-
-
     def shutdown_handler(self):
         """Handle shutdown cleanup for the coordinator"""
         rospy.loginfo("Scout coordinator shutting down...")
@@ -321,8 +287,8 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     try:
         coordinator = ScoutCoordinatorLocobot(init_node=True)
-        num_objects = coordinator.execute_scouting_mission()
-        if num_objects == 0:
+        success, num_objects = coordinator.execute_scouting_mission()
+        if not success or num_objects == 0:
             rospy.spin()  # Keep node running if no object was found
     except rospy.ROSInterruptException:
         rospy.loginfo("Scout coordinator interrupted")
