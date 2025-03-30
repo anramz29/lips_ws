@@ -195,7 +195,7 @@ class PickUpObject:
         rospy.logerr("No pitch found that works for both positions")
         return False, None
 
-    def pick_object(self, approach_height=0.15, grab_height=0.03):
+    def pick_object(self, approach_height=0.15, grab_height=0.02):
         """Main function to pick up an object using the robot arm."""
         rospy.sleep(2.0) # Wait for keypoint detection to stabilize
 
@@ -320,8 +320,12 @@ class PickUpObject:
             # Try to pick up the object
             success = self.pick_object()
 
+            if not success:
+                rospy.logerr(f"Failed to pick up object on attempt {attempt+1}")
+                continue
+
             # move the camera up
-            self.fine_approacher.tilt_camera(0.60)
+            self.fine_approacher.tilt_camera(0.50)
             
             # After pick attempt, wait and check if object is still detected
             self.n_boxes_detected = None  # Reset to force new detection

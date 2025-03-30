@@ -37,19 +37,10 @@ class FineApproacher():
         self.default_camera_tilt = 0.2618
         self.image_height = 480
         self.image_width = 640
-        self.center_threshold = 10.0
         
         # Centering parameters
         self.horizontal_tolerance = 20
         self.vertical_tolerance = 70
-        self.horizontal_threshold = 100
-        self.vertical_threshold = 70
-        self.max_vertical_distance = 0.5  # meters
-        self.max_rotation = 0.5  # radians, about 28.6 degrees
-        self.min_rotation_threshold = 0.02  # radians
-        self.min_movement_threshold = 0.015  # meters
-        self.horizontal_damping = 1.0
-        self.vertical_damping = 1.3
 
         # Bounding box and depth tracking
         self.bbox_depth = None

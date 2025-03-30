@@ -202,7 +202,6 @@ include_directories(
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   scripts/scout_coordinator_locobot_node.py
-  scripts/scout_coordinator_remote_node.py
   scripts/test_navigation_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

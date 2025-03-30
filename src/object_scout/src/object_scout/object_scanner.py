@@ -70,7 +70,6 @@ class ObjectScanner:
         self.current_depth = None
         self.current_class_id = None
         self.remaining_angles = []
-        self.detected_object_poses = []
         
         # ---------- ROS INTERFACE SETUP ----------
         
@@ -208,16 +207,6 @@ class ObjectScanner:
                             # Validate detection with depth check
                             if self.current_depth is not None and self.current_depth < self.max_detection_depth:
                                 self.object_detected = True
-
-                                current_pose = self.nav_controller.get_robot_pose()
-                                if current_pose is not None:
-                                    detection_info = {
-                                        'angle': angle,
-                                        'class_id': self.current_class_id,
-                                        'pose': current_pose
-                                    }
-                                    self.detected_object_poses.append(detection_info)
-
                                 rospy.loginfo(f"Object detected at {angle} with class id {self.current_class_id}")
                                 return True          
                 else:
@@ -380,19 +369,6 @@ class ObjectScanner:
             rospy.loginfo("Completed scan rotation sequence, no objects detected")
             return ScanResult.NO_DETECTION, self.remaining_angles
 
-    def get_detected_object_poses(self):
-        """
-        Get list of detected object poses with their class IDs
-        
-        Returns:
-            list: List of dicts containing 'pose', 'class_id', 'angle'
-        """
-        return self.detected_object_poses
-
-    
-    def clear_detected_object_poses(self):
-        """Clear the list of detected object poses"""
-        self.detected_object_poses = []
 
 # ---------- DIRECT EXECUTION BLOCK ----------
 

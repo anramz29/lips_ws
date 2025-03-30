@@ -198,7 +198,8 @@ class ObjectApproacher:
         
         return avg_x, avg_y
 
-    def _calculate_approach_waypoint(self, target_x, target_y, current_pose, retry=True):
+    def _calculate_approach_waypoint(self, target_x, target_y, current_pose, approach_max_depth,
+                                     approach_min_depth,retry=True):
         """
         Calculate the next waypoint for approaching the target
         
@@ -211,9 +212,12 @@ class ObjectApproacher:
         Returns:
             tuple: (next_x, next_y) or (None, None) if no safe path found
         """
+        # target distance is the average of the max and min approach distance
+        target_distance = (approach_max_depth + approach_min_depth) / 2
+
         # First attempt with normal step size
         next_x, next_y = self.nav_controller.calculate_safe_approach_point(
-            target_x, target_y, current_pose, max_step=1.0
+            target_x, target_y, current_pose, max_step=1.0, target_distance=target_distance
         )
         
         # Verify the calculated position is safe
@@ -221,7 +225,7 @@ class ObjectApproacher:
             # If retry enabled, try with a shorter step
             if retry:
                 next_x, next_y = self.nav_controller.calculate_safe_approach_point(
-                    target_x, target_y, current_pose, max_step=0.5
+                    target_x, target_y, current_pose, max_step=0.5, target_distance=target_distance
                 )
                 
                 if not self.nav_controller.is_position_safe_approach(self.costmap, next_x, next_y):
@@ -297,7 +301,7 @@ class ObjectApproacher:
 
     # ---------- NAVIGATION EXECUTION METHODS ----------
             
-    def _execute_approach_step(self, next_x, next_y, target_x, target_y, current_pose):
+    def _execute_approach_step(self, next_x, next_y, target_x, target_y, current_pose, approach_max_depth, approach_min_depth):
         """
         Execute a single step in the approach sequence
         
@@ -337,7 +341,7 @@ class ObjectApproacher:
         # Monitor navigation execution
         while not rospy.is_shutdown():
             # Check if we've reached target depth during movement
-            if self._check_depth_during_movement():
+            if self._check_depth_during_movement(approach_max_depth, approach_min_depth):
                 return True
 
             # Check if we've timed out
@@ -358,7 +362,7 @@ class ObjectApproacher:
             
         return False  # If we get here, we've been shutdown
     
-    def _check_depth_during_movement(self):
+    def _check_depth_during_movement(self, approach_max_depth, approach_min_depth):
         """
         Check if we've reached target depth during movement
         
@@ -366,7 +370,7 @@ class ObjectApproacher:
             bool: True if target depth reached, False otherwise
         """
         if self.current_depth is not None and (
-            self.approach_min_depth <= self.current_depth <= self.approach_max_depth):
+            approach_min_depth <= self.current_depth <= approach_max_depth):
             
             rospy.loginfo(f"Reached target depth during movement: {self.current_depth:.2f}m")
             self.nav_controller.cancel_navigation()
@@ -390,7 +394,7 @@ class ObjectApproacher:
 
     # ---------- MAIN APPROACH METHOD ----------
 
-    def approach_object(self, approach_max_depth=1.0, approach_min_depth=0.8):
+    def approach_object(self, approach_max_depth=1.0, approach_min_depth=.8):
         """
         Approach a detected object with graduated approach and marker tracking
         
@@ -470,14 +474,15 @@ class ObjectApproacher:
                 return False
             
             # Calculate next approach waypoint
-            next_x, next_y = self._calculate_approach_waypoint(target_x, target_y, current_pose)
+            next_x, next_y = self._calculate_approach_waypoint(target_x, target_y, 
+                                                               current_pose, approach_max_depth, approach_min_depth)
             if next_x is None:
                 rospy.logerr("Cannot find safe approach path!")
                 return False
             
             # Execute approach step
             approach_result = self._execute_approach_step(
-                next_x, next_y, target_x, target_y, current_pose
+                next_x, next_y, target_x, target_y, current_pose, approach_max_depth, approach_min_depth
             )
             
             # Process approach step result

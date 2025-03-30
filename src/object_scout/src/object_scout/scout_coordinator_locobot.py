@@ -96,31 +96,24 @@ class ScoutCoordinatorLocobot:
         """Perform the initial obtain data of all detected objects in the room"""
 
         rospy.loginfo("Starting initial scan...")
-        scan_result = self.scanner.perform_scan_rotation(complete_scan=True, desired_class_id=0)
+        scan_result = self.scanner.perform_scan_rotation(complete_scan=False, desired_class_id=0)
         if scan_result:
-            self.detected_object_poses = self.scanner.get_detected_object_poses()
-            if self.detected_object_poses:
-                rospy.loginfo(f"Detected {len(self.detected_object_poses)} objects during initial scan.")
-                return self.detected_object_poses
+            rospy.loginfo("Initial scan complete")
+            return True
         else:
             rospy.logwarn("No objects detected during initial scan.")
 
     def approach_and_save_box(self):
         """Approach the detected box and save its pose for later use"""
-        for object_poses in self.detected_object_poses:
-            if object_poses['class_id'] == 0:
-                rospy.loginfo("Box Detected, approaching...")
-                box_pose = object_poses['pose']
-                self.nav_controller.move_to_position(box_pose)
-                self.approacher.approach_object(box_pose, approach_max_depth=.8, approach_min_depth=.5)
-                position = self.approacher.save_object(box_pose)
-         
-                if position:
-                    rospy.loginfo(f"Box pose saved: {position}")
-                    return position
-                else:
-                    rospy.logwarn("Failed to save box pose.")
-                    return None
+        # Approach the detected object
+        self.approacher.approach_object(approach_max_depth=.8, approach_min_depth=.5)
+        position = self.nav_controller.get_robot_pose()
+        if position:
+            rospy.loginfo(f"Box pose saved: {position}")
+            return position
+        else:
+            rospy.logwarn("Failed to save box pose.")
+            return None
 
     def approach_and_pick_up_object(self, pose_name):
         """Approach the detected object and pick it up"""
@@ -159,20 +152,25 @@ class ScoutCoordinatorLocobot:
         
     def place_object(self, box_pose):
         """Place the picked object at a designated location"""
-        current_pose = self.nav_controller.get_robot_pose_postions()
-        
-        next_x, next_y = self.nav_controller.calculate_intermediate_point(box_pose.x, box_pose.y, current_pose)
-        rospy.loginfo("Moving to intermediate pose for object placement...")
-
-        if self.nav_controller.move_to_position(next_x, next_y):
-            self.approacher.approach_object(approach_max_depth=.6, approach_min_depth=.4)
+    
+        # Access position values correctly through the position attribute
+        if self.nav_controller.move_to_position(
+                box_pose.position.x,  # Use position.x instead of x
+                box_pose.position.y,  # Use position.y instead of y
+                box_pose.orientation  # Pass orientation instead of z
+            ):
             rospy.loginfo("Approaching object placement position...")
-            if self.object_placer.place_at_centroid():
-                rospy.loginfo("Object placed successfully")
-                return True
+            if self.fine_approacher.fine_approach():
+                rospy.loginfo("Successfully approached object placement position")
+                if self.object_placer.place_at_centroid():
+                    rospy.loginfo("Object placed successfully")
+                    return True
+                else:
+                    rospy.logwarn("Failed to place object")
+                    return False
             else:
-                rospy.logwarn("Failed to place object")
-                return False
+                rospy.logwarn("Failed to fine approach object placement position")
+                return False   
         else:
             rospy.logwarn("Failed to move to intermediate pose")
             return False
@@ -212,6 +210,9 @@ class ScoutCoordinatorLocobot:
                 else:
                     rospy.logwarn("No box detected or failed to save pose")
                     return False, 0
+                
+            if not self.nav_controller.navigate_to_named_pose(pose_name):
+                continue    
 
             # Initial scan at the pose
             scan_result, remaining_angles = self.scanner.perform_scan_rotation(desired_class_id=1)
