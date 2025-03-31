@@ -10,7 +10,7 @@ from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
 import sensor_msgs.msg
 
 
-class FineApproacher():
+class FineApproacher:
     """
     Class for fine approach of objects detected by a camera
     
@@ -37,15 +37,24 @@ class FineApproacher():
         self.default_camera_tilt = 0.2618
         self.image_height = 480
         self.image_width = 640
-        
+
         # Centering parameters
-        self.horizontal_tolerance = 20
-        self.vertical_tolerance = 70
+        self.horizontal_adjustment_tolerance = 40 
+        self.vertical_adjustment_tolerance = 70 
+        
+        # Overall centering completion criteria    
+        self.horizontal_centering_threshold = 100
+        self.vertical_centering_threshold = 70 
 
-        # Bounding box and depth tracking
-        self.bbox_depth = None
-        self.y_min, self.x_min, self.y_max, self.x_max = 0, 0, 0, 0
 
+        self.max_vertical_distance = 0.5  # meters
+        self.max_rotation = 0.5  # radians, about 28.6 degrees
+        self.min_rotation_threshold = 0.02  # radians
+        self.min_movement_threshold = 0.015  # meters
+        self.horizontal_damping = 1.0
+        self.vertical_damping = 1.3
+
+   
         # Set up depth subscription
         self._setup_ros_communication()
 
@@ -216,8 +225,8 @@ class FineApproacher():
         Returns:
             bool: True if centered, False otherwise
         """
-        h_threshold = h_threshold if h_threshold is not None else self.horizontal_threshold
-        v_threshold = v_threshold if v_threshold is not None else self.vertical_threshold
+        h_threshold = h_threshold if h_threshold is not None else self.horizontal_centering_threshold
+        v_threshold = v_threshold if v_threshold is not None else self.vertical_centering_threshold
         
         is_centered = (abs(horizontal_error) <= h_threshold and 
                       abs(vertical_error) <= v_threshold)
@@ -272,7 +281,7 @@ class FineApproacher():
             return False
             
         # Check if already within tolerance
-        if abs(horizontal_error) <= self.horizontal_tolerance:
+        if abs(horizontal_error) <= self.horizontal_adjustment_tolerance:
             rospy.loginfo("Object is centered horizontally within tolerance")
             return True
             
@@ -282,6 +291,7 @@ class FineApproacher():
         
         # Calculate rotation angle with damping
         rotation_angle = -horizontal_error * adjusted_gain * self.horizontal_damping
+        rospy.loginfo(f"Calculated rotation angle: {rotation_angle} radians (before limits)")
         
         # Apply minimum threshold to avoid very small movements
         if abs(rotation_angle) < self.min_rotation_threshold:
@@ -290,6 +300,7 @@ class FineApproacher():
             
         # Limit maximum rotation angle for safety
         rotation_angle = max(min(rotation_angle, self.max_rotation), -self.max_rotation)
+        rospy.loginfo(f"Adjusted rotation angle: {rotation_angle} radians (after limits)")
         
         # Execute the rotation
         return self._execute_rotation(rotation_angle)
@@ -342,7 +353,7 @@ class FineApproacher():
             return False
             
         # Check if already within tolerance
-        if abs(vertical_error) <= self.center_threshold:
+        if abs(vertical_error) <= self.vertical_tolerance:
             rospy.loginfo("Object is centered vertically within tolerance")
             return True
             
@@ -417,7 +428,7 @@ class FineApproacher():
         """
         # Tilt camera down for better view during approach
         self.tilt_camera(tilt_angle)
-        rospy.sleep(1.0)  # Wait for camera to stabilize
+        rospy.sleep(1.5)  # Wait for camera to stabilize
         
         for attempt in range(max_attempts):
             rospy.loginfo(f"Fine approach attempt {attempt+1}/{max_attempts}")
@@ -432,8 +443,8 @@ class FineApproacher():
             
             # Decide which error to fix first based on relative magnitude
             # Compare errors relative to their thresholds to decide which is "worse"
-            rel_horizontal_error = abs(horizontal_error) / self.horizontal_threshold
-            rel_vertical_error = abs(vertical_error) / self.vertical_threshold
+            rel_horizontal_error = abs(horizontal_error) / self.horizontal_centering_threshold
+            rel_vertical_error = abs(vertical_error) / self.vertical_centering_threshold
             
             if rel_horizontal_error > rel_vertical_error:
                 # Fix horizontal error first (rotation)

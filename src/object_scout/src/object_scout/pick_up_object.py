@@ -30,6 +30,7 @@ class PickUpObject:
         self.n_boxes_detected = None
         self.last_detection = None
         self.angle = None
+        self.gripper_joint_name = "gripper"
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.bridge = CvBridge()
@@ -165,6 +166,51 @@ class PickUpObject:
         rospy.sleep(1.0)  # Short pause for stability
         rospy.loginfo("Shutdown complete")
 
+    def is_gripper_open(self):
+        # Get the current state of the gripper joint
+        gripper_state = self.bot.robot_get_single_joint_state(self.gripper_joint_name)
+        # Define the threshold for the fully closed position
+        # This value may need to be adjusted based on your specific gripper
+        fully_closed_position = 0.0
+        # Check if the gripper joint position is equal to or less than the fully closed position
+        return gripper_state["position"] >= fully_closed_position
+
+    def check_gripper_has_object(self):
+        """
+        Check if the gripper has successfully grasped an object.
+        
+        When a gripper closes on an object, it should stop at a position between
+        fully open and fully closed. If the gripper reaches its minimum position (fully closed),
+        it likely missed the object.
+        
+        Returns:
+            bool: True if an object is detected in the gripper, False otherwise
+        """
+        try:
+            # Get the current state of the gripper joint
+            gripper_state = self.bot.robot_get_single_joint_state(self.gripper_joint_name)
+            position = gripper_state["position"]
+            
+            # Define thresholds - these will need adjustment based on testing
+            fully_closed_threshold = 0.02  # Just above 0.0
+            
+            # The normalized position value might be in a different range than raw values
+            # Log the actual position for debugging
+            rospy.loginfo(f"Gripper position after closing: {position}")
+            
+            # If gripper is almost fully closed, it likely missed the object
+            # If it's partially closed, it likely has an object
+            if position <= fully_closed_threshold:
+                rospy.logwarn("Gripper appears fully closed - no object detected")
+                return False
+            else:
+                rospy.loginfo(f"Object detected in gripper - position: {position}")
+                return True
+                
+        except Exception as e:
+            rospy.logerr(f"Error checking gripper state: {e}")
+            return False
+
     def find_working_pitch_for_both(self, x, y, grab_height, angle_radians):
         """Find a pitch angle that works for both approach and grasp heights."""
         
@@ -271,6 +317,18 @@ class PickUpObject:
 
         # Wait for the gripper to close
         rospy.sleep(1.0)
+        
+        # Check if an object was successfully grasped
+        object_grasped = self.check_gripper_has_object()
+        
+        if not object_grasped:
+            rospy.logerr("Failed to grasp object - gripper appears to be fully closed")
+            self.bot.arm.go_to_home_pose()
+            self.bot.arm.go_to_sleep_pose()
+            return False
+        
+        # Object successfully grasped
+        rospy.loginfo("Object successfully grasped!")
         self.bot.arm.go_to_home_pose()
         self.bot.arm.go_to_sleep_pose()
 
@@ -278,7 +336,8 @@ class PickUpObject:
     
     def pick_object_with_retries(self, max_retries=3, retry_delay=2.0):
         """
-        Attempt to pick up an object with multiple retries if objects are detected.
+        Attempt to pick up an object with multiple retries if gripper remains closed after the pick attempt.
+        
         
         Args:
             max_retries (int): Maximum number of attempts to pick up the object
@@ -297,56 +356,19 @@ class PickUpObject:
 
 
         for attempt in range(max_retries):
-            # Check if we have objects detected
-            if self.n_boxes_detected is None or self.n_boxes_detected < 1:
-                rospy.logwarn(f"No objects detected before attempt {attempt+1}, waiting...")
-                # Wait for detection
-                detection_start = rospy.Time.now()
-                while (rospy.Time.now() - detection_start).to_sec() < retry_delay:
-                    if self.n_boxes_detected is not None and self.n_boxes_detected > 0:
-                        rospy.loginfo(f"Objects detected: {self.n_boxes_detected}")
-                        break
-                    rospy.sleep(0.2)
-                
-                # Check if we have detection now
-                if self.n_boxes_detected is None or self.n_boxes_detected < 1:
-                    rospy.logwarn(f"Still no objects detected, skipping attempt {attempt+1}")
-                    continue
-
-            rospy.loginfo(f"Attempt {attempt+1}/{max_retries}: {self.n_boxes_detected} objects detected")
-            self.fine_approacher.tilt_camera(0.75)
-            rospy.sleep(1.0)
-            
-            # Try to pick up the object
+            # Try to pick up the object (now includes gripper check)
             success = self.pick_object()
-
-            if not success:
-                rospy.logerr(f"Failed to pick up object on attempt {attempt+1}")
-                continue
-
-            # move the camera up
-            self.fine_approacher.tilt_camera(0.50)
             
-            # After pick attempt, wait and check if object is still detected
-            self.n_boxes_detected = None  # Reset to force new detection
-            rospy.loginfo("Checking if object was picked up...")
-            
-            # Wait a moment for detection to update
-            rospy.sleep(2.0)
-            
-            # If no objects are detected, pickup was successful
-            if self.n_boxes_detected is None or self.n_boxes_detected < 1:
-                rospy.loginfo("No objects detected after pickup - success!")
+            if success:
+                rospy.loginfo(f"Successfully picked up the object on attempt {attempt+1}")
+                self.enable_keypoint_detection(False)
                 return True
-            
-            # If objects are still detected, pickup failed
-            rospy.logwarn(f"Still detecting {self.n_boxes_detected} objects - pickup failed")
-            rospy.logwarn(f"Failed to pick up object on attempt {attempt+1}, retrying...")
-            
-            # Wait before retrying
-            rospy.sleep(retry_delay)
-        
+            else:
+                rospy.logwarn(f"Failed to pick up object on attempt {attempt+1}. Retrying...")
+                rospy.sleep(retry_delay)
+
         rospy.logerr(f"Failed to pick up object after {max_retries} attempts")
+        self.enable_keypoint_detection(False)
         return False
     
 
