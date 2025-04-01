@@ -8,7 +8,6 @@ from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker
 from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
 import sensor_msgs.msg
-from geometry_msgs.msg import Twist
 
 
 class FineApproacher:
@@ -72,20 +71,12 @@ class FineApproacher:
             self.bbox_callback
         )
 
-        self.twist_pub = rospy.Subscriber(
-            f'/mobile_base/cmd_vel', 
-            Twist,
-            queue_size=1
-        )
-
         # Create publisher for camera joint group
         self.camera_pub = rospy.Publisher(
             f'/{self.robot_name}/commands/joint_group', 
             JointGroupCommand, 
             queue_size=1
         )
-
-
     def bbox_callback(self, msg):
         """
         Callback function for bounding box messages
@@ -275,188 +266,236 @@ class FineApproacher:
         self.tilt_camera(self.default_camera_tilt)
 
     # ---------- Base Adjustment Functions ----------
-    
-    def fine_approach(self, max_duration=60, rate=10):
+        
+    def adjust_base_orientation(self):
         """
-        Continuously adjust to keep robot centered on the object
+        Adjust the robot's base orientation to center the object horizontally
+        
+        Returns:
+            bool: True if adjustment succeeded, False otherwise
+        """
+        horizontal_error, _ = self.calculate_error()
+        
+        if horizontal_error is None:
+            rospy.logwarn("Horizontal error is not available")
+            return False
+            
+        # Check if already within tolerance
+        if abs(horizontal_error) <= self.horizontal_adjustment_tolerance:
+            rospy.loginfo("Object is centered horizontally within tolerance")
+            return True
+            
+        # Calculate and adjust gain
+        horizontal_gain, _ = self.calculate_gain()
+        adjusted_gain = self.adjust_gain_by_depth(horizontal_gain)
+        
+        # Calculate rotation angle with damping
+        rotation_angle = -horizontal_error * adjusted_gain * self.horizontal_damping
+        rospy.loginfo(f"Calculated rotation angle: {rotation_angle} radians (before limits)")
+        
+        # Apply minimum threshold to avoid very small movements
+        if abs(rotation_angle) < self.min_rotation_threshold:
+            rospy.loginfo("Rotation too small, skipping adjustment")
+            return True
+            
+        # Limit maximum rotation angle for safety
+        rotation_angle = max(min(rotation_angle, self.max_rotation), -self.max_rotation)
+        rospy.loginfo(f"Adjusted rotation angle: {rotation_angle} radians (after limits)")
+        
+        # Execute the rotation
+        return self._execute_rotation(rotation_angle)
+        
+    def _execute_rotation(self, rotation_angle):
+        """
+        Execute a rotation of the robot base
         
         Args:
-            max_duration (float): Maximum time in seconds for the centering operation
-            rate (int): Rate in Hz for checking position and adjusting movement
+            rotation_angle (float): Angle to rotate in radians
             
         Returns:
-            bool: True if successfully maintained centering, False if failed or timed out
+            bool: True if rotation succeeded, False otherwise
         """
-        rate_obj = rospy.Rate(rate)  # Control loop rate (Hz)
-        start_time = rospy.Time.now()
+        rospy.loginfo(f"Rotating base by {rotation_angle} radians to center object")
         
-        # Variables to track if we've seen the object and been centered
-        object_visible = False
-        was_centered = False
-        consecutive_centered_counts = 0
-        required_centered_counts = 5  # Need this many consecutive centered frames to consider it stable
+        # Create quaternion for rotation
+        quat = Quaternion(*quaternion_from_euler(0, 0, rotation_angle))
         
-        # Last known error values for dampening
-        last_h_error = 0
-        last_v_error = 0
+        # Get current robot position
+        robot_pose = self.nav_controller.get_robot_pose()
         
-        while not rospy.is_shutdown():
-            # Check for timeout
-            if (rospy.Time.now() - start_time).to_sec() > max_duration:
-                rospy.logwarn("Centering operation timed out")
-                self.stop_robot()
-                return False
-                
-            # Check if we have bbox data
-            if not hasattr(self, 'x_min') or not hasattr(self, 'bbox_depth'):
-                rospy.logwarn_throttle(2.0, "No bounding box detected")
-                object_visible = False
-                consecutive_centered_counts = 0
-                self.stop_robot()
-                rate_obj.sleep()
-                continue
+        # Use navigation controller to execute rotation in place
+        success = self.nav_controller.move_to_position(
+            robot_pose.position.x,
+            robot_pose.position.y, 
+            quat,
+            timeout=5.0
+        )
+        
+        if not success:
+            rospy.logerr("Failed to rotate the robot")
+            return False
             
-            object_visible = True
+        # Wait for sensors to update
+        rospy.sleep(0.5)
+        return True
+    
+
+    def adjust_base_position(self):
+        """
+        Adjust the robot's base position to center the object vertically
+        
+        Returns:
+            bool: True if adjustment succeeded, False otherwise
+        """
+        _, vertical_error = self.calculate_error()
+        
+        if vertical_error is None:
+            rospy.logwarn("Vertical error is not available")
+            return False
+            
+        # Check if already within tolerance
+        if abs(vertical_error) <= self.vertical_tolerance:
+            rospy.loginfo("Object is centered vertically within tolerance")
+            return True
+            
+        # Calculate and adjust gain
+        _, vertical_gain = self.calculate_gain()
+        adjusted_gain = self.adjust_gain_by_depth(vertical_gain)
+        
+        # Calculate vertical movement with damping
+        vertical_distance = -vertical_error * adjusted_gain * self.vertical_damping
+        
+        # Limit maximum movement
+        vertical_distance = max(min(vertical_distance, self.max_vertical_distance), 
+                               -self.max_vertical_distance)
+        
+        # Apply minimum threshold
+        if abs(vertical_distance) < self.min_movement_threshold:
+            rospy.loginfo("Vertical movement too small, skipping adjustment")
+            return True
+            
+        # Execute the movement
+        return self._execute_movement(vertical_distance)
+    
+    def _execute_movement(self, vertical_distance):
+        """
+        Execute a forward/backward movement of the robot base
+        
+        Args:
+            vertical_distance (float): Distance to move in meters (positive = forward, negative = backward)
+            
+        Returns:
+            bool: True if movement succeeded, False otherwise
+        """
+        rospy.loginfo(f"Moving base by {vertical_distance} meters to center object")
+        
+        # Get current robot position
+        robot_pose = self.nav_controller.get_robot_pose()
+        
+        # Calculate new position based on robot's current orientation
+        # Extract yaw (rotation around z-axis) from quaternion
+        orientation_q = robot_pose.orientation
+        _, _, yaw = euler_from_quaternion(orientation_q)
+        
+        # Calculate displacement in map frame using the robot's orientation
+        dx = vertical_distance * math.cos(yaw)
+        dy = vertical_distance * math.sin(yaw)
+        
+        # Calculate new position
+        new_x = robot_pose.position.x + dx
+        new_y = robot_pose.position.y + dy
+        
+        rospy.loginfo(f"Moving from ({robot_pose.position.x:.2f}, {robot_pose.position.y:.2f}) " +
+                      f"to ({new_x:.2f}, {new_y:.2f}) with yaw {math.degrees(yaw):.1f} degrees")
+        
+        # Use navigation controller to execute movement
+        success = self.nav_controller.move_to_position(
+            new_x,
+            new_y,
+            orientation_q,  # Maintain current orientation
+            timeout=20.0
+        )
+        
+        if not success:
+            rospy.logerr("Failed to move the robot")
+            return False
+            
+        # Wait for sensors to update
+        rospy.sleep(0.5)
+        return True
+        
+
+
+    # ---------- Fine Approach Function ----------
+        
+    def fine_approach(self, max_attempts=5, tilt_angle=0.75):
+        """
+        Perform fine approach to center object in camera view,
+        prioritizing the correction of the larger error first
+        
+        Args:
+            max_attempts (int): Maximum number of centering attempts
+            tilt_angle (float): Camera tilt angle in radians for approach
+            
+        Returns:
+            bool: True if approach succeeded, False otherwise
+        """
+        # Tilt camera down for better view during approach
+        self.tilt_camera(tilt_angle)
+        rospy.sleep(1.5)  # Wait for camera to stabilize
+        
+        for attempt in range(max_attempts):
+            rospy.loginfo(f"Fine approach attempt {attempt+1}/{max_attempts}")
             
             # Calculate current errors
             horizontal_error, vertical_error = self.calculate_error()
             
-            # Check if centered
-            is_centered = self.check_if_centered(horizontal_error, vertical_error)
+            # Check if already centered
+            if self.check_if_centered(horizontal_error, vertical_error):
+                rospy.loginfo("Object is already centered")
+                return True
             
-            if is_centered:
-                consecutive_centered_counts += 1
-                if consecutive_centered_counts >= required_centered_counts:
-                    # We've been centered for enough consecutive frames
-                    if not was_centered:
-                        rospy.loginfo("Object successfully centered and stable")
-                        was_centered = True
+            # Decide which error to fix first based on relative magnitude
+            # Compare errors relative to their thresholds to decide which is "worse"
+            rel_horizontal_error = abs(horizontal_error) / self.horizontal_centering_threshold
+            rel_vertical_error = abs(vertical_error) / self.vertical_centering_threshold
+            
+            if rel_horizontal_error > rel_vertical_error:
+                # Fix horizontal error first (rotation)
+                rospy.loginfo("Horizontal error is larger, adjusting orientation first")
+                self.adjust_base_orientation()
+                
+                # Check if centered after horizontal adjustment
+                horizontal_error, vertical_error = self.calculate_error()
+                if self.check_if_centered(horizontal_error, vertical_error):
+                    rospy.loginfo("Fine approach completed after orientation adjustment")
+                    return True
                     
-                    # Maintain a very small velocity to keep tracking
-                    # This helps respond quickly if the object moves
-                    self._apply_minimal_tracking_velocity()
-                    rate_obj.sleep()
-                    continue
+                # Now fix vertical error
+                self.adjust_base_position()
             else:
-                # Reset counter if we lose centering
-                consecutive_centered_counts = 0
-                was_centered = False
+                # Fix vertical error first (forward/backward movement)
+                rospy.loginfo("Vertical error is larger, adjusting position first")
+                self.adjust_base_position()
+                
+                # Check if centered after vertical adjustment
+                horizontal_error, vertical_error = self.calculate_error()
+                if self.check_if_centered(horizontal_error, vertical_error):
+                    rospy.loginfo("Fine approach completed after position adjustment")
+                    return True
+                    
+                # Now fix horizontal error
+                self.adjust_base_orientation()
             
-            # Calculate movement with error smoothing
-            self._move_with_error_smoothing(horizontal_error, vertical_error, last_h_error, last_v_error)
+            # Final check if centered after both adjustments
+            horizontal_error, vertical_error = self.calculate_error()
+            if self.check_if_centered(horizontal_error, vertical_error):
+                rospy.loginfo("Fine approach completed successfully")
+                return True
+                
+            rospy.loginfo("Object is not centered, continuing to next attempt...")
+            rospy.sleep(1.0)
             
-            # Update last error values
-            last_h_error = horizontal_error
-            last_v_error = vertical_error
-            
-            rate_obj.sleep()
-        
-        # Stop robot if we exit the loop
-        self.stop_robot()
-        return was_centered
-
-    def _move_with_error_smoothing(self, h_error, v_error, last_h_error, last_v_error):
-        """
-        Move robot with smoothed error calculations to prevent overshooting
-        
-        Args:
-            h_error (float): Current horizontal error
-            v_error (float): Current vertical error
-            last_h_error (float): Previous horizontal error
-            last_v_error (float): Previous vertical error
-        """
-        # Calculate gains
-        h_gain, v_gain = self.calculate_gain()
-        
-        # Adjust gains by depth
-        h_gain = self.adjust_gain_by_depth(h_gain)
-        v_gain = self.adjust_gain_by_depth(v_gain)
-        
-        # Apply exponential smoothing to errors to reduce oscillation
-        smoothing_factor = 0.7  # Higher value = more weight on current measurement
-        smoothed_h_error = smoothing_factor * h_error + (1 - smoothing_factor) * last_h_error
-        smoothed_v_error = smoothing_factor * v_error + (1 - smoothing_factor) * last_v_error
-        
-        # Create Twist message
-        cmd = Twist()
-        
-        # Calculate proportional component for rotation
-        p_term_rot = -1 * smoothed_h_error * h_gain * self.horizontal_damping
-        
-        # Calculate derivative component (change in error)
-        d_term_rot = -0.2 * (h_error - last_h_error) * h_gain
-        
-        # Combine for PD control
-        cmd.angular.z = p_term_rot + d_term_rot
-        
-        # Limit max rotation
-        cmd.angular.z = max(-self.max_rotation, min(self.max_rotation, cmd.angular.z))
-        
-        # Dynamic threshold based on distance - more precise when closer
-        dynamic_rotation_threshold = self.min_rotation_threshold
-        if self.bbox_depth and self.bbox_depth < 0.5:  # When close
-            dynamic_rotation_threshold /= 2  # More precision required
-        
-        # If rotation is very small, don't rotate
-        if abs(cmd.angular.z) < dynamic_rotation_threshold:
-            cmd.angular.z = 0.0
-        
-        # Similar PD control for linear motion
-        p_term_lin = -1 * smoothed_v_error * v_gain * self.vertical_damping
-        d_term_lin = -0.2 * (v_error - last_v_error) * v_gain
-        
-        forward_speed = p_term_lin + d_term_lin
-        
-        # Limit max forward speed
-        forward_speed = max(-self.max_vertical_distance, min(self.max_vertical_distance, forward_speed))
-        
-        # Distance-based velocity scaling - move slower when closer
-        if self.bbox_depth and self.bbox_depth < 0.5:
-            # Scale down speed when close to target
-            forward_speed *= (self.bbox_depth / 0.5)
-        
-        # Dynamic threshold based on distance
-        dynamic_movement_threshold = self.min_movement_threshold
-        if self.bbox_depth and self.bbox_depth < 0.5:
-            dynamic_movement_threshold /= 2  # More precision when closer
-        
-        # If movement is very small, don't move
-        if abs(forward_speed) < dynamic_movement_threshold:
-            forward_speed = 0.0
-        
-        cmd.linear.x = forward_speed
-        
-        # Publish command
-        self.cmd_vel_pub.publish(cmd)
-        
-        # Log at lower frequency to avoid console spam
-        rospy.loginfo_throttle(1.0, 
-            f"Moving: linear.x={cmd.linear.x:.3f}, angular.z={cmd.angular.z:.3f}, " 
-            f"h_error={h_error:.1f}, v_error={v_error:.1f}, depth={getattr(self, 'bbox_depth', 'unknown')}")
-
-    def _apply_minimal_tracking_velocity(self):
-        """Apply minimal velocity to maintain active tracking when centered"""
-        cmd = Twist()
-        
-        # Very small values just to keep the system responsive
-        # These should be below the movement thresholds for actual motion
-        cmd.linear.x = 0.0
-        cmd.angular.z = 0.0
-        
-        self.cmd_vel_pub.publish(cmd)
-
-    def stop_robot(self):
-        """Stop all robot movement"""
-        cmd = Twist()  # All fields default to 0
-        self.cmd_vel_pub.publish(cmd)
-        rospy.loginfo("Robot stopped")
-
-
-
-
-
-
-
-        
-        
-        
+        # Reset camera tilt even if approach wasn't successful
+        rospy.logwarn("Failed to center object after maximum attempts")
+        return False
