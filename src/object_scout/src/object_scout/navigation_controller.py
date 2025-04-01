@@ -10,6 +10,13 @@ import actionlib_msgs.msg
 import tf2_ros
 from geometry_msgs.msg import PoseStamped
 import std_srvs.srv
+from geometry_msgs.msg import Twist
+
+
+
+
+
+
 
 
 class NavigationController:
@@ -71,6 +78,13 @@ class NavigationController:
             self.costmap_callback
         )
         
+
+        self.twist_pub = rospy.Publisher(
+            f'/mobile_base/cmd_vel',
+            Twist,
+            queue_size=1
+        )
+
         # Wait for first costmap
         rospy.loginfo("Waiting for costmap...")
         while self.costmap is None and not rospy.is_shutdown():
@@ -161,6 +175,8 @@ class NavigationController:
                 quat = quaternion_from_euler(0, 0, 0)
                 
             goal.target_pose.pose.orientation = Quaternion(*quat)
+
+        
             
         return goal
     
@@ -331,68 +347,7 @@ class NavigationController:
         """
         rospy.loginfo(f"Returning to position: ({x:.2f}, {y:.2f})")
         return self.move_to_position(x, y, orientation, timeout)
-    
-    def rotate_in_place(self, angle_degrees, timeout=None):
-        """
-        Rotate the robot in place by the specified angle
-        
-        Args:
-            angle_degrees (float): Angle to rotate in degrees
-            timeout (float): Rotation timeout in seconds (default: 10.0)
-            
-        Returns:
-            bool: True if rotation succeeded, False otherwise
-        """
-        if timeout is None:
-            timeout = 10.0  # Default timeout for rotation (shorter than navigation)
-        
-        # Get current pose
-        current_pose = self.get_robot_pose()
-        if current_pose is None:
-            rospy.logerr("Failed to get current robot pose")
-            return False
-        
-        # Convert angle to radians
-        angle_radians = math.radians(angle_degrees)
-        
-        # Create quaternion for the target orientation
-        quat = quaternion_from_euler(0, 0, angle_radians)
-        orientation = Quaternion(*quat)
-        
-        # Create goal at current position with new orientation
-        rospy.loginfo(f"Rotating {angle_degrees} degrees in place")
-        goal = self.create_navigation_goal(
-            current_pose.position.x,
-            current_pose.position.y,
-            orientation
-        )
-        
-        # Send the goal
-        self.client.send_goal(goal)
-        
-        # Wait for result with timeout
-        return self.wait_for_navigation(timeout)
-    
-    def get_robot_pose(self):
-        """Get current robot pose in map frame"""
-        try:
-            # Create tf buffer and listener when needed
-            tf_buffer = tf2_ros.Buffer()
-            tf_listener = tf2_ros.TransformListener(tf_buffer)
-            
-            # Give time for the listener to receive transforms
-            rospy.sleep(0.5)
-            
-            trans = tf_buffer.lookup_transform('map', 'locobot/base_link', rospy.Time(0))
-            current_pose = PoseStamped()
-            current_pose.pose.position.x = trans.transform.translation.x
-            current_pose.pose.position.y = trans.transform.translation.y
-            current_pose.pose.position.z = trans.transform.translation.z
-            current_pose.pose.orientation = trans.transform.rotation
-            return current_pose.pose
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            rospy.logerr(f"Failed to get robot pose: {e}")
-            return None
+
         
     def is_position_safe(self, costmap, x, y):
         """Check if a position is in a safe area of the costmap"""
@@ -556,7 +511,6 @@ class NavigationController:
         except rospy.ServiceException as e:
             rospy.logerr(f"Failed to clear costmaps: {e}")
             return False
-
 
 if __name__ == "__main__":
     try:

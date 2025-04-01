@@ -3,7 +3,7 @@ import rospy
 import math
 import actionlib
 from std_msgs.msg import Float32MultiArray
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker
 from interbotix_xs_msgs.msg import JointGroupCommand # type: ignore
@@ -338,7 +338,8 @@ class FineApproacher:
         # Wait for sensors to update
         rospy.sleep(0.5)
         return True
-        
+    
+
     def adjust_base_position(self):
         """
         Adjust the robot's base position to center the object vertically
@@ -376,14 +377,12 @@ class FineApproacher:
         # Execute the movement
         return self._execute_movement(vertical_distance)
     
-    # ---------- Movement Execution Functions ----------
-        
     def _execute_movement(self, vertical_distance):
         """
         Execute a forward/backward movement of the robot base
         
         Args:
-            vertical_distance (float): Distance to move in meters
+            vertical_distance (float): Distance to move in meters (positive = forward, negative = backward)
             
         Returns:
             bool: True if movement succeeded, False otherwise
@@ -393,14 +392,27 @@ class FineApproacher:
         # Get current robot position
         robot_pose = self.nav_controller.get_robot_pose()
         
+        # Calculate new position based on robot's current orientation
+        # Extract yaw (rotation around z-axis) from quaternion
+        orientation_q = robot_pose.orientation
+        _, _, yaw = euler_from_quaternion(orientation_q)
+        
+        # Calculate displacement in map frame using the robot's orientation
+        dx = vertical_distance * math.cos(yaw)
+        dy = vertical_distance * math.sin(yaw)
+        
         # Calculate new position
-        new_x = robot_pose.position.x + vertical_distance
-        new_y = robot_pose.position.y
+        new_x = robot_pose.position.x + dx
+        new_y = robot_pose.position.y + dy
+        
+        rospy.loginfo(f"Moving from ({robot_pose.position.x:.2f}, {robot_pose.position.y:.2f}) " +
+                      f"to ({new_x:.2f}, {new_y:.2f}) with yaw {math.degrees(yaw):.1f} degrees")
         
         # Use navigation controller to execute movement
         success = self.nav_controller.move_to_position(
             new_x,
             new_y,
+            orientation_q,  # Maintain current orientation
             timeout=20.0
         )
         
@@ -411,7 +423,9 @@ class FineApproacher:
         # Wait for sensors to update
         rospy.sleep(0.5)
         return True
-    
+        
+
+
     # ---------- Fine Approach Function ----------
         
     def fine_approach(self, max_attempts=5, tilt_angle=0.75):
