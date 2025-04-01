@@ -364,6 +364,7 @@ class FineApproacher:
         
         # Calculate vertical movement with damping
         vertical_distance = -vertical_error * adjusted_gain * self.vertical_damping
+        rospy.loginfo(f"Calculated vertical distance: {vertical_distance:.4f} meters (before limits)")
         
         # Limit maximum movement
         vertical_distance = max(min(vertical_distance, self.max_vertical_distance), 
