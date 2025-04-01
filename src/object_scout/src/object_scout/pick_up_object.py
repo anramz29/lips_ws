@@ -166,14 +166,6 @@ class PickUpObject:
         rospy.sleep(1.0)  # Short pause for stability
         rospy.loginfo("Shutdown complete")
 
-    def is_gripper_open(self):
-        # Get the current state of the gripper joint
-        gripper_state = self.bot.robot_get_single_joint_state(self.gripper_joint_name)
-        # Define the threshold for the fully closed position
-        # This value may need to be adjusted based on your specific gripper
-        fully_closed_position = 0.0
-        # Check if the gripper joint position is equal to or less than the fully closed position
-        return gripper_state["position"] >= fully_closed_position
 
     def check_gripper_has_object(self):
         """
@@ -188,7 +180,7 @@ class PickUpObject:
         """
         try:
             # Get the current state of the gripper joint
-            gripper_state = self.bot.robot_get_single_joint_state(self.gripper_joint_name)
+            gripper_state = self.bot.dxl.robot_get_single_joint_state(self.gripper_joint_name)
             position = gripper_state["position"]
             
             # Define thresholds - these will need adjustment based on testing
@@ -245,8 +237,6 @@ class PickUpObject:
         """Main function to pick up an object using the robot arm."""
         rospy.sleep(2.0) # Wait for keypoint detection to stabilize
 
-  
-        
         # Get the position of the object marker
         success, x, y, z = self.get_clusters()
 

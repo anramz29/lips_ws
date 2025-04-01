@@ -211,7 +211,7 @@ class ObjectScanner:
                                 return True          
                 else:
                     # Detected object does not match desired class, reset timer
-                    rospy.logwarn(f"Detected object with incorrect class ID {self.current_class_id}")
+                    rospy.logwarn_throttle(2.0, f"Detected object with incorrect class ID {self.current_class_id}")
                     detection_start = None
             else:
                 # Lost detection, reset the timer
