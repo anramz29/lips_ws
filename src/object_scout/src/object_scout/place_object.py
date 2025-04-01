@@ -9,7 +9,11 @@ import numpy as np
 from cv_bridge import CvBridge
 
 class PlaceObject:
-    def __init__(self, robot_name):
+    def __init__(self,robot_name, init_node=False):
+        
+        if init_node:
+            rospy.init_node('place_object', anonymous=True)
+
         self.robot_name = robot_name
         
         self.camera_info_topic = f'/{self.robot_name}/camera/color/camera_info'
@@ -31,24 +35,29 @@ class PlaceObject:
         self.buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.buffer)  # Store listener in self
 
+        self.bbox_corners = None
+        self.bbox_depth = None
+
     def setup_ros_communication(self):
         """
         Set up ROS communication for placing objects.
         """
-        # Fix subscriber setup
-        self.keypoint_sub = rospy.Subscriber(
-            self.keypoint_topic,
+        # Switch from keypoint subscription to bbox subscription
+        self.bbox_topic = f'/{self.robot_name}/camera/yolo/bbox_depth'
+        self.bbox_sub = rospy.Subscriber(
+            self.bbox_topic,
             Float32MultiArray,
-            self.keypoint_callback
+            self.bbox_callback
         )
         
-        # This shouldn't use wait_for_message with a callback
+        # Get camera info
         self.camera_info_sub = rospy.Subscriber(
             self.camera_info_topic,
             sensor_msgs.msg.CameraInfo,
             self.camera_info_callback
         )
 
+        # Get depth images
         self.depth_sub = rospy.Subscriber(
             self.depth_topic,
             sensor_msgs.msg.Image,
@@ -59,52 +68,49 @@ class PlaceObject:
         """Store the latest depth image."""
         self.latest_depth = msg
 
-
-    def keypoint_callback(self, msg):
-        """Callback function for keypoint detection messages.
-
+    def bbox_callback(self, msg):
+        """
+        Callback function for bounding box messages
+        
         Args:
-            msg (Float32MultiArray): The message containing keypoint data.
+            msg (Float32MultiArray): Message containing bounding box coordinates
+                Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
         """
-        # extract indexes after 3rd element 
-        self.keypoints = list(msg.data[3:]) if len(msg.data) > 3 else []
-
-
-        rospy.loginfo(f"Received keypoints: {self.keypoints}")
-
-    def enable_keypoint_detection(self, enable=True):
-        """Enable or disable keypoint detection by calling the appropriate service.
-
-        Args: 
-            enable (bool): True to enable keypoint detection, False to disable it.
-
-        Returns:
-            bool: True if the service call was successful, False otherwise.
-        """
-
-        service_name = f'/{self.robot_name}/keypoint_detector/set_enabled'
-        
         try:
-            # Wait for service to be available
-            rospy.wait_for_service(service_name, timeout=3.0)
-            
-            # Call the service
-            set_enabled = rospy.ServiceProxy(service_name, SetBool)
-            response = set_enabled(enable)
-            
-            if response.success:
-                state = "enabled" if enable else "disabled"
-                rospy.loginfo(f"Keypoint detection {state}")
-                return True
-            else:
-                rospy.logerr(f"Failed to set keypoint detection: {response.message}")
-                return False
+            # Extract values from new format
+            n_boxes = int(msg.data[0])
+            if n_boxes < 1:
+                self.bbox_corners = None
+                rospy.logwarn("No bounding boxes detected")
+                return
                 
-        except rospy.ROSException as e:
-            rospy.logerr(f"Service call failed: {e}")
-            return False
-        
- 
+            # Get coordinates from the first detected box
+            # We'll use this similar to the FineApproacher implementation
+            x1 = float(msg.data[3])
+            y1 = float(msg.data[4])
+            x2 = float(msg.data[5])
+            y2 = float(msg.data[6])
+            
+            # Store the bounding box corners
+            self.bbox_corners = {
+                'x_min': x1,
+                'y_min': y1,
+                'x_max': x2,
+                'y_max': y2
+            }
+            
+            # Get depth information if available
+            if len(msg.data) > 7:
+                self.bbox_depth = float(msg.data[7])
+            else:
+                self.bbox_depth = None
+                
+            rospy.loginfo(f"Received bounding box: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
+            
+        except Exception as e:
+            rospy.logerr(f"Error parsing bounding box message: {e}")
+            self.bbox_corners = None
+
     def camera_info_callback(self, msg):
         """Callback function for camera info messages.
 
@@ -130,36 +136,23 @@ class PlaceObject:
         cy = self.camera_info.K[5]
         
         return (fx, fy, cx, cy)
-    
-    def get_centeroid(self):
-        """Calculate the centroid of the detected keypoints.
 
-        Returns:
-            tuple: A tuple containing the x and y coordinates of the centroid.
+    def calculate_bbox_center(self):
         """
-        if not self.keypoints:
+        Calculate the center of the bounding box
+        
+        Returns:
+            tuple: (x_center, y_center) coordinates, or (0, 0) if no bbox
+        """
+        if not self.bbox_corners:
+            rospy.logwarn("No bounding box detected")
             return (0, 0)
         
-        # Calculate the average of the keypoints
-        x_coords = [self.keypoints[i] for i in range(0, len(self.keypoints), 2)]
-        y_coords = [self.keypoints[i] for i in range(1, len(self.keypoints), 2)]
+        x_center = (self.bbox_corners['x_min'] + self.bbox_corners['x_max']) / 2
+        y_center = (self.bbox_corners['y_min'] + self.bbox_corners['y_max']) / 2
         
-        centroid_x = sum(x_coords) / len(x_coords)
-        centroid_y = sum(y_coords) / len(y_coords)
-        
-        return (centroid_x, centroid_y)
-    
-    def convert_depth_image_to_cv2(self, ros_image):
-        """Convert ROS depth image to meters in OpenCV format."""
-        try:
-            depth = self.bridge.imgmsg_to_cv2(ros_image, '16UC1')
-            depth = depth.astype(float) / 1000.0  # Convert from mm to meters
-            return depth
-        except Exception as e:
-            rospy.logerr(f"Error converting depth image: {str(e)}")
-            return np.zeros((480, 640), dtype=np.float32)
-    
-
+        rospy.loginfo(f"Calculated bbox center at ({x_center:.1f}, {y_center:.1f})")
+        return (x_center, y_center)
 
     def get_camera_to_base_transform(self):
         """
@@ -252,23 +245,26 @@ class PlaceObject:
         point_base = np.dot(camera_to_base, point_camera)
         
         return (point_base[0], point_base[1], point_base[2])
-    
-    def place_at_centroid(self):
+
+    def place_at_bbox_center(self):
         """
-        Move the robot arm to place at the centroid of detected keypoints.
+        Move the robot arm to place at the center of the detected bounding box.
         
         Returns:
             bool: True if successful, False otherwise
         """
-        # Get the centroid in image coordinates
-        image_centroid_x, image_centroid_y = self.get_centeroid()
+        # Give the detection system time to find the box
+        rospy.sleep(2.0)
         
-        if image_centroid_x == 0 and image_centroid_y == 0:
-            rospy.logwarn("No keypoints detected, cannot place object")
+        # Get the center of the bounding box
+        image_center_x, image_center_y = self.calculate_bbox_center()
+        
+        if image_center_x == 0 and image_center_y == 0:
+            rospy.logwarn("No bounding box detected, cannot place object")
             return False
         
         # Convert to world coordinates
-        world_coords = self.image_to_world_coordinates(image_centroid_x, image_centroid_y)
+        world_coords = self.image_to_world_coordinates(image_center_x, image_center_y)
         
         if world_coords is None:
             rospy.logerr("Failed to convert to world coordinates")
@@ -279,7 +275,7 @@ class PlaceObject:
         rospy.loginfo(f"Target position in robot coordinates: ({world_x}, {world_y}, {world_z})")
         
         # Add some offset for placing (e.g., slightly above the target)
-        place_z = 0.15  # 5cm above the detected point
+        place_z = max(world_z + 0.05, 0.15)  # 5cm above the detected point, minimum 15cm
         
         # Use the Interbotix API to move the arm
         try:
@@ -287,18 +283,28 @@ class PlaceObject:
             self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=place_z)
             rospy.sleep(1.0)  # Wait for motion to complete
             
+            # Move down to place the object
+            lower_z = max(world_z + 0.01, 0.05)  # 1cm above detected surface, minimum 5cm
+            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=lower_z)
+            rospy.sleep(1.0)
+            
             # Open gripper to release object
             self.bot.gripper.open()
             rospy.sleep(1.0)
             
+            # Move back up before going home
+            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=place_z)
+            rospy.sleep(1.0)
+            
             # Return to home position
             self.bot.arm.go_to_sleep_pose()
-            
             return True
             
         except Exception as e:
             rospy.logerr(f"Failed to execute place motion: {e}")
-            self.bot.arm.go_to_sleep_pose()  # Ensure arm returns to a safe position
+            
+            # Ensure arm returns to a safe position
+            self.bot.arm.go_to_sleep_pose()
             return False
-        
-    
+
+

@@ -162,7 +162,7 @@ class ScoutCoordinatorLocobot:
             rospy.loginfo("Approaching object placement position...")
             if self.fine_approacher.fine_approach():
                 rospy.loginfo("Successfully approached object placement position")
-                if self.object_placer.place_at_centroid():
+                if self.object_placer.place_at_bbox_center():
                     rospy.loginfo("Object placed successfully")
                     return True
                 else:
@@ -226,6 +226,8 @@ class ScoutCoordinatorLocobot:
                 
                 pick_up_success = self.approach_and_pick_up_object(pose_name)
                 if pick_up_success:
+                    # clear costmaps
+                    self.nav_controller.clear_costmaps()
                     rospy.loginfo("Object picked up successfully")
                     # Place the object at a designated location
                     if self.place_object(box_pose):
@@ -282,6 +284,7 @@ class ScoutCoordinatorLocobot:
             # Make sure the object picker shuts down cleanly
             if hasattr(self, 'object_picker'):
                 self.object_picker.shutdown_handler()
+                self.fine_approacher.shutdown_handler()
         except Exception as e:
             rospy.logerr(f"Error during coordinator shutdown: {e}")
 

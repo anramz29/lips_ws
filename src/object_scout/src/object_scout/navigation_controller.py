@@ -511,6 +511,27 @@ class NavigationController:
         except rospy.ServiceException as e:
             rospy.logerr(f"Failed to clear costmaps: {e}")
             return False
+        
+    def get_robot_pose(self):
+        """Get current robot pose in map frame"""
+        try:
+            # Create tf buffer and listener when needed
+            tf_buffer = tf2_ros.Buffer()
+            tf_listener = tf2_ros.TransformListener(tf_buffer)
+            
+            # Give time for the listener to receive transforms
+            rospy.sleep(0.5)
+            
+            trans = tf_buffer.lookup_transform('map', 'locobot/base_link', rospy.Time(0))
+            current_pose = PoseStamped()
+            current_pose.pose.position.x = trans.transform.translation.x
+            current_pose.pose.position.y = trans.transform.translation.y
+            current_pose.pose.position.z = trans.transform.translation.z
+            current_pose.pose.orientation = trans.transform.rotation
+            return current_pose.pose
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Failed to get robot pose: {e}")
+            return None
 
 if __name__ == "__main__":
     try:

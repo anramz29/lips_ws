@@ -58,6 +58,9 @@ class FineApproacher:
         # Set up depth subscription
         self._setup_ros_communication()
 
+        # shutdown handler
+        rospy.on_shutdown(self.shutdown_handler)
+
     # ---------- ROS Communication Setup ----------
 
     def _setup_ros_communication(self):
@@ -304,6 +307,7 @@ class FineApproacher:
         
         # Execute the rotation
         return self._execute_rotation(rotation_angle)
+
         
     def _execute_rotation(self, rotation_angle):
         """
@@ -317,17 +321,29 @@ class FineApproacher:
         """
         rospy.loginfo(f"Rotating base by {rotation_angle} radians to center object")
         
-        # Create quaternion for rotation
-        quat = Quaternion(*quaternion_from_euler(0, 0, rotation_angle))
-        
         # Get current robot position
         robot_pose = self.nav_controller.get_robot_pose()
+
+        quaternion_list = [robot_pose.orientation.x, robot_pose.orientation.y,
+                           robot_pose.orientation.z, robot_pose.orientation.w]
+        
+        # Extract yaw (rotation around z-axis) from quaternion
+        _, _, current_yaw = euler_from_quaternion(quaternion_list)
+
+
+        # Calculate new absolute yaw by adding rotation_angle to current yaw
+        new_yaw = current_yaw + rotation_angle
+        
+        # Create quaternion for new absolute orientation
+        new_orientation = Quaternion(*quaternion_from_euler(0, 0, new_yaw))
+        
+        rospy.loginfo(f"Rotating from yaw {math.degrees(current_yaw):.1f}° to {math.degrees(new_yaw):.1f}°")
         
         # Use navigation controller to execute rotation in place
         success = self.nav_controller.move_to_position(
             robot_pose.position.x,
             robot_pose.position.y, 
-            quat,
+            new_orientation,
             timeout=5.0
         )
         
@@ -339,7 +355,7 @@ class FineApproacher:
         rospy.sleep(0.5)
         return True
     
-
+    
     def adjust_base_position(self):
         """
         Adjust the robot's base position to center the object vertically
@@ -354,7 +370,7 @@ class FineApproacher:
             return False
             
         # Check if already within tolerance
-        if abs(vertical_error) <= self.vertical_tolerance:
+        if abs(vertical_error) <= self.vertical_adjustment_tolerance:
             rospy.loginfo("Object is centered vertically within tolerance")
             return True
             
@@ -396,7 +412,9 @@ class FineApproacher:
         # Calculate new position based on robot's current orientation
         # Extract yaw (rotation around z-axis) from quaternion
         orientation_q = robot_pose.orientation
-        _, _, yaw = euler_from_quaternion(orientation_q)
+        
+        quaternion_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        _, _, yaw = euler_from_quaternion(quaternion_list)
         
         # Calculate displacement in map frame using the robot's orientation
         dx = vertical_distance * math.cos(yaw)
@@ -446,7 +464,7 @@ class FineApproacher:
         rospy.sleep(1.5)  # Wait for camera to stabilize
         
         for attempt in range(max_attempts):
-            rospy.loginfo(f"Fine approach attempt {attempt+1}/{max_attempts}")
+            rospy.loginfo(f"Fine approach attempt {attempt+1}/{max_attempts} \n")
             
             # Calculate current errors
             horizontal_error, vertical_error = self.calculate_error()
@@ -500,3 +518,9 @@ class FineApproacher:
         # Reset camera tilt even if approach wasn't successful
         rospy.logwarn("Failed to center object after maximum attempts")
         return False
+    
+    def shutdown_handler(self):
+        """Function to be called when shutting down the node"""
+        # Reset camera tilt to default position
+        self.reset_camera_tilt()
+        rospy.loginfo("Fine approach node has been shut down")
