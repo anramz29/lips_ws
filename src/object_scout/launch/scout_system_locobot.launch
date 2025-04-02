@@ -26,7 +26,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <arg name="move_base_topic" default="/$(arg robot_name)/move_base" />
     <arg name="move_base_cancel_topic" default="/$(arg robot_name)/move_base/cancel" />
     <arg name="camera_joint_topic" default="/$(arg robot_name)/commands/joint_group" />
-    <arg name="keypoint_angle_topic" default="/$(arg robot_name)/keypoint_angle" />
+    <arg name="keypoint_angle_topic" default="/$(arg robot_name)/camera/yolo/object_angle" />
     <arg name="enable_keypoint_detection_service" default="/$(arg robot_name)/keypoint_detector/set_enabled" />
 
         <!-- Pass all parameters to the coordinator node -->
@@ -65,15 +65,4 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
         <arg name="use_armtag"                        value="$(arg use_armtag)"/>
     </include>
 
-    
-    <!-- RViz (conditionally launched) -->
-    <group if="$(arg use_rviz)">
-        <node name="rviz" pkg="rviz" type="rviz" 
-                args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
-                ns="$(arg robot_name)">
-            <remap from="/clicked_point" to="clicked_point"/>
-            <remap from="/initialpose" to="initialpose"/>
-            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
-        </node>
-    </group>
 </launch>

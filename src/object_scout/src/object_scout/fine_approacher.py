@@ -60,7 +60,6 @@ class FineApproacher:
         self.vertical_damping = 1.3
 
         self.bbox_corners = None
-
    
         # Set up depth subscription
         self._setup_ros_communication()
@@ -98,7 +97,7 @@ class FineApproacher:
             n_boxes = int(msg.data[0])
             if n_boxes < 1:
                 self.bbox_corners = None
-                rospy.logwarn("No bounding boxes detected")
+                # rospy.logwarn("Fine Approach: No bounding boxes detected")
                 return
                 
             # Get coordinates from the first detected box
@@ -122,7 +121,7 @@ class FineApproacher:
             else:
                 self.bbox_depth = None
                 
-            rospy.loginfo(f"Received bounding box: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
+            # rospy.loginfo(f"Received bounding box: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
             
         except Exception as e:
             rospy.logerr(f"Error parsing bounding box message: {e}")

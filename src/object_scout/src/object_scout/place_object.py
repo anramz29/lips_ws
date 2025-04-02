@@ -81,7 +81,7 @@ class PlaceObject:
             n_boxes = int(msg.data[0])
             if n_boxes < 1:
                 self.bbox_corners = None
-                rospy.logwarn("No bounding boxes detected")
+                rospy.logwarn("Place Object: No bounding boxes detected")
                 return
                 
             # Get coordinates from the first detected box
@@ -136,6 +136,28 @@ class PlaceObject:
         cy = self.camera_info.K[5]
         
         return (fx, fy, cx, cy)
+
+    def convert_depth_image_to_cv2(self, depth_msg):
+        """
+        Convert ROS depth image to OpenCV format
+        
+        Args:
+            depth_msg (sensor_msgs.msg.Image): ROS depth image message
+            
+        Returns:
+            numpy.ndarray: OpenCV depth image (float32)
+        """
+        try:
+            # Convert to CV image
+            depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="16UC1")
+            depth_image = depth_image.astype(np.float32) / 1000.0  # Convert from mm to meters
+            
+            
+            return depth_image
+            
+        except Exception as e:
+            rospy.logerr(f"Error converting depth image: {e}")
+            return np.zeros((480, 640), dtype=np.float32)  # Return empty image as fallback
 
     def calculate_bbox_center(self):
         """
