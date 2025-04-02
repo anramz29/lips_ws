@@ -52,7 +52,7 @@ if __name__ == "__main__":
     tilt_camera_directly(robot_name, .75)
 
     # Attempt to place an object
-    if object_placer.place_at_bbox_center():
+    if object_placer.place_at_centroid():
         rospy.loginfo("Object placed successfully")
     else:
         rospy.logwarn("Failed to place object")

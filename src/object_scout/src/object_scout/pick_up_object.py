@@ -115,12 +115,12 @@ class PickUpObject:
             # If angle is between 85-90 or -85-(-90), cap it at 84 degrees
             if abs(raw_angle) > 76.0:
                 # Keep the sign but cap the magnitude
-                self.angle = 75.0 * (1 if raw_angle > 0 else -1)
-                rospy.loginfo_once(f"Normalized angle from {raw_angle} to {self.angle}")
+                self.keypoint_angle = 75.0 * (1 if raw_angle > 0 else -1)
+                rospy.loginfo_once(f"Normalized angle from {raw_angle} to {self.keypoint_angle}")
             else:
-                self.angle = raw_angle
+                self.keypoint_angle = raw_angle
                 
-            rospy.loginfo_once(f"Angle: {self.angle}, in radians: {math.radians(self.angle)}")
+            rospy.loginfo_once(f"Angle: {self.keypoint_angle}, in radians: {math.radians(self.keypoint_angle)}")
 
         except Exception as e:
             rospy.logerr(f"Error processing angle: {e}")
@@ -234,10 +234,10 @@ class PickUpObject:
             return False
 
         # turn the angle into radians
-        if self.angle is None:
+        if self.keypoint_angle is None:
             rospy.logerr("No angle detected for object")
             return False
-        angle_radians = math.radians(self.angle)
+        angle_radians = math.radians(self.keypoint_angle)
         rospy.loginfo_once(f"Using angle: {angle_radians} radians")
 
         # Prepare the arm
