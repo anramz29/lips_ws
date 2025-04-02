@@ -18,7 +18,8 @@ class FineApproacher:
     1. Centering objects in the camera view both horizontally and vertically
     2. Making incremental base adjustments using visual feedback
     """
-    def __init__(self, robot_name, nav_controller, init_node=False):
+    def __init__(self, robot_name, nav_controller,
+                bbox_depth_topic, camera_joint_topic, init_node=False):
         """
         Initialize the FineApproacher with robot configuration and ROS setup
         
@@ -29,6 +30,10 @@ class FineApproacher:
         """
         if init_node:
             rospy.init_node('fine_approach', anonymous=False)
+
+        # setup topics
+        self.bbox_depth_topic = bbox_depth_topic
+        self.camera_joint_topic = camera_joint_topic
 
         # Configuration parameters
         self.robot_name = robot_name
@@ -54,6 +59,8 @@ class FineApproacher:
         self.horizontal_damping = 1.0
         self.vertical_damping = 1.3
 
+        self.bbox_corners = None
+
    
         # Set up depth subscription
         self._setup_ros_communication()
@@ -65,9 +72,6 @@ class FineApproacher:
 
     def _setup_ros_communication(self):
         """Set up ROS publishers and subscribers"""
-        # Set up depth subscription
-        self.bbox_depth_topic = rospy.get_param('~bbox_depth_topic', 
-                                               f'/{self.robot_name}/camera/yolo/bbox_depth')
         self.depth_sub = rospy.Subscriber(
             self.bbox_depth_topic,
             Float32MultiArray,
@@ -76,41 +80,54 @@ class FineApproacher:
 
         # Create publisher for camera joint group
         self.camera_pub = rospy.Publisher(
-            f'/{self.robot_name}/commands/joint_group', 
+            self.camera_joint_topic,
             JointGroupCommand, 
             queue_size=1
         )
+
     def bbox_callback(self, msg):
         """
         Callback function for bounding box messages
         
         Args:
-            msg (Float32MultiArray): Message containing bounding box coordinates and depth
+            msg (Float32MultiArray): Message containing bounding box coordinates
                 Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
         """
-        # if not msg.data or len(msg.data) < 8:
-        #     rospy.logwarn("Received empty or invalid message")
-        #     return
+        try:
+            # Extract values from new format
+            n_boxes = int(msg.data[0])
+            if n_boxes < 1:
+                self.bbox_corners = None
+                rospy.logwarn("No bounding boxes detected")
+                return
+                
+            # Get coordinates from the first detected box
+            # We'll use this similar to the FineApproacher implementation
+            x1 = float(msg.data[3])
+            y1 = float(msg.data[4])
+            x2 = float(msg.data[5])
+            y2 = float(msg.data[6])
             
-        # Extract values from new format
-        n_boxes = int(msg.data[0])
-        if n_boxes < 1:
-            return
+            # Store the bounding box corners
+            self.bbox_corners = {
+                'x_min': x1,
+                'y_min': y1,
+                'x_max': x2,
+                'y_max': y2
+            }
             
-        # Get coordinates from the first detected box
-        x1 = float(msg.data[3])
-        y1 = float(msg.data[4])
-        x2 = float(msg.data[5])
-        y2 = float(msg.data[6])
-        
-        # Store the bounding box corners directly
-        self.x_min = x1
-        self.y_min = y1
-        self.x_max = x2
-        self.y_max = y2
-        
-        # Get depth information
-        self.bbox_depth = float(msg.data[7])
+            # Get depth information if available
+            if len(msg.data) > 7:
+                self.bbox_depth = float(msg.data[7])
+            else:
+                self.bbox_depth = None
+                
+            rospy.loginfo(f"Received bounding box: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
+            
+        except Exception as e:
+            rospy.logerr(f"Error parsing bounding box message: {e}")
+            self.bbox_corners = None
+
 
     def get_camera_info(self):
         """
@@ -146,8 +163,13 @@ class FineApproacher:
         Returns:
             tuple: (x_center, y_center) coordinates
         """
-        x_center = (self.x_min + self.x_max) / 2
-        y_center = (self.y_min + self.y_max) / 2
+        if self.bbox_corners is None:
+            rospy.logwarn("No bounding box corners available")
+            return None, None
+
+        x_center = (self.bbox_corners['x_min'] + self.bbox_corners['x_max']) / 2
+        y_center = (self.bbox_corners['y_min'] + self.bbox_corners['y_max']) / 2
+  
 
         return x_center, y_center
     

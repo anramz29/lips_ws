@@ -32,7 +32,8 @@ class ObjectScanner:
     3. Verify detections with sustained observation
     4. Track scanning progress and remaining angles
     """
-    def __init__(self, robot_name, nav_controller, init_node=False):
+    def __init__(self, robot_name, nav_controller, object_mapper_topic,
+                 bbox_depth_topic, init_node=False):
         """
         Initialize the scanner with robot name and navigation controller
         
@@ -50,6 +51,8 @@ class ObjectScanner:
         # Core components
         self.robot_name = robot_name
         self.nav_controller = nav_controller
+        self.object_mapper_topic = object_mapper_topic
+        self.bbox_depth_topic = bbox_depth_topic
         
         # Scanner parameters
         self.scan_stabilization_time = 1.0  # seconds
@@ -83,23 +86,16 @@ class ObjectScanner:
     
     def _setup_marker_subscription(self):
         """Set up ROS subscription for object marker information"""
-        self.object_marker_topic = rospy.get_param(
-            '~object_marker_topic', 
-            f'/{self.robot_name}/object_markers'
-        )
+
         
         self.object_marker_sub = rospy.Subscriber(
-            self.object_marker_topic,
+            self.object_mapper_topic,
             Marker,
             self.object_marker_callback
         )
     
     def _setup_depth_subscription(self):
         """Set up ROS subscription for depth information"""
-        self.bbox_depth_topic = rospy.get_param(
-            '~bbox_depth_topic', 
-            f'/{self.robot_name}/camera/yolo/bbox_depth'
-        )
         
         self.depth_sub = rospy.Subscriber(
             self.bbox_depth_topic,

@@ -30,7 +30,9 @@ class NavigationController:
     4. Navigate to named poses and specific coordinates
     5. Handle orientation calculations and normalization
     """
-    def __init__(self, robot_name, pose_manager, init_node=False):
+    def __init__(self, robot_name, pose_manager,
+                move_base_topic, costmap_topic, 
+                move_base_cancel_topic, init_node=False):
         """
         Initialize the navigation controller
         
@@ -46,10 +48,10 @@ class NavigationController:
         
         self.robot_name = robot_name
         self.pose_manager = pose_manager
-        
-        # Get topic parameters with default values that use robot_name
-        self.move_base_topic = rospy.get_param('~move_base_topic', f'/{self.robot_name}/move_base')
-        self.costmap_topic = rospy.get_param('~costmap_topic', f'/{self.robot_name}/move_base/global_costmap/costmap')
+        self.move_base_topic = move_base_topic
+        self.costmap_topic = costmap_topic
+        self.move_base_cancel_topic = move_base_cancel_topic
+
         
         # Default timeout values
         self.default_navigation_timeout = 90.0  # seconds
@@ -58,14 +60,19 @@ class NavigationController:
         # ---------- ROS INTERFACE SETUP ----------
         
         # Create action client
-        self.client = actionlib.SimpleActionClient(self.move_base_topic, MoveBaseAction)
+        self.client = actionlib.SimpleActionClient(
+            self.move_base_topic, 
+            MoveBaseAction
+        )
+        
+
         rospy.loginfo(f"Waiting for {self.robot_name} move_base action server...")
         self.client.wait_for_server()
         rospy.loginfo("Connected to move_base action server")
         
         # Setup cancel publisher
         self.cancel_pub = rospy.Publisher(
-            f'{self.move_base_topic}/cancel', 
+            self.move_base_cancel_topic,
             actionlib_msgs.msg.GoalID, 
             queue_size=1
         )
@@ -78,13 +85,6 @@ class NavigationController:
             self.costmap_callback
         )
         
-
-        self.twist_pub = rospy.Publisher(
-            f'/mobile_base/cmd_vel',
-            Twist,
-            queue_size=1
-        )
-
         # Wait for first costmap
         rospy.loginfo("Waiting for costmap...")
         while self.costmap is None and not rospy.is_shutdown():

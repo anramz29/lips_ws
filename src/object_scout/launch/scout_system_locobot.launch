@@ -18,46 +18,33 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <arg name="max_objects" default="3" />
 
     <!-- Topic parameters -->
+    <arg name="camera_info_topic" default="/$(arg robot_name)/camera/color/camera_info" />
+    <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw" />
     <arg name="object_marker_topic" default="/$(arg robot_name)/object_markers" />
     <arg name="bbox_depth_topic" default="/$(arg robot_name)/camera/yolo/bbox_depth" />
-    
-    <!-- Visualization parameters -->
-    <arg name="rviz_frame" default="map" />
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
-    <arg name="use_rviz" default="false" doc="Set to false to disable RViz visualization" />
+    <arg name="costmap_topic" default="/$(arg robot_name)/move_base/global_costmap/costmap" />
+    <arg name="move_base_topic" default="/$(arg robot_name)/move_base" />
+    <arg name="move_base_cancel_topic" default="/$(arg robot_name)/move_base/cancel" />
+    <arg name="camera_joint_topic" default="/$(arg robot_name)/commands/joint_group" />
+    <arg name="keypoint_angle_topic" default="/$(arg robot_name)/keypoint_angle" />
+    <arg name="enable_keypoint_detection_service" default="/$(arg robot_name)/keypoint_detector/set_enabled" />
 
-    <!-- C++ Yolo Argument -->
-    <arg name="use_cpp_yolo" default="false" doc="Set to true to use C++ implementations instead of Python"/>
-    <arg name="use_cpp_distance" default="false" doc="Set to true to use C++ implementations instead of Python"/>
-    <arg name="use_cpp_object_mapper" default="false" doc="Set to true to use C++ implementations instead of Python"/>
-    <arg name="use_cpp_all" default="false" doc="Set to true to use C++ implementations for all nodes"/>
-
-
-    
-    <!-- Include the YOLO vision system -->
-    <!-- <group if="$(arg use_cpp_all)">
-        <include file="$(find yolo_vision)/launch/object_mapper.launch">
-        <arg name="robot_name" value="$(arg robot_name)"/>
-        <arg name="rviz_frame" value="$(arg rviz_frame)"/>
-        <arg name="rvizconfig" value="$(arg rvizconfig)"/>
-        <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
-        <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
-        <arg name="use_rviz" value="false"/>
-        <arg name="use_cpp_yolo" value="$(arg use_cpp_yolo)"/>
-        <arg name="use_cpp_distance" value="$(arg use_cpp_distance)"/>
-        <arg name="use_cpp_object_mapper" value="$(arg use_cpp_object_mapper)"/>
-        <arg name="use_cpp_all" value="$(arg use_cpp_all)"/>
-    </include> -->
-    
-    <!-- Launch the coordinator node with all components packaged inside -->
+        <!-- Pass all parameters to the coordinator node -->
     <node name="scout_coordinator" pkg="object_scout" type="scout_coordinator_locobot_node.py" output="screen">
         <param name="robot_name" value="$(arg robot_name)" />
         <param name="poses_config" value="$(arg poses_config)" />
+        <param name="max_objects" value="$(arg max_objects)" />
         <param name="object_marker_topic" value="$(arg object_marker_topic)" />
         <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)" />
-        <param name="max_objects" value="$(arg max_objects)" />
+        <param name="camera_info_topic" value="$(arg camera_info_topic)" />
+        <param name="depth_topic" value="$(arg depth_topic)" />
+        <param name="costmap_topic" value="$(arg costmap_topic)" />
+        <param name="move_base_topic" value="$(arg move_base_topic)" />
+        <param name="move_base_cancel_topic" value="$(arg move_base_cancel_topic)" />
+        <param name="camera_joint_topic" value="$(arg camera_joint_topic)" />
+        <param name="keypoint_angle_topic" value="$(arg keypoint_angle_topic)" />
+        <param name="enable_keypoint_detection_service" value="$(arg enable_keypoint_detection_service)" />
     </node>
-
 
     <!-- pointcloud filtering arguments -->
     <arg name="use_perception"                    default="true"/>

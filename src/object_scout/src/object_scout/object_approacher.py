@@ -21,7 +21,8 @@ class ObjectApproacher:
     3. Graduated approach to target objects
     4. Marker position averaging for stable approaches
     """
-    def __init__(self, robot_name, nav_controller, init_node=False):
+    def __init__(self, robot_name, nav_controller, 
+                object_marker_topic, bbox_depth_topic, init_node=False):
         """
         Initialize the ObjectApproacher with robot configuration and ROS setup
         
@@ -40,6 +41,8 @@ class ObjectApproacher:
         self.robot_name = robot_name
         self.nav_controller = nav_controller
         self.costmap = nav_controller.costmap
+        self.object_marker_topic = object_marker_topic
+        self.bbox_depth_topic = bbox_depth_topic
         
 
         self.navigation_timeout = 40.0  # seconds
@@ -70,11 +73,6 @@ class ObjectApproacher:
     
     def _setup_depth_subscription(self):
         """Set up ROS subscription for depth information"""
-        self.bbox_depth_topic = rospy.get_param(
-            '~bbox_depth_topic', 
-            f'/{self.robot_name}/camera/yolo/bbox_depth'
-        )
-        
         self.depth_sub = rospy.Subscriber(
             self.bbox_depth_topic,
             Float32MultiArray,
@@ -83,10 +81,7 @@ class ObjectApproacher:
     
     def _setup_marker_subscription(self):
         """Set up ROS subscription for object marker information"""
-        self.object_marker_topic = rospy.get_param(
-            '~object_marker_topic', 
-            f'/{self.robot_name}/object_markers'
-        )
+
         
         self.object_marker_sub = rospy.Subscriber(
             self.object_marker_topic,

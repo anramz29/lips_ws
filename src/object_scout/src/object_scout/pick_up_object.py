@@ -9,9 +9,14 @@ from cv_bridge import CvBridge
 import numpy as np
 
 class PickUpObject:
-    def __init__(self,  fine_approacher, robot_name="locobot", init_node=False):
+    def __init__(self, robot_name, fine_approacher, 
+                keypoint_angle_topic, enable_keypoint_detection_service,
+                init_node=False):
+        
         # ---------- ROS NODE SETUP ----------
         self.robot_name = robot_name
+        self.keypoint_angle_topic = keypoint_angle_topic
+        self.enable_keypoint_detection_service = enable_keypoint_detection_service
 
         if init_node:
             rospy.init_node('pick_up_object', anonymous=False)
@@ -27,9 +32,7 @@ class PickUpObject:
         # ---------- STATE VARIABLES ----------
 
         self.fine_approacher = fine_approacher
-        self.n_boxes_detected = None
-        self.last_detection = None
-        self.angle = None
+        self.keypoint_angle = None
         self.gripper_joint_name = "gripper"
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -45,39 +48,13 @@ class PickUpObject:
     
     def _setup_ros_communication(self):
         """Set up ROS subscription for object marker information"""
-
-
-            # Add bbox subscription
-        self.bbox_sub = rospy.Subscriber(
-            f'/{self.robot_name}/camera/yolo/bbox_depth',
-            Float32MultiArray,
-            self.bbox_callback
-        )
         
-        self.keypoint_sub = rospy.Subscriber(
-            f'/{self.robot_name}/camera/yolo/object_angle',
+        self.keypoint_angle_sub = rospy.Subscriber(
+            self.keypoint_angle_topic,
             Float32,
             self.angle_callback
         )
 
-    def bbox_callback(self, msg):
-        """
-        Callback function for bounding box messages
-        
-        Args:
-            msg (Float32MultiArray): Message containing bounding box coordinates and depth
-                Format: [n_boxes, cls_id, conf, x1, y1, x2, y2, depth]
-        """
-        # if not msg.data or len(msg.data) < 8:
-        #     rospy.logwarn("Received empty or invalid message")
-        #     return
-            
-        # Extract values from new format
-        n_boxes = int(msg.data[0])
-        if n_boxes < 1:
-            return 
-        else:
-            self.n_boxes_detected = n_boxes
 
 
     def enable_keypoint_detection(self, enable=True):
@@ -89,15 +66,13 @@ class PickUpObject:
         Returns:
             bool: True if the service call was successful, False otherwise.
         """
-
-        service_name = f'/{self.robot_name}/keypoint_detector/set_enabled'
         
         try:
             # Wait for service to be available
-            rospy.wait_for_service(service_name, timeout=3.0)
+            rospy.wait_for_service(self.enable_keypoint_detection_service, timeout=3.0)
             
             # Call the service
-            set_enabled = rospy.ServiceProxy(service_name, SetBool)
+            set_enabled = rospy.ServiceProxy(self.enable_keypoint_detection_service, SetBool)
             response = set_enabled(enable)
             
             if response.success:

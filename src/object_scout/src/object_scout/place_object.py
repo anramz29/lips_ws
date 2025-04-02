@@ -9,20 +9,20 @@ import numpy as np
 from cv_bridge import CvBridge
 
 class PlaceObject:
-    def __init__(self,robot_name, init_node=False):
+    def __init__(self,robot_name, bbox_depth_topic,
+                 camera_info_topic, depth_topic, init_node=False):
         
         if init_node:
             rospy.init_node('place_object', anonymous=True)
 
         self.robot_name = robot_name
+        self.bbox_depth_topic = bbox_depth_topic
+        self.camera_info_topic = camera_info_topic
+        self.depth_topic = depth_topic
         
-        self.camera_info_topic = f'/{self.robot_name}/camera/color/camera_info'
-        self.keypoint_topic = f'/{self.robot_name}/camera/yolo/keypoints'  # Fixed slash consistency
-        self.depth_topic = f'/{self.robot_name}/camera/depth/image_rect_raw'
-
-        self.keypoints = []
         self.camera_info = None
         self.latest_depth = None
+        self.latest_bbox = None
         
         self.bridge = CvBridge()  # Initialize CvBridge
 
@@ -43,9 +43,9 @@ class PlaceObject:
         Set up ROS communication for placing objects.
         """
         # Switch from keypoint subscription to bbox subscription
-        self.bbox_topic = f'/{self.robot_name}/camera/yolo/bbox_depth'
+
         self.bbox_sub = rospy.Subscriber(
-            self.bbox_topic,
+            self.bbox_depth_topic,
             Float32MultiArray,
             self.bbox_callback
         )

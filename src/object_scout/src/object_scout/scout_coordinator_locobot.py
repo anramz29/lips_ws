@@ -41,6 +41,19 @@ class ScoutCoordinatorLocobot:
         self.poses_config = rospy.get_param('~poses_config', '')
         self.pose_command = rospy.get_param('~pose_command', 'all')
         self.max_objects = rospy.get_param('~max_objects', 0)  # 0 means find all objects
+        self.camera_info_topic = rospy.get_param('~camera_info_topic')
+        self.depth_topic = rospy.get_param('~depth_topic')
+        self.bbox_depth_topic = rospy.get_param('~bbox_depth_topic')
+        self.object_marker_topic = rospy.get_param('~object_marker_topic')
+        self.costmap_topic = rospy.get_param('~costmap_topic')
+        self.move_base_topic = rospy.get_param('~move_base_topic')
+        self.move_base_cancel_topic = rospy.get_param('~move_base_cancel_topic')
+        self.camera_joint_topic = rospy.get_param('~camera_joint_topic')
+        self.keypoint_angle_topic = rospy.get_param('~keypoint_angle_topic')
+        self.enable_keypoint_detection_service = rospy.get_param('~enable_keypoint_detection_service')
+
+
+
         
         # Frame definitions
         self.world_frame = "map"
@@ -69,26 +82,56 @@ class ScoutCoordinatorLocobot:
     def _initialize_components(self):
         """Initialize all required components for the scouting mission"""
 
-        
         # Create pose manager for handling predefined positions
         self.pose_manager = PoseManager(self.poses_config)
 
                # Create navigation controller
-        self.nav_controller = NavigationController(self.robot_name, self.pose_manager)
+        self.nav_controller = NavigationController(
+            self.robot_name, 
+            self.pose_manager,
+            self.move_base_topic, 
+            self.costmap_topic,
+            self.move_base_cancel_topic
+        )
         
         # Create scanner for detecting objects
-        self.scanner = ObjectScanner(self.robot_name, self.nav_controller)
+        self.scanner = ObjectScanner(
+            self.robot_name, 
+            self.nav_controller,
+            self.object_marker_topic,
+            self.bbox_depth_topic  
+        )
         
         # Create approacher for moving to detected objects
-        self.approacher = ObjectApproacher(self.robot_name, self.nav_controller)
+        self.approacher = ObjectApproacher(
+            self.robot_name, 
+            self.nav_controller,
+            self.object_marker_topic,
+            self.bbox_depth_topic
+        )
         
         # Create fine approacher for precise positioning
-        self.fine_approacher = FineApproacher(self.robot_name, self.nav_controller)
+        self.fine_approacher = FineApproacher(
+            self.robot_name, 
+            self.nav_controller,
+            self.bbox_depth_topic, 
+            self.camera_joint_topic
+        )
 
         # Create object picker for picking up objects
-        self.object_picker = PickUpObject(self.fine_approacher, self.robot_name)
+        self.object_picker = PickUpObject(
+            self.robot_name,
+            self.fine_approacher,
+            self.keypoint_angle_topic,
+            self.enable_keypoint_detection_service
+        )
 
-        self.object_placer = PlaceObject(self.robot_name)
+        self.object_placer = PlaceObject(
+            self.robot_name,
+            self.bbox_depth_topic,
+            self.camera_joint_topic,
+            self.depth_topic
+        )
 
     # ---------- OBJECT DETECTION METHODS ----------
 
