@@ -9,6 +9,20 @@ from cv_bridge import CvBridge
 import numpy as np
 
 class PickUpObject:
+    """
+    Class to handle picking up an object using a robot arm.
+
+    This Class Provides Functionality to:
+    - Initialize the robot arm and set up ROS communication
+    - Enable or disable keypoint detection
+    - Process angle messages from the object detection system
+    - Get the position of clusters in the robot's workspace
+    - Move the robot arm to the appropriate positions for picking up an object
+    - Check if the gripper has successfully grasped an object
+    - Handle retries for picking up an object if the gripper remains closed
+    - Shutdown the robot arm and clean up resources
+    
+    """
     def __init__(self, robot_name, fine_approacher, 
                 keypoint_angle_topic, enable_keypoint_detection_service,
                 init_node=False):

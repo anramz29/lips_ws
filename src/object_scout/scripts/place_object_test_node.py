@@ -33,9 +33,21 @@ if __name__ == "__main__":
     
     # Get parameters
     robot_name = rospy.get_param('~robot_name', 'locobot')
+    camera_info_topic = rospy.get_param('~camera_info_topic')
+    bbox_depth_topic = rospy.get_param('~bbox_depth_topic')
+    depth_topic = rospy.get_param('~depth_topic')
+
+
     
-    object_placer = PlaceObject(robot_name, init_node=False)
+    object_placer = PlaceObject(
+        robot_name,
+        bbox_depth_topic,
+        camera_info_topic,
+        depth_topic,
+        init_node=False
+    )
     
+
     # Tilt the camera directly to a specified angle (e.g., 1.5 radians)
     tilt_camera_directly(robot_name, .75)
 

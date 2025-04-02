@@ -10,13 +10,6 @@ import actionlib_msgs.msg
 import tf2_ros
 from geometry_msgs.msg import PoseStamped
 import std_srvs.srv
-from geometry_msgs.msg import Twist
-
-
-
-
-
-
 
 
 class NavigationController:
@@ -24,11 +17,17 @@ class NavigationController:
     Handles robot navigation operations and interfaces with move_base
     
     This class provides functionality to:
-    1. Create and send navigation goals
-    2. Monitor navigation progress
-    3. Ensure safe navigation using costmaps
-    4. Navigate to named poses and specific coordinates
-    5. Handle orientation calculations and normalization
+    - Send navigation goals to the robot
+    - Monitor navigation status
+    - Cancel navigation goals
+    - Manage costmaps
+    - Check if positions are safe for navigation
+    - Handle named poses using a PoseManager
+    - Calculate intermediate points for navigation
+    - Clear costmaps when needed
+    - Calculate safe approach points to targets
+    - Check if a position is safe for approach
+    - Get the robot's current pose
     """
     def __init__(self, robot_name, pose_manager,
                 move_base_topic, costmap_topic, 
@@ -176,8 +175,6 @@ class NavigationController:
                 
             goal.target_pose.pose.orientation = Quaternion(*quat)
 
-        
-            
         return goal
     
     # ---------- NAVIGATION EXECUTION METHODS ----------
@@ -218,6 +215,8 @@ class NavigationController:
         
         # Wait for result with timeout
         return self.wait_for_navigation(timeout)
+    
+    # ---------- NAVIGATION MONITORING METHODS ----------
         
     def wait_for_navigation(self, timeout):
         """
@@ -258,6 +257,8 @@ class NavigationController:
         self.cancel_pub.publish(cancel_msg)
         rospy.loginfo("Sent navigation cancellation commands")
 
+    # ---------- POSE MANAGEMENT METHODS ----------
+
     def get_robot_pose_postions(self):
         """Get current robot pose in map frame"""
         try:
@@ -275,6 +276,27 @@ class NavigationController:
             current_pose.pose.position.z = trans.transform.translation.z
             current_pose.pose.orientation = trans.transform.rotation
             return current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.orientation
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Failed to get robot pose: {e}")
+            return None
+        
+    def get_robot_pose(self):
+        """Get current robot pose in map frame"""
+        try:
+            # Create tf buffer and listener when needed
+            tf_buffer = tf2_ros.Buffer()
+            tf_listener = tf2_ros.TransformListener(tf_buffer)
+            
+            # Give time for the listener to receive transforms
+            rospy.sleep(0.5)
+            
+            trans = tf_buffer.lookup_transform('map', 'locobot/base_link', rospy.Time(0))
+            current_pose = PoseStamped()
+            current_pose.pose.position.x = trans.transform.translation.x
+            current_pose.pose.position.y = trans.transform.translation.y
+            current_pose.pose.position.z = trans.transform.translation.z
+            current_pose.pose.orientation = trans.transform.rotation
+            return current_pose.pose
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             rospy.logerr(f"Failed to get robot pose: {e}")
             return None
@@ -347,7 +369,8 @@ class NavigationController:
         """
         rospy.loginfo(f"Returning to position: ({x:.2f}, {y:.2f})")
         return self.move_to_position(x, y, orientation, timeout)
-
+    
+    # --------- Navigation Planning Methods ----------
         
     def is_position_safe(self, costmap, x, y):
         """Check if a position is in a safe area of the costmap"""
@@ -478,6 +501,8 @@ class NavigationController:
         
         return True
     
+    # --------- COSTMAP MANAGEMENT METHODS ----------
+    
     def clear_costmaps(self):
         """
         Clear both local and global costmaps
@@ -512,26 +537,7 @@ class NavigationController:
             rospy.logerr(f"Failed to clear costmaps: {e}")
             return False
         
-    def get_robot_pose(self):
-        """Get current robot pose in map frame"""
-        try:
-            # Create tf buffer and listener when needed
-            tf_buffer = tf2_ros.Buffer()
-            tf_listener = tf2_ros.TransformListener(tf_buffer)
-            
-            # Give time for the listener to receive transforms
-            rospy.sleep(0.5)
-            
-            trans = tf_buffer.lookup_transform('map', 'locobot/base_link', rospy.Time(0))
-            current_pose = PoseStamped()
-            current_pose.pose.position.x = trans.transform.translation.x
-            current_pose.pose.position.y = trans.transform.translation.y
-            current_pose.pose.position.z = trans.transform.translation.z
-            current_pose.pose.orientation = trans.transform.rotation
-            return current_pose.pose
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            rospy.logerr(f"Failed to get robot pose: {e}")
-            return None
+
 
 if __name__ == "__main__":
     try:

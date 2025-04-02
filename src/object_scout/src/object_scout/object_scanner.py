@@ -4,9 +4,8 @@ import math
 from enum import Enum
 from tf.transformations import quaternion_from_euler
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Point, Quaternion
+from geometry_msgs.msg import Quaternion
 from std_msgs.msg import Float32MultiArray
-from object_scout.navigation_controller import NavigationController
 
 # Import actionlib for navigation
 import actionlib

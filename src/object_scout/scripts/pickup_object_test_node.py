@@ -31,20 +31,31 @@ if __name__ == "__main__":
     # Initialize the ROS node
     rospy.init_node('pickup_object_test', anonymous=True)
     
-    # Get parameters
+    # Get parameters from the parameter server
     robot_name = rospy.get_param('~robot_name', 'locobot')
+    keypoint_angle_topic = rospy.get_param('~keypoint_angle_topic', f'/{robot_name}/keypoint_angle')
+    enable_keypoint_detection_service = rospy.get_param('~enable_keypoint_detection_service', 
+                                                      f'/{robot_name}/keypoint_detector/set_enabled')
     
-    # Create an instance of PickUpObject
-    object_picker = PickUpObject(robot_name, init_node=False)
+    rospy.loginfo(f"Using robot_name: {robot_name}")
+    rospy.loginfo(f"Using keypoint_angle_topic: {keypoint_angle_topic}")
+    rospy.loginfo(f"Using enable_keypoint_detection_service: {enable_keypoint_detection_service}")
     
-    # Tilt the camera directly to a specified angle (e.g., 1.5 radians)
-    tilt_camera_directly(robot_name, .75)
+    # Create an instance of PickUpObject - pass None for fine_approacher in test mode
+    object_picker = PickUpObject(
+        robot_name=robot_name,
+        fine_approacher=None,  # Not needed for direct testing
+        keypoint_angle_topic=keypoint_angle_topic,
+        enable_keypoint_detection_service=enable_keypoint_detection_service,
+        init_node=False
+    )
+    
+    # Tilt the camera directly to a specified angle (e.g., 0.75 radians)
+    tilt_camera_directly(robot_name, 0.75)
     
     # Attempt to pick up an object
     if object_picker.pick_object_with_retries():
         rospy.loginfo("Object picked up successfully")
     else:
         rospy.logwarn("Failed to pick up object")
-
-
 

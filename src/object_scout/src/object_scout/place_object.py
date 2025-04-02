@@ -9,6 +9,15 @@ import numpy as np
 from cv_bridge import CvBridge
 
 class PlaceObject:
+    """
+    Class to handle placing objects using the Interbotix Locobot.
+    
+    This Class Provides functionality to:
+    - Subscribe to bounding box and depth image topics
+    - Calculate the center of the bounding box
+    - Convert image coordinates to world coordinates
+    - Move the robot arm to place an object at the detected location
+    """
     def __init__(self,robot_name, bbox_depth_topic,
                  camera_info_topic, depth_topic, init_node=False):
         

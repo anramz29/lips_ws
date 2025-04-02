@@ -12,68 +12,17 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <!-- Robot name parameter -->
     <arg name="robot_name" default="locobot" />
     <arg name="robot_model" default="locobot_wx250s" />
-    
-    <!-- Configuration file path -->
-    <arg name="poses_config" default="$(find object_scout)/config/poses.yaml" />
-    <arg name="max_objects" default="3" />
 
-    <!-- Topic parameters -->
-    <arg name="object_marker_topic" default="/$(arg robot_name)/object_markers" />
+    <arg name="camera_info_topic" default="/$(arg robot_name)/camera/color/camera_info" />
+    <arg name="depth_topic" default="/$(arg robot_name)/camera/depth/image_rect_raw" />
     <arg name="bbox_depth_topic" default="/$(arg robot_name)/camera/yolo/bbox_depth" />
-    
-    <!-- Visualization parameters -->
-    <arg name="rviz_frame" default="map" />
-    <arg name="rvizconfig" default="$(find yolo_vision)/rviz/xslocobot_description_yolo.rviz" />
-    <arg name="use_rviz" default="false" doc="Set to false to disable RViz visualization" />
-
-    <!-- Include the YOLO vision system -->
-    <!-- <group if="$(arg use_cpp_all)">
-        <include file="$(find yolo_vision)/launch/object_mapper.launch">
-        <arg name="robot_name" value="$(arg robot_name)"/>
-        <arg name="rviz_frame" value="$(arg rviz_frame)"/>
-        <arg name="rvizconfig" value="$(arg rvizconfig)"/>
-        <arg name="object_marker_topic" value="$(arg object_marker_topic)"/>
-        <arg name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
-        <arg name="use_rviz" value="false"/>
-        <arg name="use_cpp_yolo" value="$(arg use_cpp_yolo)"/>
-        <arg name="use_cpp_distance" value="$(arg use_cpp_distance)"/>
-        <arg name="use_cpp_object_mapper" value="$(arg use_cpp_object_mapper)"/>
-        <arg name="use_cpp_all" value="$(arg use_cpp_all)"/>
-    </include> -->
     
     <!-- Launch the pickup object test node -->
     <node name="place_object_test" pkg="object_scout" type="place_object_test_node.py" output="screen">
         <param name="robot_name" value="$(arg robot_name)"/>
+        <param name="camera_info_topic" value="$(arg camera_info_topic)"/>
+        <param name="depth_topic" value="$(arg depth_topic)"/>
+        <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)"/>
     </node>
-
-    <!-- pointcloud filtering arguments -->
-    <arg name="use_perception"                    default="true"/>
-    <arg name="use_armtag"                        default="true"/>
-    <arg name="filter_params"                     default="$(find interbotix_xslocobot_perception)/config/filter_params.yaml"/>
-    <arg name="use_pointcloud_tuner_gui"          default="false"/>
-    <arg name="enable_pipeline"                   default="$(arg use_pointcloud_tuner_gui)"/>
-    <arg name="use_static_transform_pub"          default="true"/>
-
-    <include if="$(arg use_perception)" file="$(find interbotix_xslocobot_perception)/launch/xslocobot_perception.launch">
-        <arg name="robot_model"                       value="$(arg robot_model)"/>
-        <arg name="robot_name"                        value="$(arg robot_name)"/>
-        <arg name="launch_driver"                     value="false"/>
-        <arg name="filter_params"                     value="$(arg filter_params)"/>
-        <arg name="enable_pipeline"                   value="false"/>
-        <arg name="use_pointcloud_tuner_gui"          value="$(arg use_pointcloud_tuner_gui)"/>
-        <arg name="use_static_transform_pub"          value="$(arg use_static_transform_pub)"/>
-        <arg name="use_armtag"                        value="$(arg use_armtag)"/>
-    </include>
-
-    
-    <!-- RViz (conditionally launched) -->
-    <group if="$(arg use_rviz)">
-        <node name="rviz" pkg="rviz" type="rviz" 
-                args="-f $(arg rviz_frame) -d $(arg rvizconfig)"
-                ns="$(arg robot_name)">
-            <remap from="/clicked_point" to="clicked_point"/>
-            <remap from="/initialpose" to="initialpose"/>
-            <remap from="/move_base_simple/goal" to="move_base_simple/goal"/>
-        </node>
-    </group>
 </launch>
+
