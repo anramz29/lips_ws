@@ -136,6 +136,7 @@ include_directories(
 add_library(${PROJECT_NAME}
   src/navigation_controller.cpp
   src/pose_manager.cpp
+  src/object_scanner.cpp
 )
 
 ## Add cmake target dependencies of the library
