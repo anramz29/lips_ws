@@ -13,7 +13,7 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <arg name="robot_name" default="locobot" />
     <arg name="robot_model" default="locobot_wx250s" />
 
-    <arg name="keypoint_angle_topic" default="/$(arg robot_name)/keypoint_angle" />
+    <arg name="keypoint_angle_topic" default="/$(arg robot_name)/camera/yolo/object_angle" />
     <arg name="enable_keypoint_detection_service" default="/$(arg robot_name)/keypoint_detector/set_enabled" />
     
     <!-- Launch the pickup object test node -->

@@ -245,7 +245,8 @@ class PickUpObject:
         self.bot.arm.go_to_home_pose()
         
         # Calculate grab height with safety margin
-        safe_grab_height = max(z + grab_height, -0.08)  # Never go below -0.08m
+        safe_grab_height = max(z + grab_height, -0.1)  # Never go below -0.08m
+
         
         # Find a pitch that works for both positions
         success, working_pitch = self.find_working_pitch_for_both(

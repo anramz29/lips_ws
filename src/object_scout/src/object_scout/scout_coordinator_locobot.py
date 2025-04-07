@@ -165,7 +165,7 @@ class ScoutCoordinatorLocobot:
         if approach_success:
             rospy.loginfo("Successfully approached the object.")
             # Perform fine approach
-            fine_approach_success = self.fine_approacher.fine_approach()
+            fine_approach_success = self.fine_approacher.fine_approach(desired_vertical=0.8)
 
             if fine_approach_success:
                 # Log success and update object count
@@ -202,8 +202,9 @@ class ScoutCoordinatorLocobot:
                 box_pose.position.y,  # Use position.y instead of y
                 box_pose.orientation  # Pass orientation instead of z
             ):
+            self.nav_controller.clear_costmaps()
             rospy.loginfo("Approaching object placement position...")
-            if self.fine_approacher.fine_approach():
+            if self.fine_approacher.fine_approach(desired_vertical=0.6):
                 rospy.loginfo("Successfully approached object placement position")
                 if self.object_placer.place_at_bbox_center():
                     rospy.loginfo("Object placed successfully")

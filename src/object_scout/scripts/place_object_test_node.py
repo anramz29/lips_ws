@@ -33,9 +33,9 @@ if __name__ == "__main__":
     
     # Get parameters
     robot_name = rospy.get_param('~robot_name', 'locobot')
-    camera_info_topic = rospy.get_param('~camera_info_topic')
-    bbox_depth_topic = rospy.get_param('~bbox_depth_topic')
-    depth_topic = rospy.get_param('~depth_topic')
+    camera_info_topic = rospy.get_param('~camera_info_topic', f'/{robot_name}/camera/color/camera_info')
+    bbox_depth_topic = rospy.get_param('~bbox_depth_topic', f'/{robot_name}/camera/yolo/bbox_depth')
+    depth_topic = rospy.get_param('~depth_topic', f'/{robot_name}/camera/depth/image_rect_raw')
 
 
     
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     tilt_camera_directly(robot_name, .75)
 
     # Attempt to place an object
-    if object_placer.place_at_centroid():
+    if object_placer.place_at_bbox_center():
         rospy.loginfo("Object placed successfully")
     else:
         rospy.logwarn("Failed to place object")
