@@ -129,7 +129,7 @@ class ScoutCoordinatorLocobot:
         self.object_placer = PlaceObject(
             self.robot_name,
             self.bbox_depth_topic,
-            self.camera_joint_topic,
+            self.camera_info_topic,
             self.depth_topic
         )
 
@@ -165,7 +165,7 @@ class ScoutCoordinatorLocobot:
         if approach_success:
             rospy.loginfo("Successfully approached the object.")
             # Perform fine approach
-            fine_approach_success = self.fine_approacher.fine_approach(desired_vertical=0.8)
+            fine_approach_success = self.fine_approacher.fine_approach()
 
             if fine_approach_success:
                 # Log success and update object count
@@ -204,7 +204,7 @@ class ScoutCoordinatorLocobot:
             ):
             self.nav_controller.clear_costmaps()
             rospy.loginfo("Approaching object placement position...")
-            if self.fine_approacher.fine_approach(desired_vertical=0.6):
+            if self.fine_approacher.fine_approach():
                 rospy.loginfo("Successfully approached object placement position")
                 if self.object_placer.place_at_bbox_center():
                     rospy.loginfo("Object placed successfully")
@@ -214,7 +214,12 @@ class ScoutCoordinatorLocobot:
                     return False
             else:
                 rospy.logwarn("Failed to fine approach object placement position")
-                return False   
+                rospy.loginfo("Still try to place the object")
+                if self.object_placer.place_at_bbox_center():
+                    rospy.loginfo("Object placed successfully")
+                    return True
+                else:
+                    return False   
         else:
             rospy.logwarn("Failed to move to intermediate pose")
             return False
@@ -278,6 +283,7 @@ class ScoutCoordinatorLocobot:
                         rospy.loginfo("Object placed successfully")
                         # Return to the position where the object was detected
                         self.nav_controller.return_to_position(x_detected, y_detected, orientation_detected)
+                        self.fine_approacher.reset_camera_tilt()
                         
                         # Perform another scan rotation to find more objects
                         scan_result, remaining_angles = self.scanner.perform_scan_rotation(remaining_angles, desired_class_id=1)

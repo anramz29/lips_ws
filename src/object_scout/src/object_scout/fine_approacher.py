@@ -44,12 +44,12 @@ class FineApproacher:
         self.image_width = 640
 
         # Centering parameters
-        self.horizontal_adjustment_tolerance = 20 # pixels
-        self.vertical_adjustment_tolerance = 20 # pixels
+        self.horizontal_adjustment_tolerance = 40 # pixels
+        self.vertical_adjustment_tolerance = 50 # pixels
         
         # Overall centering completion criteria    
-        self.horizontal_centering_threshold = 40 # pixels
-        self.vertical_centering_threshold = 40 # pixels
+        self.horizontal_centering_threshold = 60 # pixels
+        self.vertical_centering_threshold = 80 # pixels
 
 
         self.max_vertical_distance = 0.5  # meters
@@ -172,7 +172,7 @@ class FineApproacher:
 
         return x_center, y_center
     
-    def calculate_center_of_image(self, desired_vertical):
+    def calculate_center_of_image(self):
         """
         Calculate the center (bottom fourth) of the image
         
@@ -180,11 +180,11 @@ class FineApproacher:
             tuple: (x_center, y_center) coordinates
         """
         x_center = self.image_width / 2
-        y_center = self.image_height * desired_vertical
+        y_center = self.image_height * 4/5
 
         return x_center, y_center
     
-    def calculate_error(self, desired_vertical):
+    def calculate_error(self, ):
         """
         Calculate both horizontal and vertical errors between 
         the bounding box center and image center
@@ -193,7 +193,7 @@ class FineApproacher:
             tuple: (horizontal_error, vertical_error) or (None, None) if no bbox
         """
         bbox_center = self.calculate_bbox_center()
-        image_center = self.calculate_center_of_image(desired_vertical)
+        image_center = self.calculate_center_of_image()
 
         horizontal_error = bbox_center[0] - image_center[0]
         vertical_error = bbox_center[1] - image_center[1]
@@ -291,14 +291,14 @@ class FineApproacher:
 
     # ---------- Base Adjustment Functions ----------
         
-    def adjust_base_orientation(self, desired_vertical):
+    def adjust_base_orientation(self):
         """
         Adjust the robot's base orientation to center the object horizontally
         
         Returns:
             bool: True if adjustment succeeded, False otherwise
         """
-        horizontal_error, _ = self.calculate_error(desired_vertical)
+        horizontal_error, _ = self.calculate_error()
         
         if horizontal_error is None:
             rospy.logwarn("Horizontal error is not available")
@@ -377,14 +377,14 @@ class FineApproacher:
         return True
     
     
-    def adjust_base_position(self, desired_vertical):
+    def adjust_base_position(self, ):
         """
         Adjust the robot's base position to center the object vertically
         
         Returns:
             bool: True if adjustment succeeded, False otherwise
         """
-        _, vertical_error = self.calculate_error(desired_vertical)
+        _, vertical_error = self.calculate_error()
         
         if vertical_error is None:
             rospy.logwarn("Vertical error is not available")
@@ -468,7 +468,7 @@ class FineApproacher:
 
     # ---------- Fine Approach Function ----------
         
-    def fine_approach(self, desired_vertical, max_attempts=5, tilt_angle=0.75):
+    def fine_approach(self, max_attempts=5, tilt_angle=0.75):
         """
         Perform fine approach to center object in camera view,
         prioritizing the correction of the larger error first
@@ -488,7 +488,7 @@ class FineApproacher:
             rospy.loginfo(f"Fine approach attempt {attempt+1}/{max_attempts} \n")
             
             # Calculate current errors
-            horizontal_error, vertical_error = self.calculate_error(desired_vertical)
+            horizontal_error, vertical_error = self.calculate_error()
             
             # Check if already centered
             if self.check_if_centered(horizontal_error, vertical_error):
@@ -503,32 +503,32 @@ class FineApproacher:
             if rel_horizontal_error > rel_vertical_error:
                 # Fix horizontal error first (rotation)
                 rospy.loginfo("Horizontal error is larger, adjusting orientation first")
-                self.adjust_base_orientation(desired_vertical)
+                self.adjust_base_orientation()
                 
                 # Check if centered after horizontal adjustment
-                horizontal_error, vertical_error = self.calculate_error(desired_vertical)
+                horizontal_error, vertical_error = self.calculate_error()
                 if self.check_if_centered(horizontal_error, vertical_error):
                     rospy.loginfo("Fine approach completed after orientation adjustment")
                     return True
                     
                 # Now fix vertical error
-                self.adjust_base_position(desired_vertical)
+                self.adjust_base_position()
             else:
                 # Fix vertical error first (forward/backward movement)
                 rospy.loginfo("Vertical error is larger, adjusting position first")
-                self.adjust_base_position(desired_vertical)
+                self.adjust_base_position()
                 
                 # Check if centered after vertical adjustment
-                horizontal_error, vertical_error = self.calculate_error(desired_vertical)
+                horizontal_error, vertical_error = self.calculate_error()
                 if self.check_if_centered(horizontal_error, vertical_error):
                     rospy.loginfo("Fine approach completed after position adjustment")
                     return True
                     
                 # Now fix horizontal error
-                self.adjust_base_orientation(desired_vertical)
+                self.adjust_base_orientation()
             
             # Final check if centered after both adjustments
-            horizontal_error, vertical_error = self.calculate_error(desired_vertical)
+            horizontal_error, vertical_error = self.calculate_error()
             if self.check_if_centered(horizontal_error, vertical_error):
                 rospy.loginfo("Fine approach completed successfully")
                 return True

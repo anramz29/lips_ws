@@ -55,8 +55,8 @@ class ObjectScanner:
         
         # Scanner parameters
         self.scan_stabilization_time = 1.0  # seconds
-        self.required_detection_duration = rospy.Duration(2.0)  # seconds
-        self.scan_timeout = rospy.Duration(3.0)  # seconds
+        self.required_detection_duration = rospy.Duration(1.0)  # seconds
+        self.scan_timeout = rospy.Duration(1.5)  # seconds
         self.rotation_timeout = rospy.Duration(45.0)  # seconds
         self.max_detection_depth = 10.0  # meters
         

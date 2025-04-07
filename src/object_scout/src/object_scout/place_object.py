@@ -47,6 +47,9 @@ class PlaceObject:
         self.bbox_corners = None
         self.bbox_depth = None
 
+        # Set up ROS communication
+        self.setup_ros_communication()
+
     def setup_ros_communication(self):
         """
         Set up ROS communication for placing objects.
@@ -90,7 +93,7 @@ class PlaceObject:
             n_boxes = int(msg.data[0])
             if n_boxes < 1:
                 self.bbox_corners = None
-                rospy.logwarn("Place Object: No bounding boxes detected")
+                # rospy.logwarn("Place Object: No bounding boxes detected")
                 return
                 
             # Get coordinates from the first detected box
@@ -114,7 +117,7 @@ class PlaceObject:
             else:
                 self.bbox_depth = None
                 
-            rospy.loginfo(f"Received bounding box: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
+            # rospy.loginfo(f"Received bounding box: x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}")
             
         except Exception as e:
             rospy.logerr(f"Error parsing bounding box message: {e}")
@@ -127,7 +130,7 @@ class PlaceObject:
             msg (sensor_msgs.msg.CameraInfo): The message containing camera info data.
         """
         self.camera_info = msg
-        rospy.loginfo(f"Received camera info: {msg}")
+        # rospy.loginfo(f"Received camera info: {msg}")
 
     def get_camera_info(self):
         """Get the focal length and principal point from the camera info.
@@ -197,8 +200,8 @@ class PlaceObject:
             
             # Wait for the transform to be available
             transform = self.buffer.lookup_transform(
-                'base_link',  # Target frame (robot base)
-                'camera_color_optical_frame',  # Source frame (camera)
+                'locobot/base_link',  # Target frame (robot base)
+                'locobot/camera_color_optical_frame',  # Source frame (camera)
                 rospy.Time(0),
                 rospy.Duration(1.0)
             )
@@ -303,6 +306,9 @@ class PlaceObject:
         
         world_x, world_y, world_z = world_coords
         
+        # move the x position back by 0.1m
+        world_x -= 0.075
+        
         rospy.loginfo(f"Target position in robot coordinates: ({world_x}, {world_y}, {world_z})")
         
         # Add some offset for placing (e.g., slightly above the target)
@@ -311,11 +317,11 @@ class PlaceObject:
         # Use the Interbotix API to move the arm
         try:
             # First, move above the target
-            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=place_z, pitch=0.15)
+            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=place_z, pitch=1.5)
             rospy.sleep(1.0)  # Wait for motion to complete
             
             # Move down to place the object
-            lower_z = max(world_z + 0.01, 0.05)  # 1cm above detected surface, minimum 5cm
+            lower_z = max(world_z + 0.01, 0.04)  # 1cm above detected surface, minimum 5cm
             self.bot.arm.set_ee_cartesian_trajectory(
                 z=-(place_z - lower_z),  # Move down to place                
             )
