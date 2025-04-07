@@ -44,12 +44,12 @@ class FineApproacher:
         self.image_width = 640
 
         # Centering parameters
-        self.horizontal_adjustment_tolerance = 40 
-        self.vertical_adjustment_tolerance = 70 
+        self.horizontal_adjustment_tolerance = 20 # pixels
+        self.vertical_adjustment_tolerance = 20 # pixels
         
         # Overall centering completion criteria    
-        self.horizontal_centering_threshold = 100
-        self.vertical_centering_threshold = 70 
+        self.horizontal_centering_threshold = 40 # pixels
+        self.vertical_centering_threshold = 40 # pixels
 
 
         self.max_vertical_distance = 0.5  # meters
