@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "/usr/include/opencv4",
+                "/home/rosuser/lips_ws/src/object_scout_cpp/include",
                 "/opt/ros/noetic/include/**"
             ],
             "defines": [],

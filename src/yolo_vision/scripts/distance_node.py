@@ -150,6 +150,9 @@ class DistanceNode:
         else:
             return 0.0
     def process_bboxes_with_depth(self, frame, depth_image, bbox_data):
+        """
+        
+        """
         # Convert to list for easy manipulation
         bbox_data = list(bbox_data)
         

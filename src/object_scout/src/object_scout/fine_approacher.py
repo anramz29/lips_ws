@@ -45,11 +45,11 @@ class FineApproacher:
 
         # Centering parameters
         self.horizontal_adjustment_tolerance = 40 
-        self.vertical_adjustment_tolerance = 50
+        self.vertical_adjustment_tolerance = 70 
         
         # Overall centering completion criteria    
         self.horizontal_centering_threshold = 100
-        self.vertical_centering_threshold = 50
+        self.vertical_centering_threshold = 70 
 
 
         self.max_vertical_distance = 0.5  # meters
