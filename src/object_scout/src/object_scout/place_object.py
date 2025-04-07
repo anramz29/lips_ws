@@ -311,12 +311,14 @@ class PlaceObject:
         # Use the Interbotix API to move the arm
         try:
             # First, move above the target
-            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=place_z)
+            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=place_z, pitch=0.15)
             rospy.sleep(1.0)  # Wait for motion to complete
             
             # Move down to place the object
             lower_z = max(world_z + 0.01, 0.05)  # 1cm above detected surface, minimum 5cm
-            self.bot.arm.set_ee_pose_components(x=world_x, y=world_y, z=lower_z)
+            self.bot.arm.set_ee_cartesian_trajectory(
+                z=-(place_z - lower_z),  # Move down to place                
+            )
             rospy.sleep(1.0)
             
             # Open gripper to release object
