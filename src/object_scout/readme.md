@@ -2,6 +2,13 @@
 
 A ROS package for autonomous navigation and object detection using the Locobot platform. This package builds on the yolo_vision package to implement computer vision-based autonomous exploration and object interaction.
 
+<div align="center">
+  <a href="https://youtu.be/a55GlM6ha9g">
+    <img src="images/robotics_pick_and_place_thumbnail.jpeg" alt="Robotics Pick and Place Demo" width="800"/>
+  </a>
+  <p><em>Robotics Pick and Place system demonstration (Click on the image!)</em></p>
+</div>
+
 ## Overview
 
 The object_scout package enables a robot to:
@@ -49,28 +56,37 @@ source devel/setup.bash
 ## Package Structure
 
 ```
-object_scout/
+.
+├── CMakeLists.txt
 ├── config
-│   └── poses.yaml          # Configuration for saved poses
+│   └── poses.yaml
 ├── launch
-│   ├── scout_system.launch        # Main launch file
-│   └── test_nav_and_scanner.launch # Testing navigation
+│   ├── pick_up_object_test.launch
+│   ├── place_object_test.launch
+│   ├── scout_system_distributed.launch
+│   ├── scout_system_locobot.launch
+│   └── test_nav_and_scanner.launch
+├── package.xml
+├── readme.md
 ├── scripts
+│   ├── pickup_object_test_node.py
+│   ├── place_object_test_node.py
 │   ├── scout_coordinator_locobot_node.py
-│   ├── scout_coordinator_remote_node.py
 │   └── test_navigation_node.py
-├── setup.py               # Python package setup
+├── setup.py
 └── src
     ├── __init__.py
     └── object_scout
         ├── __init__.py
+        ├── fine_approacher.py
         ├── navigation_controller.py
         ├── object_approacher.py
         ├── object_scanner.py
-        ├── pose_manager.py
-        ├── scout_coordinator.py
         ├── pick_up_object.py
-        └── utils.py
+        ├── place_object.py
+        ├── pose_manager.py
+        └── scout_coordinator_locobot.py
+
 ```
 
 ## Usage

@@ -11,8 +11,10 @@ This repository contains resources, documentation, and scripts for working with 
 Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordinator_locobot.py) and [pick up object script](/src/object_scout/src/object_scout/pick_up_object.py) for my latest work in autonomus navigation & 6 dof arm manipulation using computer vision.
 
 <div align="center">
-  <img src="images/object_approach.gif" alt="Object Apporach Demo Video" width="800"/>
-  <p><em>Object Approach (Demo)</em></p>
+  <a href="https://youtu.be/a55GlM6ha9g">
+    <img src="images/robotics_pick_and_place_thumbnail.jpeg" alt="Robotics Pick and Place Demo" width="800"/>
+  </a>
+  <p><em>Robotics Pick and Place system demonstration (Click on the image!)</em></p>
 </div>
 
 ---
