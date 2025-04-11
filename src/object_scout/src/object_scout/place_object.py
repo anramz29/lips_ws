@@ -321,7 +321,7 @@ class PlaceObject:
             rospy.sleep(1.0)  # Wait for motion to complete
             
             # Move down to place the object
-            lower_z = max(world_z + 0.01, 0.04)  # 1cm above detected surface, minimum 5cm
+            lower_z = 0.075  # 1cm above detected surface, minimum 5cm
             self.bot.arm.set_ee_cartesian_trajectory(
                 z=-(place_z - lower_z),  # Move down to place                
             )
