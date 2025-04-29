@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
 # Install ROS dependencies: rmw_fastrtps_cpp, rviz, and rosdep
 RUN apt-get update && apt-get install -y \
     ros-noetic-rviz \
+    ros-noetic-move-base-msgs
     python3-rosdep \
     && rm -rf /var/lib/apt/lists/*
 
