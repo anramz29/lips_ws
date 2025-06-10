@@ -7,8 +7,6 @@ Command to use with interbotix nav stack:
 roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_wx250s use_lidar:=true localization:=true
 -->
 
-
-
 <launch>
     <!-- Robot and Remote PC definitions -->
     <arg name="robot_ip" default="192.168.1.100" />
@@ -43,7 +41,15 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
     <arg name="use_cpp_distance" default="false" doc="Set to true to use C++ implementations instead of Python"/>
     <arg name="use_cpp_object_mapper" default="false" doc="Set to true to use C++ implementations instead of Python"/>
     <arg name="use_cpp_all" default="false" doc="Set to true to use C++ implementations for all nodes"/>
-    
+
+    <!-- pointcloud filtering arguments -->
+    <arg name="use_perception"                    default="true"/>
+    <arg name="use_armtag"                        default="true"/>
+    <arg name="filter_params"                     default="$(find interbotix_xslocobot_perception)/config/filter_params.yaml"/>
+    <arg name="use_pointcloud_tuner_gui"          default="false"/>
+    <arg name="enable_pipeline"                   default="$(arg use_pointcloud_tuner_gui)"/>
+    <arg name="use_static_transform_pub"          default="true"/>
+
     <!-- Components to run on the robot -->
     <group>
         <!-- Launch the coordinator node on the robot -->
@@ -55,6 +61,18 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
             <param name="bbox_depth_topic" value="$(arg bbox_depth_topic)" />
             <param name="max_objects" value="$(arg max_objects)" />
         </node>
+
+        <!-- Perception Launch File -->
+        <include if="$(arg use_perception)" file="$(find interbotix_xslocobot_perception)/launch/xslocobot_perception.launch">
+            <arg name="robot_model"                       value="$(arg robot_model)"/>
+            <arg name="robot_name"                        value="$(arg robot_name)"/>
+            <arg name="launch_driver"                     value="false"/>
+            <arg name="filter_params"                     value="$(arg filter_params)"/>
+            <arg name="enable_pipeline"                   value="false"/>
+            <arg name="use_pointcloud_tuner_gui"          value="$(arg use_pointcloud_tuner_gui)"/>
+            <arg name="use_static_transform_pub"          value="$(arg use_static_transform_pub)"/>
+            <arg name="use_armtag"                        value="$(arg use_armtag)"/>
+        </include>
     </group>
     
     <!-- Components to run on the remote PC -->
@@ -84,4 +102,6 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
             </node>
         </group>
     </group>
+
+
 </launch>

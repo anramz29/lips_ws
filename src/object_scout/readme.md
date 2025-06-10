@@ -66,8 +66,6 @@ source devel/setup.bash
 │   ├── scout_system_distributed.launch
 │   ├── scout_system_locobot.launch
 │   └── test_nav_and_scanner.launch
-├── package.xml
-├── readme.md
 ├── scripts
 │   ├── pickup_object_test_node.py
 │   ├── place_object_test_node.py

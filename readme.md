@@ -17,6 +17,13 @@ Checkout the [scouting script](/src/object_scout/src/object_scout/scout_coordina
   <p><em>Robotics Pick and Place system demonstration (Click on the image!)</em></p>
 </div>
 
+The [Object Scout Package](/src/object_scout/src/object_scout/) works as seen in the flowchart below.
+
+<div align="center">
+  <img src="images/locobot_flow_chart.png" alt="locobot flow chart" width="800"/>
+  <p><em>pick and place flow chart</em></p>
+</div>
+
 ---
 
 ## Other Demos
