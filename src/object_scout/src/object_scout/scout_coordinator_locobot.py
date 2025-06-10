@@ -134,18 +134,7 @@ class ScoutCoordinatorLocobot:
         )
 
     # ---------- OBJECT DETECTION METHODS ----------
-
-    def intial_scan_rotation(self):
-        """Perform the initial obtain data of all detected objects in the room"""
-
-        rospy.loginfo("Starting initial scan...")
-        scan_result = self.scanner.perform_scan_rotation(complete_scan=False, desired_class_id=0)
-        if scan_result:
-            rospy.loginfo("Initial scan complete")
-            return True
-        else:
-            rospy.logwarn("No objects detected during initial scan.")
-
+    
     def approach_and_save_box(self):
         """Approach the detected box and save its pose for later use"""
         # Approach the detected object
@@ -157,6 +146,7 @@ class ScoutCoordinatorLocobot:
         else:
             rospy.logwarn("Failed to save box pose.")
             return None
+
 
     def approach_and_pick_up_object(self, pose_name):
         """Approach the detected object and pick it up"""
@@ -253,14 +243,13 @@ class ScoutCoordinatorLocobot:
             if self.check_mission_complete():
                 break
 
-            if self.intial_scan_rotation():
-                # Approach and save the box pose if detected
-                box_pose = self.approach_and_save_box()
-                if box_pose:
-                    rospy.loginfo(f"Box pose saved: {box_pose}")
-                else:
-                    rospy.logwarn("No box detected or failed to save pose")
-                    return False, 0
+            rospy.loginfo("Starting initial scan...")
+            scan_result = self.scanner.perform_scan_rotation(complete_scan=False, desired_class_id=0)
+            if scan_result:
+                rospy.loginfo("Initial scan complete")
+                return True
+            else:
+                rospy.logwarn("No objects detected during initial scan.")
                 
             if not self.nav_controller.navigate_to_named_pose(pose_name):
                 continue    

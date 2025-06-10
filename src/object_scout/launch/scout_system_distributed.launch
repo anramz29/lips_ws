@@ -63,7 +63,8 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
         </node>
 
         <!-- Perception Launch File -->
-        <include if="$(arg use_perception)" file="$(find interbotix_xslocobot_perception)/launch/xslocobot_perception.launch">
+        <include if="$(arg use_perception)" file="$(find interbotix_xslocobot_perception)/launch/xslocobot_perception.launch" 
+                machine="robot">
             <arg name="robot_model"                       value="$(arg robot_model)"/>
             <arg name="robot_name"                        value="$(arg robot_name)"/>
             <arg name="launch_driver"                     value="false"/>
@@ -102,6 +103,4 @@ roslaunch interbotix_xslocobot_nav xslocobot_nav_2.launch robot_model:=locobot_w
             </node>
         </group>
     </group>
-
-
 </launch>
